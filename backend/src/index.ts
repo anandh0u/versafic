@@ -1,11 +1,8 @@
+import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import helmet from "helmet";
 import type { Socket } from "net";
-
-// Load environment variables
-dotenv.config();
 
 // Import configuration and utilities
 import { validateEnv } from "./utils/env";
@@ -77,13 +74,31 @@ if (process.env.NODE_ENV === "production") {
 }
 
 // Middleware - CORS
-const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",").map((o) => o.trim());
+const allowedOrigins = (
+  process.env.CORS_ORIGINS || "http://localhost:3000,http://localhost:5173"
+).split(",").map((o) => o.trim());
+
+const isAllowedDevOrigin = (origin: string): boolean => {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+};
+
 app.use(
   cors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || isAllowedDevOrigin(origin)) {
         return callback(null, true);
       }
+
+      logger.warn("Rejected CORS origin", { origin });
       return callback(new Error("CORS origin not allowed"));
     },
     credentials: true,

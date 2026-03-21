@@ -15,95 +15,82 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Zap className="w-6 h-6 text-white" />
+    <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
+      <div className="page-container">
+        <div className="flex min-h-20 items-center justify-between gap-4">
+          <Link to="/" className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-500 shadow-lg shadow-indigo-500/20">
+              <Zap className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-white">Versafic</span>
+            <div className="min-w-0">
+              <span className="block text-lg font-bold tracking-tight text-white sm:text-xl">Versafic</span>
+              <span className="hidden text-xs text-slate-400 sm:block">AI customer service assistant</span>
+            </div>
           </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden flex-1 items-center justify-center gap-8 lg:flex">
             {navLinks.map((link) => (
               <a
                 key={link.name}
                 href={link.href}
-                className="text-slate-300 hover:text-white transition-colors text-sm font-medium"
+                className="nav-link"
               >
                 {link.name}
               </a>
             ))}
           </div>
 
-          {/* Auth Buttons */}
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden items-center gap-3 lg:flex">
             {isAuthenticated ? (
               <>
-                <Link
-                  to="/dashboard"
-                  className="text-slate-300 hover:text-white transition-colors text-sm font-medium"
-                >
+                <Link to="/dashboard" className="button-ghost">
                   Dashboard
                 </Link>
-                <button
-                  onClick={logout}
-                  className="text-slate-300 hover:text-white transition-colors text-sm font-medium"
-                >
+                <button onClick={logout} className="button-secondary">
                   Logout
                 </button>
               </>
             ) : (
               <>
-                <Link
-                  to="/login"
-                  className="text-slate-300 hover:text-white transition-colors text-sm font-medium"
-                >
+                <Link to="/login" className="button-ghost">
                   Sign In
                 </Link>
-                <Link
-                  to="/register"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                >
+                <Link to="/register" className="button-primary shadow-lg shadow-indigo-500/20">
                   Get Started
                 </Link>
               </>
             )}
           </div>
 
-          {/* Mobile menu button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-2 text-slate-300 hover:text-white"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 lg:hidden"
+            aria-label={isOpen ? 'Close menu' : 'Open menu'}
           >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
 
-        {/* Mobile Navigation */}
         {isOpen && (
-          <div className="md:hidden py-4 border-t border-slate-800">
-            <div className="flex flex-col space-y-4">
+          <div className="border-t border-white/10 py-4 lg:hidden">
+            <div className="surface-card space-y-2 p-4">
               {navLinks.map((link) => (
                 <a
                   key={link.name}
                   href={link.href}
                   onClick={() => setIsOpen(false)}
-                  className="text-slate-300 hover:text-white transition-colors text-sm font-medium"
+                  className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5 hover:text-white"
                 >
                   {link.name}
                 </a>
               ))}
-              <div className="flex flex-col space-y-2 pt-4 border-t border-slate-800">
+              <div className="grid gap-3 border-t border-white/10 pt-4">
                 {isAuthenticated ? (
                   <>
                     <Link
                       to="/dashboard"
                       onClick={() => setIsOpen(false)}
-                      className="text-slate-300 hover:text-white transition-colors text-sm font-medium"
+                      className="button-secondary w-full"
                     >
                       Dashboard
                     </Link>
@@ -112,7 +99,7 @@ export default function Navbar() {
                         logout();
                         setIsOpen(false);
                       }}
-                      className="text-slate-300 hover:text-white transition-colors text-sm font-medium text-left"
+                      className="button-secondary w-full"
                     >
                       Logout
                     </button>
@@ -122,14 +109,14 @@ export default function Navbar() {
                     <Link
                       to="/login"
                       onClick={() => setIsOpen(false)}
-                      className="text-slate-300 hover:text-white transition-colors text-sm font-medium"
+                      className="button-secondary w-full"
                     >
                       Sign In
                     </Link>
                     <Link
                       to="/register"
                       onClick={() => setIsOpen(false)}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors text-center"
+                      className="button-primary w-full"
                     >
                       Get Started
                     </Link>

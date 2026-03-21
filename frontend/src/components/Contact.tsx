@@ -24,135 +24,154 @@ export default function Contact() {
   };
 
   return (
-    <section id="contact" className="py-32 bg-slate-800">
-      <div className="max-w-5xl mx-auto px-6 sm:px-8 lg:px-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
-          {/* Left side - Contact info */}
-          <div>
-            <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-              Let's Talk
-            </h2>
-            <p className="text-slate-400 text-lg mb-12 leading-relaxed">
-              Ready to automate your customer service? Book a demo or reach out with questions.
-            </p>
+    <section id="contact" className="section-shell bg-white/[0.02]">
+      <div className="page-container">
+        <div className="surface-card overflow-hidden">
+          <div className="grid grid-cols-1 gap-0 lg:grid-cols-[0.92fr_1.08fr]">
+            <div className="border-b border-white/10 p-6 sm:p-8 lg:border-b-0 lg:border-r lg:p-10">
+              <div className="section-kicker">Book a demo</div>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                Show clients a support experience that feels fast, reliable, and on-brand.
+              </h2>
+              <p className="mt-5 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
+                Share a few details about your business and we’ll help you map the best AI setup for calls, chat, and
+                customer follow-up.
+              </p>
 
-            <div className="space-y-8">
-              <div className="flex items-start">
-                <div className="w-14 h-14 bg-indigo-500/10 border border-indigo-500/20 rounded-xl flex items-center justify-center mr-5 flex-shrink-0">
-                  <Mail className="w-6 h-6 text-indigo-400" />
+              <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                <div className="stat-card">
+                  <p className="text-sm font-medium text-slate-400">Best for</p>
+                  <p className="mt-2 text-lg font-semibold text-white">Restaurants, clinics, hotels, and service teams</p>
                 </div>
-                <div>
-                  <h4 className="text-white font-medium mb-2 text-lg">Email Us</h4>
-                  <a href="mailto:hello@versafic.com" className="text-slate-400 hover:text-indigo-400 transition-colors">
-                    hello@versafic.com
-                  </a>
+                <div className="stat-card">
+                  <p className="text-sm font-medium text-slate-400">Demo focus</p>
+                  <p className="mt-2 text-lg font-semibold text-white">Workflows, pricing, and launch readiness</p>
                 </div>
               </div>
 
-              <div className="flex items-start">
-                <div className="w-14 h-14 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center justify-center mr-5 flex-shrink-0">
-                  <Phone className="w-6 h-6 text-purple-400" />
+              <div className="mt-8 space-y-4">
+                <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-300">
+                    <Mail className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-semibold text-white">Email us</h4>
+                    <a href="mailto:hello@versafic.com" className="mt-1 block text-slate-300 transition hover:text-white">
+                      hello@versafic.com
+                    </a>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-white font-medium mb-2 text-lg">Call Us</h4>
-                  <a href="tel:+919876543210" className="text-slate-400 hover:text-purple-400 transition-colors">
-                    +91 98765 43210
-                  </a>
-                </div>
-              </div>
 
-              <div className="flex items-start">
-                <div className="w-14 h-14 bg-pink-500/10 border border-pink-500/20 rounded-xl flex items-center justify-center mr-5 flex-shrink-0">
-                  <MapPin className="w-6 h-6 text-pink-400" />
+                <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-300">
+                    <Phone className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-semibold text-white">Call us</h4>
+                    <a href="tel:+919876543210" className="mt-1 block text-slate-300 transition hover:text-white">
+                      +91 98765 43210
+                    </a>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-white font-medium mb-2 text-lg">Location</h4>
-                  <p className="text-slate-400">
-                    Bangalore, India
-                  </p>
+
+                <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-300">
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-semibold text-white">Location</h4>
+                    <p className="mt-1 text-slate-300">Bangalore, India</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Right side - Contact form */}
-          <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-10">
-            {submitted ? (
-              <div className="text-center py-16">
-                <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Send className="w-10 h-10 text-green-400" />
+            <div className="p-6 sm:p-8 lg:p-10">
+              {submitted ? (
+                <div className="flex h-full min-h-[26rem] flex-col items-center justify-center text-center">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+                    <Send className="h-9 w-9" />
+                  </div>
+                  <h3 className="mt-6 text-2xl font-semibold text-white">Message sent successfully</h3>
+                  <p className="mt-3 max-w-md text-base leading-7 text-slate-300">
+                    Thanks for reaching out. We’ll review your request and get back to you with next steps shortly.
+                  </p>
+                  <button onClick={() => setSubmitted(false)} className="button-secondary mt-8">
+                    Send another message
+                  </button>
                 </div>
-                <h3 className="text-2xl font-semibold text-white mb-3">Message Sent!</h3>
-                <p className="text-slate-400 text-lg">
-                  We'll get back to you soon.
-                </p>
-                <button
-                  onClick={() => setSubmitted(false)}
-                  className="mt-8 text-indigo-400 hover:text-indigo-300"
-                >
-                  Send another message
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label className="block font-medium text-slate-300 mb-3">
-                    Your Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-5 py-4 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-lg"
-                    placeholder="John Doe"
-                  />
-                </div>
+              ) : (
+                <>
+                  <div className="mb-8">
+                    <h3 className="text-2xl font-semibold text-white">Tell us about your business</h3>
+                    <p className="mt-2 text-base leading-7 text-slate-300">
+                      We’ll use this to tailor a product walkthrough and recommend the right pricing setup.
+                    </p>
+                  </div>
 
-                <div>
-                  <label className="block font-medium text-slate-300 mb-3">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-5 py-4 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-lg"
-                    placeholder="john@example.com"
-                  />
-                </div>
+                  <form onSubmit={handleSubmit} className="space-y-5">
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <div>
+                        <label className="form-label">Your Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          className="input-field"
+                          placeholder="John Doe"
+                        />
+                      </div>
 
-                <div>
-                  <label className="block font-medium text-slate-300 mb-3">
-                    Message
-                  </label>
-                  <textarea
-                    required
-                    rows={4}
-                    value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    className="w-full px-5 py-4 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none text-lg"
-                    placeholder="Tell us about your business..."
-                  />
-                </div>
+                      <div>
+                        <label className="form-label">Email Address</label>
+                        <input
+                          type="email"
+                          required
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          className="input-field"
+                          placeholder="john@example.com"
+                        />
+                      </div>
+                    </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white rounded-xl font-semibold text-lg transition-all duration-200 flex items-center justify-center"
-                >
-                  {isSubmitting ? (
-                    <span>Sending...</span>
-                  ) : (
-                    <>
-                      <Send className="w-5 h-5 mr-2" />
-                      Send Message
-                    </>
-                  )}
-                </button>
-              </form>
-            )}
+                    <div>
+                      <label className="form-label">Company</label>
+                      <input
+                        type="text"
+                        value={formData.company}
+                        onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                        className="input-field"
+                        placeholder="Acme Hospitality"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="form-label">What would you like to automate?</label>
+                      <textarea
+                        required
+                        value={formData.message}
+                        onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                        className="textarea-field"
+                        placeholder="Share your support volume, channels, and the kind of customer queries you want the AI assistant to handle."
+                      />
+                    </div>
+
+                    <button type="submit" disabled={isSubmitting} className="button-primary w-full justify-center text-base">
+                      {isSubmitting ? (
+                        <span>Sending...</span>
+                      ) : (
+                        <>
+                          <Send className="mr-2 h-5 w-5" />
+                          Request Demo
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

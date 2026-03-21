@@ -1,6 +1,17 @@
+import type { AuthResponse, CreateOrderResponse, WalletResponse } from '../types';
+
 // API Service - Handles all backend API calls
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+type ApiErrorResponse = {
+  message?: string;
+};
+
+type ApiMessageResponse = {
+  status: string;
+  message: string;
+};
 
 // Get token from localStorage
 const getToken = (): string | null => {
@@ -25,7 +36,7 @@ async function apiRequest<T>(
     headers,
   });
 
-  const data = await response.json();
+  const data = (await response.json()) as T & ApiErrorResponse;
 
   if (!response.ok) {
     throw new Error(data.message || 'API request failed');
@@ -37,19 +48,19 @@ async function apiRequest<T>(
 // Auth API
 export const authApi = {
   login: (email: string, password: string) =>
-    apiRequest('/auth/login', {
+    apiRequest<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
 
   register: (email: string, password: string, name?: string) =>
-    apiRequest('/auth/register', {
+    apiRequest<AuthResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, name }),
     }),
 
   googleAuth: (credential: string) =>
-    apiRequest('/auth/google', {
+    apiRequest<AuthResponse>('/auth/google', {
       method: 'POST',
       body: JSON.stringify({ credential }),
     }),
@@ -59,10 +70,10 @@ export const authApi = {
 export const billingApi = {
   getPlans: () => apiRequest('/billing/plans'),
 
-  getWallet: () => apiRequest('/billing/wallet'),
+  getWallet: () => apiRequest<WalletResponse>('/billing/wallet'),
 
   createOrder: (planId: string) =>
-    apiRequest('/billing/create-order', {
+    apiRequest<CreateOrderResponse>('/billing/create-order', {
       method: 'POST',
       body: JSON.stringify({ plan_id: planId }),
     }),
@@ -72,7 +83,7 @@ export const billingApi = {
     razorpay_payment_id: string,
     razorpay_signature: string
   ) =>
-    apiRequest('/billing/verify-payment', {
+    apiRequest<ApiMessageResponse>('/billing/verify-payment', {
       method: 'POST',
       body: JSON.stringify({
         razorpay_order_id,
@@ -91,7 +102,7 @@ export const userApi = {
   
   getStatus: () => apiRequest('/setup/status'),
   
-  updateBusiness: (data: any) =>
+  updateBusiness: (data: Record<string, unknown>) =>
     apiRequest('/setup/business', {
       method: 'POST',
       body: JSON.stringify(data),

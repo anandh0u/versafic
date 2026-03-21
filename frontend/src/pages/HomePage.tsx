@@ -8,13 +8,15 @@ import Footer from '../components/Footer';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="site-shell">
       <Navbar />
-      <Hero />
-      <Features />
-      <HowItWorks />
-      <Pricing />
-      <Contact />
+      <main className="overflow-hidden">
+        <Hero />
+        <Features />
+        <HowItWorks />
+        <Pricing />
+        <Contact />
+      </main>
       <Footer />
     </div>
   );

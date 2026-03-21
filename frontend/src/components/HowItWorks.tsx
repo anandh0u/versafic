@@ -1,4 +1,5 @@
 import { UserPlus, Building2, CreditCard, Settings, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const steps = [
   {
@@ -35,53 +36,43 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className="py-32 bg-slate-800">
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
-        {/* Section Header */}
-        <div className="text-center mb-20">
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-            Get Started in 5 Steps
-          </h2>
-          <p className="text-slate-400 max-w-xl mx-auto text-lg">
-            From sign up to live AI support in under 10 minutes.
+    <section id="how-it-works" className="section-shell bg-white/[0.02]">
+      <div className="page-container">
+        <div className="section-header">
+          <div className="section-kicker">How it works</div>
+          <h2 className="section-title">From signup to live support in one streamlined setup.</h2>
+          <p className="section-copy">
+            Build your AI assistant in a few guided steps, then keep refining it as customer volume and workflows
+            evolve.
           </p>
         </div>
 
-        {/* Steps */}
         <div className="relative">
-          {/* Connection line (desktop only) */}
-          <div className="hidden lg:block absolute top-28 left-[10%] right-[10%] h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
+          <div className="pointer-events-none absolute left-[8%] right-[8%] top-14 hidden h-px bg-gradient-to-r from-transparent via-indigo-400/50 to-transparent xl:block" />
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
             {steps.map((item) => (
-              <div key={item.step} className="relative flex flex-col items-center text-center">
-                {/* Step number badge */}
-                <div className="relative z-10 w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-8 shadow-lg shadow-indigo-500/25">
-                  <item.icon className="w-10 h-10 text-white" />
+              <div key={item.step} className="surface-card relative flex h-full flex-col items-center p-6 text-center sm:p-7">
+                <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-500 shadow-lg shadow-indigo-500/20">
+                  <item.icon className="h-7 w-7 text-white" />
                 </div>
-                
-                {/* Step indicator */}
-                <div className="text-indigo-400 font-bold mb-3">STEP {item.step}</div>
-                
-                {/* Title */}
-                <h3 className="text-xl font-semibold text-white mb-3">{item.title}</h3>
-                
-                {/* Description */}
-                <p className="text-slate-400 leading-relaxed">{item.description}</p>
+
+                <div className="mt-6 inline-flex rounded-full border border-indigo-400/20 bg-indigo-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-200">
+                  Step {item.step}
+                </div>
+
+                <h3 className="mt-4 text-xl font-semibold text-white">{item.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-300 sm:text-base">{item.description}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* CTA */}
-        <div className="mt-20 text-center">
-          <a
-            href="/register"
-            className="inline-flex items-center px-10 py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-all duration-200 shadow-lg shadow-indigo-500/25"
-          >
+        <div className="mt-14 text-center">
+          <Link to="/register" className="button-primary px-8 text-base shadow-lg shadow-indigo-500/20">
             Start Your Free Trial
-          </a>
-          <p className="mt-5 text-slate-500">No credit card required • 100 free credits</p>
+          </Link>
+          <p className="mt-4 text-sm text-slate-400">No credit card required. Start with 100 free credits.</p>
         </div>
       </div>
     </section>

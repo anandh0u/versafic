@@ -54,66 +54,64 @@ const plans = [
 
 export default function Pricing() {
   return (
-    <section id="pricing" className="py-32 bg-slate-900">
-      <div className="max-w-5xl mx-auto px-6 sm:px-8 lg:px-12">
-        {/* Section Header */}
-        <div className="text-center mb-20">
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-            Simple Pricing
-          </h2>
-          <p className="text-slate-400 max-w-xl mx-auto text-lg">
-            Pay only for what you use. No monthly fees. Top up anytime.
+    <section id="pricing" className="section-shell">
+      <div className="page-container">
+        <div className="section-header">
+          <div className="section-kicker">Pricing and credits</div>
+          <h2 className="section-title">Straightforward plans that stay easy to explain to clients.</h2>
+          <p className="section-copy">
+            Pick the credit pack that fits your current volume. Every plan includes the core platform, with no messy
+            setup fees or hidden add-ons.
           </p>
         </div>
 
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 items-stretch gap-6 md:grid-cols-2 xl:grid-cols-3">
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`relative p-10 rounded-2xl border transition-all duration-300 ${
+              className={`relative flex h-full flex-col rounded-3xl border p-6 transition duration-300 sm:p-8 ${
                 plan.popular
-                  ? 'bg-gradient-to-b from-indigo-900/50 to-slate-800 border-indigo-500 shadow-xl shadow-indigo-500/10 scale-105'
-                  : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                  ? 'border-indigo-400/40 bg-gradient-to-b from-indigo-500/14 via-slate-900/90 to-slate-900/85 shadow-[0_30px_90px_-45px_rgba(79,70,229,0.8)]'
+                  : 'surface-card hover:border-white/20'
               }`}
             >
-              {/* Popular badge */}
               {plan.popular && (
-                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <span className="px-5 py-1.5 bg-indigo-600 text-white font-medium rounded-full">
+                <div className="absolute left-6 top-6">
+                  <span className="rounded-full bg-indigo-500 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
                     Most Popular
                   </span>
                 </div>
               )}
 
-              {/* Plan header */}
-              <div className="text-center mb-10">
-                <h3 className="text-2xl font-bold text-white mb-3">{plan.name}</h3>
-                <p className="text-slate-400 mb-6">{plan.description}</p>
-                <div className="flex items-baseline justify-center">
-                  <span className="text-slate-400 text-xl">₹</span>
-                  <span className="text-5xl font-bold text-white mx-1">{plan.price}</span>
+              <div className={`${plan.popular ? 'pt-12' : ''}`}>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">{plan.name}</p>
+                <div className="mt-4 flex items-end gap-2">
+                  <span className="text-2xl font-semibold text-slate-400">₹</span>
+                  <span className="text-5xl font-semibold tracking-tight text-white">{plan.price}</span>
                 </div>
-                <p className="text-indigo-400 mt-3">{plan.credits.toLocaleString()} credits</p>
+                <p className="mt-3 text-base text-slate-300">{plan.description}</p>
+                <p className="mt-5 inline-flex rounded-full border border-indigo-400/20 bg-indigo-400/10 px-3 py-1 text-sm font-medium text-indigo-200">
+                  {plan.credits.toLocaleString()} credits
+                </p>
               </div>
 
-              {/* Features */}
-              <ul className="space-y-4 mb-10">
+              <ul className="mt-8 flex-1 space-y-4">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-start">
-                    <Check className="w-5 h-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
-                    <span className="text-slate-300">{feature}</span>
+                  <li key={feature} className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-full bg-emerald-400/10 p-1 text-emerald-300">
+                      <Check className="h-3.5 w-3.5" />
+                    </div>
+                    <span className="text-sm leading-6 text-slate-300 sm:text-base">{feature}</span>
                   </li>
                 ))}
               </ul>
 
-              {/* CTA Button */}
               <Link
                 to="/register"
-                className={`block w-full py-4 rounded-xl font-semibold text-center text-lg transition-all duration-200 ${
+                className={`mt-8 inline-flex w-full items-center justify-center rounded-2xl px-6 py-3.5 text-base font-semibold transition duration-200 ${
                   plan.popular
-                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                    : 'bg-slate-700 hover:bg-slate-600 text-white'
+                    ? 'bg-indigo-500 text-white hover:bg-indigo-400'
+                    : 'border border-white/10 bg-white/5 text-white hover:border-white/20 hover:bg-white/10'
                 }`}
               >
                 Get Started
@@ -122,11 +120,8 @@ export default function Pricing() {
           ))}
         </div>
 
-        {/* Additional info */}
-        <div className="mt-16 text-center">
-          <p className="text-slate-500">
-            All plans include core features. Credits never expire.
-          </p>
+        <div className="mt-10 text-center text-sm text-slate-400">
+          All plans include the core platform, onboarding help, and credits that never expire.
         </div>
       </div>
     </section>

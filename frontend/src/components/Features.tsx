@@ -73,32 +73,30 @@ const colorClasses: Record<string, { bg: string; text: string; border: string }>
 
 export default function Features() {
   return (
-    <section id="features" className="py-32 bg-slate-900">
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
-        {/* Section Header */}
-        <div className="text-center mb-20">
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-            Powerful AI Features
-          </h2>
-          <p className="text-slate-400 max-w-xl mx-auto text-lg">
-            Scale your customer support without scaling your team.
+    <section id="features" className="section-shell">
+      <div className="page-container">
+        <div className="section-header">
+          <div className="section-kicker">Platform capabilities</div>
+          <h2 className="section-title">Purpose-built tools for modern customer support teams.</h2>
+          <p className="section-copy">
+            Every part of Versafic is designed to keep conversations consistent, actionable, and easy to manage as your
+            business grows.
           </p>
         </div>
 
-        {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
           {features.map((feature) => {
             const colors = colorClasses[feature.color];
             return (
               <div
                 key={feature.title}
-                className="group p-8 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 hover:border-slate-600 transition-all duration-300"
+                className="surface-card group flex h-full flex-col p-6 transition duration-300 hover:-translate-y-1 hover:border-white/20 sm:p-7"
               >
-                <div className={`w-14 h-14 ${colors.bg} ${colors.border} border rounded-xl flex items-center justify-center mb-6`}>
-                  <feature.icon className={`w-7 h-7 ${colors.text}`} />
+                <div className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border ${colors.bg} ${colors.border}`}>
+                  <feature.icon className={`h-6 w-6 ${colors.text}`} />
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
-                <p className="text-slate-400 leading-relaxed">{feature.description}</p>
+                <h3 className="text-xl font-semibold text-white">{feature.title}</h3>
+                <p className="mt-3 flex-1 text-sm leading-7 text-slate-300 sm:text-base">{feature.description}</p>
               </div>
             );
           })}

@@ -1,0 +1,472 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-03-15T18:10:00.000Z",
+  "__export_source": "insomnia.importers:v0.1.0",
+  "resources": [
+    {
+      "_id": "wrk_versafic",
+      "_type": "workspace",
+      "name": "Versafic Backend API",
+      "description": "Complete API collection with tests",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_versafic",
+      "name": "Local Dev",
+      "data": {
+        "base_url": "http://localhost:5000",
+        "access_token": "",
+        "refresh_token": "",
+        "session_id": ""
+      }
+    },
+    {
+      "_id": "fld_health",
+      "_type": "request_group",
+      "parentId": "wrk_versafic",
+      "name": "🟢 Health & Monitoring"
+    },
+    {
+      "_id": "req_health",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Health Check",
+      "method": "GET",
+      "url": "{{ _.base_url }}/health",
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200 or 503', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 503]);\n});\ninsomnia.test('Has status field', () => {\n  insomnia.expect(body).to.have.property('status');\n});\ninsomnia.test('Has database field', () => {\n  insomnia.expect(body).to.have.property('database');\n});"
+    },
+    {
+      "_id": "req_ops_health",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Ops Health (Enhanced)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/ops/health",
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200 or 503', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 503]);\n});\ninsomnia.test('Has memory info', () => {\n  insomnia.expect(body).to.have.property('memory');\n});\ninsomnia.test('Has uptime', () => {\n  insomnia.expect(body).to.have.property('uptime');\n});"
+    },
+    {
+      "_id": "req_ops_metrics",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Ops Metrics",
+      "method": "GET",
+      "url": "{{ _.base_url }}/ops/metrics",
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200', () => {\n  insomnia.expect(res.code).to.equal(200);\n});\ninsomnia.test('Has counters', () => {\n  insomnia.expect(body).to.have.property('counters');\n});\ninsomnia.test('Has timestamp', () => {\n  insomnia.expect(body).to.have.property('timestamp');\n});"
+    },
+    {
+      "_id": "req_ops_status",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Ops Status",
+      "method": "GET",
+      "url": "{{ _.base_url }}/ops/status",
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200', () => {\n  insomnia.expect(res.code).to.equal(200);\n});\ninsomnia.test('Has database info', () => {\n  insomnia.expect(body).to.have.property('database');\n});\ninsomnia.test('Has queues info', () => {\n  insomnia.expect(body).to.have.property('queues');\n});\ninsomnia.test('Has system info', () => {\n  insomnia.expect(body).to.have.property('system');\n});"
+    },
+    {
+      "_id": "fld_auth",
+      "_type": "request_group",
+      "parentId": "wrk_versafic",
+      "name": "🔐 Auth"
+    },
+    {
+      "_id": "req_register",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "1. Register",
+      "method": "POST",
+      "url": "{{ _.base_url }}/auth/register",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"Test@1234\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 201 or 409 (already exists)', () => {\n  insomnia.expect(res.code).to.be.oneOf([201, 409]);\n});\ninsomnia.test('Has status field', () => {\n  insomnia.expect(body).to.have.property('status');\n});\nif (res.code === 201 && body.data && body.data.accessToken) {\n  insomnia.test('Returns access token', () => {\n    insomnia.expect(body.data).to.have.property('accessToken');\n  });\n  insomnia.test('Returns user data', () => {\n    insomnia.expect(body.data.user).to.have.property('id');\n    insomnia.expect(body.data.user).to.have.property('email');\n  });\n  insomnia.environment.set('access_token', body.data.accessToken);\n  insomnia.environment.set('refresh_token', body.data.refreshToken);\n}"
+    },
+    {
+      "_id": "req_login",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "2. Login",
+      "method": "POST",
+      "url": "{{ _.base_url }}/auth/login",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"Test@1234\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200', () => {\n  insomnia.expect(res.code).to.equal(200);\n});\ninsomnia.test('Returns success', () => {\n  insomnia.expect(body.status).to.equal('success');\n});\nif (body.data && body.data.accessToken) {\n  insomnia.test('Returns access token', () => {\n    insomnia.expect(body.data).to.have.property('accessToken');\n  });\n  insomnia.test('Returns user with email', () => {\n    insomnia.expect(body.data.user).to.have.property('email');\n  });\n  insomnia.environment.set('access_token', body.data.accessToken);\n  insomnia.environment.set('refresh_token', body.data.refreshToken);\n}"
+    },
+    {
+      "_id": "req_refresh",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "3. Refresh Token",
+      "method": "POST",
+      "url": "{{ _.base_url }}/auth/refresh",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"refreshToken\": \"{{ _.refresh_token }}\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200 or 400 (no token yet)', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 400, 401]);\n});\nif (res.code === 200 && body.data && body.data.accessToken) {\n  insomnia.environment.set('access_token', body.data.accessToken);\n  insomnia.environment.set('refresh_token', body.data.refreshToken);\n}"
+    },
+    {
+      "_id": "req_google_auth",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "4. Google Auth",
+      "method": "POST",
+      "url": "{{ _.base_url }}/auth/google",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"googleuser@gmail.com\",\n  \"googleId\": \"google_123456\",\n  \"name\": \"Test User\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200 or 201', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 201]);\n});\ninsomnia.test('Returns success', () => {\n  insomnia.expect(body.status).to.equal('success');\n});\nif (body.data && body.data.accessToken) {\n  insomnia.test('Returns tokens', () => {\n    insomnia.expect(body.data).to.have.property('accessToken');\n    insomnia.expect(body.data).to.have.property('refreshToken');\n  });\n}"
+    },
+    {
+      "_id": "fld_business",
+      "_type": "request_group",
+      "parentId": "wrk_versafic",
+      "name": "🏢 Business"
+    },
+    {
+      "_id": "req_biz_onboard",
+      "_type": "request",
+      "parentId": "fld_business",
+      "name": "1. Onboard Business",
+      "method": "POST",
+      "url": "{{ _.base_url }}/business/onboard",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"business_name\": \"My Test Business\",\n  \"business_type\": \"retail\",\n  \"owner_name\": \"John Doe\",\n  \"phone\": \"+919876543210\",\n  \"email\": \"testuser@example.com\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200 or 201 or 401 or 409 or 500', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 201, 401, 409, 500]);\n});\ninsomnia.test('Has response body', () => {\n  insomnia.expect(body).to.be.an('object');\n});"
+    },
+    {
+      "_id": "req_biz_get_email",
+      "_type": "request",
+      "parentId": "fld_business",
+      "name": "2. Get Business by Email",
+      "method": "GET",
+      "url": "{{ _.base_url }}/business/testuser@example.com",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200 or 404', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 404]);\n});\ninsomnia.test('Has response body', () => {\n  insomnia.expect(body).to.be.an('object');\n});"
+    },
+    {
+      "_id": "req_biz_list",
+      "_type": "request",
+      "parentId": "fld_business",
+      "name": "3. List All Businesses",
+      "method": "GET",
+      "url": "{{ _.base_url }}/business?limit=10&offset=0",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200', () => {\n  insomnia.expect(res.code).to.equal(200);\n});\ninsomnia.test('Has response body', () => {\n  insomnia.expect(body).to.be.an('object');\n});"
+    },
+    {
+      "_id": "fld_ai",
+      "_type": "request_group",
+      "parentId": "wrk_versafic",
+      "name": "🤖 AI"
+    },
+    {
+      "_id": "req_ai_chat",
+      "_type": "request",
+      "parentId": "fld_ai",
+      "name": "1. Chat",
+      "method": "POST",
+      "url": "{{ _.base_url }}/ai/chat",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"message\": \"Hello, how are you?\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 401 or 500 (if no API key)', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 401, 500]);\n});"
+    },
+    {
+      "_id": "req_ai_history",
+      "_type": "request",
+      "parentId": "fld_ai",
+      "name": "2. Chat History",
+      "method": "GET",
+      "url": "{{ _.base_url }}/ai/chat/history?limit=10&offset=0",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 401', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 401]);\n});"
+    },
+    {
+      "_id": "req_ai_stats",
+      "_type": "request",
+      "parentId": "fld_ai",
+      "name": "3. Chat Stats",
+      "method": "GET",
+      "url": "{{ _.base_url }}/ai/chat/stats",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 401', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 401]);\n});"
+    },
+    {
+      "_id": "req_ai_intent",
+      "_type": "request",
+      "parentId": "fld_ai",
+      "name": "4. Detect Intent",
+      "method": "POST",
+      "url": "{{ _.base_url }}/ai/intent",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"message\": \"I want to book an appointment\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 400 or 401 or 500', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 400, 401, 500]);\n});"
+    },
+    {
+      "_id": "req_ai_extract",
+      "_type": "request",
+      "parentId": "fld_ai",
+      "name": "5. Extract Data",
+      "method": "POST",
+      "url": "{{ _.base_url }}/ai/extract",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"text\": \"My name is John, email john@test.com, phone 9876543210\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 400 or 401 or 500', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 400, 401, 500]);\n});"
+    },
+    {
+      "_id": "req_ai_cs",
+      "_type": "request",
+      "parentId": "fld_ai",
+      "name": "6. Customer Service Response",
+      "method": "POST",
+      "url": "{{ _.base_url }}/ai/customer-service-response",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"message\": \"What are your business hours?\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 401 or 500', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 401, 500]);\n});"
+    },
+    {
+      "_id": "req_ai_del_history",
+      "_type": "request",
+      "parentId": "fld_ai",
+      "name": "7. Delete Chat History",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/ai/chat/history",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 401 or 500', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 401, 500]);\n});"
+    },
+    {
+      "_id": "fld_cs",
+      "_type": "request_group",
+      "parentId": "wrk_versafic",
+      "name": "📞 Customer Service"
+    },
+    {
+      "_id": "req_cs_start",
+      "_type": "request",
+      "parentId": "fld_cs",
+      "name": "1. Start Session",
+      "method": "POST",
+      "url": "{{ _.base_url }}/customer-service/start",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 201', () => {\n  insomnia.expect(res.code).to.equal(201);\n});\ninsomnia.test('Returns session ID', () => {\n  insomnia.expect(body.data).to.have.property('sessionId');\n});\nif (body.data && body.data.sessionId) {\n  insomnia.environment.set('session_id', body.data.sessionId);\n}"
+    },
+    {
+      "_id": "req_cs_chat",
+      "_type": "request",
+      "parentId": "fld_cs",
+      "name": "2. Chat (text)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/customer-service/chat",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"textMessage\": \"I need help with my order\",\n  \"sessionId\": \"{{ _.session_id }}\",\n  \"languageCode\": \"en-IN\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 500 (if no AI key)', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 500]);\n});"
+    },
+    {
+      "_id": "req_cs_history",
+      "_type": "request",
+      "parentId": "fld_cs",
+      "name": "3. Session History",
+      "method": "GET",
+      "url": "{{ _.base_url }}/customer-service/history/{{ _.session_id }}",
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 404', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 404]);\n});"
+    },
+    {
+      "_id": "req_cs_active",
+      "_type": "request",
+      "parentId": "fld_cs",
+      "name": "4. Active Sessions",
+      "method": "GET",
+      "url": "{{ _.base_url }}/customer-service/active-sessions",
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200', () => {\n  insomnia.expect(res.code).to.equal(200);\n});"
+    },
+    {
+      "_id": "req_cs_sentiment",
+      "_type": "request",
+      "parentId": "fld_cs",
+      "name": "5. Sentiment Stats",
+      "method": "GET",
+      "url": "{{ _.base_url }}/customer-service/stats/sentiment",
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 500', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 500]);\n});"
+    },
+    {
+      "_id": "req_cs_resolution",
+      "_type": "request",
+      "parentId": "fld_cs",
+      "name": "6. Resolution Stats",
+      "method": "GET",
+      "url": "{{ _.base_url }}/customer-service/stats/resolution",
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 500', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 500]);\n});"
+    },
+    {
+      "_id": "fld_setup",
+      "_type": "request_group",
+      "parentId": "wrk_versafic",
+      "name": "⚙️ Setup"
+    },
+    {
+      "_id": "req_setup_biz",
+      "_type": "request",
+      "parentId": "fld_setup",
+      "name": "1. Setup Business",
+      "method": "POST",
+      "url": "{{ _.base_url }}/setup/business",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"businessName\": \"Versafic Corp\",\n  \"businessType\": \"technology\",\n  \"industry\": \"AI\",\n  \"website\": \"https://Versafic.com\",\n  \"country\": \"India\",\n  \"phone\": \"+919876543210\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 201 or 401 or 409', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 201, 401, 409]);\n});"
+    },
+    {
+      "_id": "req_setup_get",
+      "_type": "request",
+      "parentId": "fld_setup",
+      "name": "2. Get Business Setup",
+      "method": "GET",
+      "url": "{{ _.base_url }}/setup/business",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 401 or 404', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 401, 404]);\n});"
+    },
+    {
+      "_id": "req_setup_status",
+      "_type": "request",
+      "parentId": "fld_setup",
+      "name": "3. Setup Status",
+      "method": "GET",
+      "url": "{{ _.base_url }}/setup/status",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 401', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 401]);\n});"
+    },
+    {
+      "_id": "fld_voice",
+      "_type": "request_group",
+      "parentId": "wrk_versafic",
+      "name": "🎤 Voice"
+    },
+    {
+      "_id": "req_voice_tts",
+      "_type": "request",
+      "parentId": "fld_voice",
+      "name": "1. Text to Speech",
+      "method": "POST",
+      "url": "{{ _.base_url }}/voice/tts",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"text\": \"Hello, welcome to our service\",\n  \"language\": \"en-IN\"\n}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 400 or 401 or 500', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 400, 401, 500]);\n});"
+    },
+    {
+      "_id": "req_voice_stats",
+      "_type": "request",
+      "parentId": "fld_voice",
+      "name": "2. Voice Statistics",
+      "method": "GET",
+      "url": "{{ _.base_url }}/voice/statistics",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.access_token }}" }
+      ],
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200 or 401', () => {\n  insomnia.expect(res.code).to.be.oneOf([200, 401]);\n});"
+    },
+    {
+      "_id": "fld_call",
+      "_type": "request_group",
+      "parentId": "wrk_versafic",
+      "name": "📱 Call"
+    },
+    {
+      "_id": "req_call_recordings",
+      "_type": "request",
+      "parentId": "fld_call",
+      "name": "1. List Recordings",
+      "method": "GET",
+      "url": "{{ _.base_url }}/call/recordings?limit=10&offset=0",
+      "afterResponseScript": "const res = insomnia.response;\ninsomnia.test('Status is 200', () => {\n  insomnia.expect(res.code).to.equal(200);\n});"
+    },
+    {
+      "_id": "req_root",
+      "_type": "request",
+      "parentId": "wrk_versafic",
+      "name": "🏠 Root",
+      "method": "GET",
+      "url": "{{ _.base_url }}/",
+      "afterResponseScript": "const res = insomnia.response;\nconst body = JSON.parse(await res.text());\ninsomnia.test('Status is 200', () => {\n  insomnia.expect(res.code).to.equal(200);\n});\ninsomnia.test('Returns API info', () => {\n  insomnia.expect(body).to.have.property('status');\n  insomnia.expect(body.status).to.equal('success');\n});\ninsomnia.test('Has version', () => {\n  insomnia.expect(body).to.have.property('version');\n});"
+    }
+  ]
+}

@@ -73,32 +73,32 @@ const colorClasses: Record<string, { bg: string; text: string; border: string }>
 
 export default function Features() {
   return (
-    <section id="features" className="py-24 bg-slate-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="features" className="py-32 bg-slate-900">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
         {/* Section Header */}
-        <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Everything You Need to Automate Customer Service
+        <div className="text-center mb-20">
+          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+            Powerful AI Features
           </h2>
-          <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-            Powerful AI features designed for businesses that want to scale their customer support without scaling their team.
+          <p className="text-slate-400 max-w-xl mx-auto text-lg">
+            Scale your customer support without scaling your team.
           </p>
         </div>
 
         {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {features.map((feature) => {
             const colors = colorClasses[feature.color];
             return (
               <div
                 key={feature.title}
-                className="group p-6 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 hover:border-slate-600 transition-all duration-300 hover:transform hover:-translate-y-1"
+                className="group p-8 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 hover:border-slate-600 transition-all duration-300"
               >
-                <div className={`w-12 h-12 ${colors.bg} ${colors.border} border rounded-xl flex items-center justify-center mb-4`}>
-                  <feature.icon className={`w-6 h-6 ${colors.text}`} />
+                <div className={`w-14 h-14 ${colors.bg} ${colors.border} border rounded-xl flex items-center justify-center mb-6`}>
+                  <feature.icon className={`w-7 h-7 ${colors.text}`} />
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
-                <p className="text-slate-400 text-sm leading-relaxed">{feature.description}</p>
+                <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
+                <p className="text-slate-400 leading-relaxed">{feature.description}</p>
               </div>
             );
           })}

@@ -64,28 +64,15 @@ export default function BillingPage() {
   }
 
   const purchasePaymentLabel = useMemo(() => (
-    buildPaymentMethodLabel(purchaseSetup.preferredPaymentMethod, purchaseSetup.upiId)
+    buildPaymentMethodLabel(
+      purchaseSetup.preferredPaymentMethod,
+      /^[^\s@]+@[^\s@]+$/.test(purchaseSetup.upiId.trim()) ? purchaseSetup.upiId.trim() : ''
+    )
   ), [purchaseSetup.preferredPaymentMethod, purchaseSetup.upiId]);
-
-  const needsPurchaseUpiId =
-    purchaseSetup.enabled
-    && workspace.paymentReadiness.canUseRazorpay
-    && purchaseSetup.preferredPaymentMethod === 'upi';
-  const hasValidPurchaseUpiId =
-    !needsPurchaseUpiId
-    || /^[^\s@]+@[^\s@]+$/.test(purchaseSetup.upiId.trim());
 
   const handleBuy = async (planId: string) => {
     const selectedPlan = workspace.pricingPlans.find((plan) => plan.id === planId);
     if (!selectedPlan) {
-      return;
-    }
-
-    if (!hasValidPurchaseUpiId) {
-      setNotice({
-        tone: 'error',
-        message: 'Enter a valid UPI ID like name@bank before saving UPI as the recharge method.',
-      });
       return;
     }
 
@@ -103,7 +90,7 @@ export default function BillingPage() {
               rechargeAmount: selectedPlan.amountPaise,
               mode: workspace.paymentReadiness.canUseRazorpay ? 'real' : 'demo',
               preferredPaymentMethod: purchaseSetup.preferredPaymentMethod,
-              upiId: purchaseSetup.upiId.trim(),
+              upiId: /^[^\s@]+@[^\s@]+$/.test(purchaseSetup.upiId.trim()) ? purchaseSetup.upiId.trim() : '',
               paymentMethodLabel: workspace.paymentReadiness.canUseRazorpay
                 ? purchasePaymentLabel
                 : 'Demo instant recharge',
@@ -332,6 +319,9 @@ export default function BillingPage() {
                     placeholder="name@bank"
                     className="mt-3 w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-base font-medium text-white outline-none placeholder:text-slate-500"
                   />
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    Optional. If left blank, Razorpay will still open and let the customer choose UPI or another method there.
+                  </div>
                 </div>
               )}
 

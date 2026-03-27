@@ -64,8 +64,7 @@ export function AutopayPanel({
 
   const latestCompleted = history.find((entry) => entry.status === 'completed');
   const selectedPlan = plans.find((plan) => plan.id === draft.selectedPlanId) ?? plans[0];
-  const requiresUpiId = draft.mode === 'real' && draft.preferredPaymentMethod === 'upi';
-  const hasValidUpiId = !requiresUpiId || /^[^\s@]+@[^\s@]+$/.test(draft.upiId.trim());
+  const normalizedUpiId = /^[^\s@]+@[^\s@]+$/.test(draft.upiId.trim()) ? draft.upiId.trim() : '';
   const isDirty =
     draft.thresholdCredits !== autopay.thresholdCredits
     || draft.selectedPlanId !== autopay.selectedPlanId
@@ -77,8 +76,8 @@ export function AutopayPanel({
   const paymentLabel = useMemo(() => (
     draft.mode === 'demo'
       ? 'Demo instant recharge'
-      : buildPaymentMethodLabel(draft.preferredPaymentMethod, draft.upiId)
-  ), [draft.mode, draft.preferredPaymentMethod, draft.upiId]);
+      : buildPaymentMethodLabel(draft.preferredPaymentMethod, normalizedUpiId)
+  ), [draft.mode, draft.preferredPaymentMethod, normalizedUpiId]);
 
   const handleSave = () => {
     onSave({
@@ -88,7 +87,7 @@ export function AutopayPanel({
       rechargeAmount: draft.rechargeAmount,
       mode: draft.mode,
       preferredPaymentMethod: draft.preferredPaymentMethod,
-      upiId: draft.upiId.trim(),
+      upiId: normalizedUpiId,
       paymentMethodLabel: paymentLabel,
       status: autopay.enabled ? 'active' : 'paused',
       pendingCheckout: draft.mode === 'demo' ? null : autopay.pendingCheckout ?? null,
@@ -240,8 +239,8 @@ export function AutopayPanel({
                   <div className="mt-2 text-sm leading-6 text-slate-400">
                     We save this only as the preferred checkout method. Each recharge still opens Razorpay for customer approval.
                   </div>
-                  {!hasValidUpiId && (
-                    <div className="mt-3 text-sm text-rose-200">Enter a valid UPI ID like `name@bank` to save UPI as the preferred method.</div>
+                  {draft.upiId.trim() && !normalizedUpiId && (
+                    <div className="mt-3 text-sm text-amber-200">That UPI ID does not look complete, so we will save the method as generic UPI and still open Razorpay for confirmation.</div>
                   )}
                 </div>
               )}
@@ -293,7 +292,7 @@ export function AutopayPanel({
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   onClick={handleSave}
-                  disabled={!isDirty || isSaving || !hasValidUpiId}
+                  disabled={!isDirty || isSaving}
                   className="inline-flex items-center rounded-2xl border border-sky-300/25 bg-sky-300/[0.10] px-4 py-3 text-sm font-semibold text-sky-100 transition disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.04] disabled:text-slate-500"
                 >
                   {isSaving ? (

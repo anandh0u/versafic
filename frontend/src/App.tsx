@@ -13,6 +13,7 @@ import WorkflowsPage from './pages/WorkflowsPage';
 import BillingPage from './pages/BillingPage';
 import DemoLabPage from './pages/DemoLabPage';
 import BusinessProfilePage from './pages/BusinessProfilePage';
+import EndpointLabPage from './pages/EndpointLabPage';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
             <Route path="billing" element={<BillingPage />} />
             <Route path="demo" element={<DemoLabPage />} />
             <Route path="business" element={<BusinessProfilePage />} />
+            <Route path="endpoints" element={<EndpointLabPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -6,6 +6,7 @@ import {
   CreditCard,
   MessageSquareMore,
   PhoneCall,
+  Server,
   ShieldCheck,
   Sparkles,
   Wallet2,
@@ -114,6 +115,13 @@ export default function OverviewPage() {
       icon: CreditCard,
       stat: workspace.autopay.enabled ? 'Autopay on' : 'Autopay off',
     },
+    {
+      title: 'Endpoint Lab',
+      description: 'Raw backend endpoint testing for AI, voice, sessions, business flows, and recordings.',
+      to: '/dashboard/endpoints',
+      icon: Server,
+      stat: 'Live API workbench',
+    },
   ];
 
   return (
@@ -179,7 +187,7 @@ export default function OverviewPage() {
         title="Quick Access Lanes"
         subtitle="Each workflow now has its own place so the team can jump straight to the right session area and search faster."
       >
-        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
           {laneCards.map(({ title, description, to, icon: Icon, stat }) => (
             <Link
               key={title}

@@ -81,6 +81,12 @@ export const authApi = {
     }),
 };
 
+export const systemApi = {
+  health: () => apiRequest<unknown>('/health'),
+  observabilityHealth: () => apiRequest<unknown>('/ops/health'),
+  observabilityStatus: () => apiRequest<unknown>('/ops/status'),
+};
+
 export const billingApi = {
   getPlans: () => apiRequest<PlansApiResponse>('/billing/plans'),
 
@@ -159,6 +165,19 @@ export const callApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  getRecordings: (params?: { phoneNumber?: string; limit?: number; offset?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.phoneNumber) search.set('phoneNumber', params.phoneNumber);
+    if (params?.limit !== undefined) search.set('limit', String(params.limit));
+    if (params?.offset !== undefined) search.set('offset', String(params.offset));
+    const query = search.toString();
+
+    return apiRequest<unknown>(`/call/recordings${query ? `?${query}` : ''}`);
+  },
+
+  getRecordingByCallSid: (callSid: string) =>
+    apiRequest<unknown>(`/call/recordings/${callSid}`),
 };
 
 export const userApi = {
@@ -170,6 +189,157 @@ export const userApi = {
     apiRequest<BusinessProfileResponse>('/setup/business', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+};
+
+export const aiApi = {
+  chat: (message: string) =>
+    apiRequest<unknown>('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
+
+  getHistory: (params?: { limit?: number; offset?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.limit !== undefined) search.set('limit', String(params.limit));
+    if (params?.offset !== undefined) search.set('offset', String(params.offset));
+    const query = search.toString();
+
+    return apiRequest<unknown>(`/ai/chat/history${query ? `?${query}` : ''}`);
+  },
+
+  getStats: () => apiRequest<unknown>('/ai/chat/stats'),
+
+  clearHistory: () =>
+    apiRequest<unknown>('/ai/chat/history', {
+      method: 'DELETE',
+    }),
+
+  extractData: (text: string) =>
+    apiRequest<unknown>('/ai/extract', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+  understandIntent: (message: string) =>
+    apiRequest<unknown>('/ai/intent', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
+
+  customerServiceResponse: (message: string) =>
+    apiRequest<unknown>('/ai/customer-service-response', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
+};
+
+export const voiceApi = {
+  process: (payload: { audioBase64: string; language?: string }) =>
+    apiRequest<unknown>('/voice/process', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  speechToText: (payload: { audioBase64: string; language?: string }) =>
+    apiRequest<unknown>('/voice/stt', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  textToSpeech: (payload: { text: string; language?: string }) =>
+    apiRequest<unknown>('/voice/tts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getConversationsByPhone: (phone: string) =>
+    apiRequest<unknown>(`/voice/conversations/phone/${encodeURIComponent(phone)}`),
+
+  getStatistics: () => apiRequest<unknown>('/voice/statistics'),
+};
+
+export const customerServiceApi = {
+  startSession: () =>
+    apiRequest<unknown>('/customer-service/start', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  chat: (payload: {
+    sessionId?: string;
+    textMessage?: string;
+    audioBase64?: string;
+    languageCode?: string;
+  }) =>
+    apiRequest<unknown>('/customer-service/chat', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getHistory: (sessionId: string) =>
+    apiRequest<unknown>(`/customer-service/history/${encodeURIComponent(sessionId)}`),
+
+  getSession: (sessionId: string) =>
+    apiRequest<unknown>(`/customer-service/session/${encodeURIComponent(sessionId)}`),
+
+  endSession: (sessionId: string) =>
+    apiRequest<unknown>(`/customer-service/end/${encodeURIComponent(sessionId)}`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  getInteractionsByPhone: (phone: string) =>
+    apiRequest<unknown>(`/customer-service/interactions/phone/${encodeURIComponent(phone)}`),
+
+  getResolvedInteractions: (limit?: number) =>
+    apiRequest<unknown>(`/customer-service/interactions/resolved${limit ? `?limit=${limit}` : ''}`),
+
+  getSentimentStats: () =>
+    apiRequest<unknown>('/customer-service/stats/sentiment'),
+
+  getResolutionStats: () =>
+    apiRequest<unknown>('/customer-service/stats/resolution'),
+
+  getActiveSessions: () =>
+    apiRequest<unknown>('/customer-service/active-sessions'),
+};
+
+export const businessDirectoryApi = {
+  onboard: (payload: {
+    business_name: string;
+    business_type: string;
+    owner_name: string;
+    phone: string;
+    email: string;
+  }) =>
+    apiRequest<unknown>('/business/onboard', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getByEmail: (email: string) =>
+    apiRequest<unknown>(`/business/${encodeURIComponent(email)}`),
+
+  getAll: (params?: { limit?: number; offset?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.limit !== undefined) search.set('limit', String(params.limit));
+    if (params?.offset !== undefined) search.set('offset', String(params.offset));
+    const query = search.toString();
+
+    return apiRequest<unknown>(`/business${query ? `?${query}` : ''}`);
+  },
+
+  update: (id: string, payload: Partial<{
+    business_name: string;
+    business_type: string;
+    owner_name: string;
+    phone: string;
+    email: string;
+  }>) =>
+    apiRequest<unknown>(`/business/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     }),
 };
 

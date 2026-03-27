@@ -3,6 +3,7 @@ import {
   Bell,
   ChevronRight,
   CreditCard,
+  DatabaseZap,
   Gauge,
   LogOut,
   MessageSquareMore,
@@ -26,6 +27,7 @@ const navigation = [
   { to: '/dashboard/workflows', label: 'Workflows', icon: AudioLines },
   { to: '/dashboard/billing', label: 'Billing', icon: CreditCard },
   { to: '/dashboard/demo', label: 'Demo Lab', icon: Sparkles },
+  { to: '/dashboard/endpoints', label: 'Endpoint Lab', icon: DatabaseZap },
   { to: '/dashboard/business', label: 'Business', icon: Settings2 },
 ];
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import type { PendingCheckout } from '../../types';
 import { billingApi } from '../../services/api';
@@ -26,6 +26,7 @@ export function RazorpayCheckout({
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState<boolean>(typeof window !== 'undefined' && Boolean(window.Razorpay));
   const [status, setStatus] = useState<'ready' | 'processing' | 'success' | 'error'>('ready');
+  const autoOpenedOrderRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +56,7 @@ export function RazorpayCheckout({
       setError(null);
       setStatus('ready');
       setIsLoading(false);
+      autoOpenedOrderRef.current = null;
       if (typeof window !== 'undefined' && window.Razorpay) {
         setIsReady(true);
       }
@@ -129,6 +131,19 @@ export function RazorpayCheckout({
     }
   };
 
+  useEffect(() => {
+    if (!checkout || !isReady || isLoading || status !== 'ready') {
+      return;
+    }
+
+    if (autoOpenedOrderRef.current === checkout.order_id) {
+      return;
+    }
+
+    autoOpenedOrderRef.current = checkout.order_id;
+    void handleRazorpayPayment();
+  }, [checkout, isReady, isLoading, status]);
+
   if (!checkout) {
     return null;
   }
@@ -138,8 +153,8 @@ export function RazorpayCheckout({
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/95 p-6">
         {/* Header */}
         <div className="mb-6">
-          <h3 className="text-xl font-semibold text-white">Complete Payment</h3>
-          <p className="mt-1 text-sm text-slate-400">Your autopay recharge is ready. Complete the payment to add credits.</p>
+          <h3 className="text-xl font-semibold text-white">Opening Razorpay</h3>
+          <p className="mt-1 text-sm text-slate-400">Your order is ready. If Razorpay does not open automatically, use the button below.</p>
         </div>
 
         {/* Order Details */}

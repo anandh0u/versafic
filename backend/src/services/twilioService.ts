@@ -27,6 +27,10 @@ export class TwilioService {
     });
   }
 
+  getPhoneNumber(): string {
+    return this.phoneNumber;
+  }
+
   /**
    * Generate TwiML for incoming call handling
    */
@@ -113,6 +117,43 @@ export class TwilioService {
     } catch (error) {
       logger.error('Failed to fetch call details from Twilio', error instanceof Error ? error : new Error(String(error)), {
         callSid
+      });
+      throw error;
+    }
+  }
+
+  async createOutboundCall(params: {
+    to: string;
+    twimlUrl: string;
+    statusCallbackUrl: string;
+    recordingStatusCallbackUrl: string;
+    machineDetection?: 'Enable' | 'DetectMessageEnd';
+    timeLimitSeconds?: number;
+  }): Promise<any> {
+    try {
+      const call = await this.client.calls.create({
+        to: params.to,
+        from: this.phoneNumber,
+        url: params.twimlUrl,
+        statusCallback: params.statusCallbackUrl,
+        statusCallbackMethod: 'POST',
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+        record: true,
+        recordingStatusCallback: params.recordingStatusCallbackUrl,
+        recordingStatusCallbackMethod: 'POST',
+        machineDetection: params.machineDetection ?? 'Enable',
+        timeLimit: params.timeLimitSeconds ?? 60,
+      });
+
+      logger.info('Outbound call initiated', {
+        callSid: call.sid,
+        to: params.to,
+      });
+
+      return call;
+    } catch (error) {
+      logger.error('Failed to initiate outbound call', error instanceof Error ? error : new Error(String(error)), {
+        to: params.to
       });
       throw error;
     }

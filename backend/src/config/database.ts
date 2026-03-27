@@ -19,11 +19,12 @@ const getSslConfig = (): { rejectUnauthorized: boolean; ca?: string } | false =>
   const dbHost = process.env.DB_HOST || "";
   const isAiven = dbHost.includes("aivencloud.com");
   const isProduction = process.env.NODE_ENV === "production";
+  const sslRejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false";
 
   // Aiven always requires SSL
   if (isAiven || isProduction) {
     const config: { rejectUnauthorized: boolean; ca?: string } = {
-      rejectUnauthorized: isProduction
+      rejectUnauthorized: isProduction && sslRejectUnauthorized
     };
     // Support Aiven CA certificate for production verification
     if (process.env.DB_SSL_CA) {

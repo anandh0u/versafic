@@ -3,7 +3,7 @@
  * Orchestrates conversation flow between Sarvam AI and OpenAI
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { logger } from './logger';
 import { getSarvamAIClient } from './sarvam-ai';
 import { getOpenAIClient, ChatMessage } from './openai-client';
@@ -57,7 +57,7 @@ export class CustomerServiceManager {
    * Create new customer service session
    */
   createSession(): string {
-    const sessionId = uuidv4();
+    const sessionId = randomUUID();
 
     this.sessions.set(sessionId, {
       sessionId,

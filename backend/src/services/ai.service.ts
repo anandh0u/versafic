@@ -2,6 +2,10 @@
 import OpenAI from 'openai';
 import { logger } from '../utils/logger';
 import * as ChatModel from '../models/chat.model';
+import { walletService } from './wallet.service';
+import { AppError } from '../middleware/error-handler';
+import { ErrorCode } from '../types';
+import { CREDIT_COSTS } from '../types/billing.types';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -23,6 +27,9 @@ export interface AIResponse {
  * Send message to OpenAI and get response
  */
 export const sendMessage = async (userId: number, userMessage: string): Promise<AIResponse> => {
+  const creditReference = `AI-${userId}-${Date.now()}`;
+  let creditsCharged = false;
+
   try {
     // Validate input
     if (!userMessage || userMessage.trim().length === 0) {
@@ -32,6 +39,26 @@ export const sendMessage = async (userId: number, userMessage: string): Promise<
     if (userMessage.length > 10000) {
       throw new Error('Message is too long (max 10,000 characters)');
     }
+
+    const chargeResult = await walletService.deductCreditsForUsage(
+      userId,
+      'ai_chat',
+      'AI chat request',
+      creditReference,
+      CREDIT_COSTS.AI_CHAT_MESSAGE
+    );
+
+    if (!chargeResult.success) {
+      throw new AppError(
+        402,
+        ErrorCode.INSUFFICIENT_CREDITS,
+        chargeResult.autopay?.requires_user_action
+          ? 'Insufficient credits. A compliant autopay checkout has been created and is waiting for user confirmation.'
+          : 'Insufficient credits for this AI request.'
+      );
+    }
+
+    creditsCharged = true;
 
     logger.info('Processing AI request', { userId, messageLength: userMessage.length });
 
@@ -86,6 +113,22 @@ export const sendMessage = async (userId: number, userMessage: string): Promise<
     
     logger.error('AI service error', error instanceof Error ? error : new Error(errorMessage));
 
+    if (!(error instanceof AppError) && creditsCharged) {
+      try {
+        await walletService.refundCredits(
+          userId,
+          CREDIT_COSTS.AI_CHAT_MESSAGE,
+          creditReference,
+          'Refunded AI request credits after an unsuccessful model call.'
+        );
+      } catch (refundError) {
+        logger.warn('Failed to refund AI credits after error', {
+          userId,
+          error: refundError instanceof Error ? refundError.message : String(refundError)
+        });
+      }
+    }
+
     // Check for specific error types
     if (errorMessage.includes('timeout')) {
       throw new Error('AI request timed out. Please try again.');
@@ -97,6 +140,10 @@ export const sendMessage = async (userId: number, userMessage: string): Promise<
 
     if (errorMessage.includes('invalid API key')) {
       throw new Error('AI service is not properly configured.');
+    }
+
+    if (error instanceof AppError) {
+      throw error;
     }
 
     throw new Error('Failed to process your request. Please try again.');

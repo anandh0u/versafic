@@ -5,7 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { walletService } from '../services/wallet.service';
-import { PRICING_PLANS } from '../types/billing.types';
+import { AutopayMode, PRICING_PLANS } from '../types/billing.types';
 import { AppError } from '../middleware/error-handler';
 import { ErrorCode } from '../types';
 import { logger } from '../utils/logger';
@@ -190,7 +190,7 @@ export const deductCredits = async (
       throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Credits must be a positive number');
     }
 
-    const validSources = ['ai_chat', 'voice_call', 'admin', 'system'];
+    const validSources = ['ai_chat', 'voice_call', 'inbound_call', 'outbound_call', 'admin', 'system'];
     if (!source || !validSources.includes(source)) {
       throw new AppError(400, ErrorCode.VALIDATION_ERROR, `Source must be one of: ${validSources.join(', ')}`);
     }
@@ -204,7 +204,20 @@ export const deductCredits = async (
     );
 
     if (!result.success) {
-      throw new AppError(402, ErrorCode.INSUFFICIENT_CREDITS, 'Insufficient credit balance');
+      res.status(402).json({
+        status: 'error',
+        statusCode: 402,
+        errorCode: ErrorCode.INSUFFICIENT_CREDITS,
+        message: result.autopay?.requires_user_action
+          ? 'Insufficient credits. A compliant autopay checkout has been created and awaits user confirmation.'
+          : 'Insufficient credit balance',
+        data: {
+          required_credits: result.required,
+          autopay: result.autopay,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      return;
     }
 
     res.status(200).json({
@@ -245,6 +258,156 @@ export const checkBalance = async (
         required_credits: requiredCredits,
         has_sufficient_credits: hasCredits
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /billing/autopay/status
+ * Get autopay settings and recent attempts
+ */
+export const getAutopayStatus = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError(401, ErrorCode.UNAUTHORIZED, 'Authentication required');
+    }
+
+    const result = await walletService.getAutopayStatus(userId);
+
+    res.status(200).json({
+      status: 'success',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /billing/autopay/enable
+ * Create or update autopay configuration
+ */
+export const enableAutopay = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError(401, ErrorCode.UNAUTHORIZED, 'Authentication required');
+    }
+
+    const {
+      threshold_credits,
+      recharge_amount,
+      mode,
+      selected_plan,
+    } = req.body;
+
+    if (threshold_credits === undefined) {
+      throw new AppError(
+        400,
+        ErrorCode.VALIDATION_ERROR,
+        'threshold_credits is required'
+      );
+    }
+
+    const payload: {
+      userId: number;
+      thresholdCredits: number;
+      rechargeAmount?: number;
+      mode: AutopayMode;
+      selectedPlan?: string;
+    } = {
+      userId,
+      thresholdCredits: Number(threshold_credits),
+      mode: (mode || 'demo') as AutopayMode,
+    };
+
+    if (recharge_amount !== undefined) {
+      payload.rechargeAmount = Number(recharge_amount);
+    }
+
+    if (typeof selected_plan === 'string') {
+      payload.selectedPlan = selected_plan;
+    }
+
+    const result = await walletService.enableAutopay(payload);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Autopay enabled successfully',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /billing/autopay/disable
+ * Disable autopay for the current user
+ */
+export const disableAutopay = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError(401, ErrorCode.UNAUTHORIZED, 'Authentication required');
+    }
+
+    const result = await walletService.disableAutopay(userId);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Autopay disabled successfully',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /billing/autopay/trigger
+ * Run a demo/manual autopay recharge
+ */
+export const triggerAutopay = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError(401, ErrorCode.UNAUTHORIZED, 'Authentication required');
+    }
+
+    const { triggered_by, force } = req.body;
+
+    const result = await walletService.triggerAutopay({
+      userId,
+      triggeredBy: triggered_by,
+      force: Boolean(force),
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: result.requires_user_action
+        ? 'Autopay checkout created. User confirmation is required to complete the recharge.'
+        : 'Autopay recharge completed successfully',
+      data: result,
     });
   } catch (error) {
     next(error);

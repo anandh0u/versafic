@@ -22,6 +22,11 @@ export const createCallRecording = async (
     const result = await pool.query(
       `INSERT INTO call_recordings (call_sid, phone_number, recording_url, duration, created_at, updated_at)
        VALUES ($1, $2, $3, $4, NOW(), NOW())
+       ON CONFLICT (call_sid) DO UPDATE SET
+         phone_number = EXCLUDED.phone_number,
+         recording_url = EXCLUDED.recording_url,
+         duration = EXCLUDED.duration,
+         updated_at = NOW()
        RETURNING id, call_sid, phone_number, recording_url, duration, created_at, updated_at`,
       [callSid, phoneNumber, recordingUrl, duration]
     );

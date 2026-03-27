@@ -8,6 +8,13 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  updateProfile: (payload: {
+    name?: string;
+    phone_number?: string;
+    call_consent?: boolean;
+    call_opt_out?: boolean;
+  }) => Promise<void>;
   logout: () => void;
 }
 

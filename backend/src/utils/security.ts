@@ -1,7 +1,6 @@
 // src/utils/security.ts
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Hash password using bcrypt
@@ -28,7 +27,7 @@ export const generateToken = (length: number = 32): string => {
  * Generate secure UUID
  */
 export const generateUUID = (): string => {
-  return uuidv4();
+  return crypto.randomUUID();
 };
 
 /**

@@ -1,9 +1,115 @@
-// src/modules/call/call.controller.ts - Controller for Twilio call handling
+import twilio from 'twilio';
 import { Request, Response, NextFunction } from 'express';
+import type { AuthRequest } from '../../middleware/jwt-auth';
 import * as CallModel from '../../models/call.model';
+import { callSessionRepo } from '../../repositories';
+import type { CallSession, CallSessionStatus } from '../../repositories/call-session.repository';
 import { logger } from '../../utils/logger';
 import { AppError } from '../../middleware/error-handler';
 import { ErrorCode } from '../../types';
+import { getTwilioService } from '../../services/twilioService';
+import { walletService } from '../../services/wallet.service';
+import { outboundCallService } from '../../services/outbound-call.service';
+import { normalizePhoneNumber } from '../../utils/validators';
+import { getPublicUrl } from '../../config/database';
+
+const CALL_CREDIT_COST = 20;
+
+const buildSimpleTwiml = (message: string): string => {
+  const twiml = new twilio.twiml.VoiceResponse();
+  twiml.say({ voice: 'alice', language: 'en-US' }, message);
+  twiml.hangup();
+  return twiml.toString();
+};
+
+const buildPublicRequestUrl = (req: Request): string => {
+  const [path = req.originalUrl, query = ''] = req.originalUrl.split('?');
+  const publicUrl = getPublicUrl(path);
+
+  return query ? `${publicUrl}?${query}` : publicUrl;
+};
+
+const validateTwilioRequest = (req: Request): void => {
+  const signature = req.get('X-Twilio-Signature');
+  if (!signature) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new AppError(401, ErrorCode.UNAUTHORIZED, 'Missing Twilio signature');
+    }
+
+    logger.warn('Allowing unsigned Twilio webhook outside production', {
+      path: req.originalUrl,
+    });
+    return;
+  }
+
+  const twilioService = getTwilioService();
+  const isValid = twilioService.validateRequestSignature(
+    buildPublicRequestUrl(req),
+    req.body,
+    signature
+  );
+
+  if (!isValid) {
+    throw new AppError(401, ErrorCode.UNAUTHORIZED, 'Invalid Twilio signature');
+  }
+};
+
+const isFinalFailedCallStatus = (status: string): status is Extract<CallSessionStatus, 'failed' | 'no-answer'> =>
+  status === 'failed' || status === 'no-answer';
+
+const maybeRefundCallCredits = async (session: CallSession | null, reason: string): Promise<void> => {
+  if (!session?.user_id || !session.cost_credits || session.cost_credits <= 0) {
+    return;
+  }
+
+  if (session.metadata?.credits_refunded) {
+    return;
+  }
+
+  await walletService.refundCredits(
+    session.user_id,
+    session.cost_credits,
+    `CALL-REFUND-${session.call_sid}`,
+    reason
+  );
+
+  await callSessionRepo.updateStatus(session.call_sid, (session.status as CallSessionStatus) || 'failed', {
+    credits_refunded: true,
+    credit_refund_reason: reason,
+  });
+};
+
+export const initiateOutboundCall = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      return next(new AppError(401, ErrorCode.UNAUTHORIZED, 'Authentication required'));
+    }
+
+    const { phone_number, purpose } = req.body;
+    if (!phone_number || !purpose) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, 'phone_number and purpose are required'));
+    }
+
+    const result = await outboundCallService.initiateOutboundCall({
+      ownerUserId: Number(req.user.id),
+      phoneNumber: String(phone_number),
+      purpose: String(purpose),
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Outbound AI call initiated successfully',
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const handleIncomingCall = async (
   req: Request,
@@ -11,45 +117,202 @@ export const handleIncomingCall = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    logger.info('Incoming call received from Twilio', {
-      from: req.body.From,
-      to: req.body.To,
-      callSid: req.body.CallSid,
-      timestamp: new Date().toISOString()
-    });
+    validateTwilioRequest(req);
 
-    // Lazy import to avoid initialization issues
-    const { getTwilioService } = await import('../../services/twilioService');
-    const twilioService = getTwilioService();
+    const fromNumber = String(req.body.From || '');
+    const toNumber = String(req.body.To || '');
+    const callSid = String(req.body.CallSid || '');
 
-    // Validate Twilio request (optional but recommended for production)
-    const signature = req.get('X-Twilio-Signature');
-    if (signature) {
-      const isValid = twilioService.validateRequestSignature(
-        `${req.protocol}://${req.get('host')}${req.originalUrl}`,
-        req.body,
-        signature
+    if (!fromNumber || !toNumber || !callSid) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, 'Missing required Twilio call fields'));
+    }
+
+    const businessProfile = await outboundCallService.resolveOwnerForIncomingCall(toNumber);
+    if (!businessProfile) {
+      res.set('Content-Type', 'text/xml');
+      res.send(buildSimpleTwiml('This service is not configured for inbound calls yet.'));
+      return;
+    }
+
+    const existingSession = await callSessionRepo.findByCallSid(callSid);
+    const normalizedCaller = normalizePhoneNumber(fromNumber);
+
+    if (!existingSession) {
+      const chargeResult = await walletService.deductCreditsForUsage(
+        businessProfile.user_id,
+        'inbound_call',
+        'Inbound AI support call',
+        `INBOUND-${callSid}`,
+        CALL_CREDIT_COST
       );
 
-      if (!isValid) {
-        logger.warn('Invalid Twilio signature detected', { signature });
-        return next(new AppError(401, ErrorCode.UNAUTHORIZED, 'Invalid Twilio signature'));
+      if (!chargeResult.success) {
+        res.set('Content-Type', 'text/xml');
+        res.send(buildSimpleTwiml('This support line is temporarily unavailable because the business wallet does not have enough credits.'));
+        return;
+      }
+
+      try {
+        await callSessionRepo.createDetailed({
+          callSid,
+          userId: businessProfile.user_id,
+          phoneNumber: normalizedCaller,
+          type: 'incoming',
+          purpose: 'support_call',
+          fromNumber: normalizedCaller,
+          toNumber,
+          direction: 'inbound',
+          status: 'initiated',
+          costCredits: CALL_CREDIT_COST,
+          metadata: {
+            inbound_to: toNumber,
+            business_name: businessProfile.business_name,
+          },
+        });
+      } catch (sessionError) {
+        await walletService.refundCredits(
+          businessProfile.user_id,
+          CALL_CREDIT_COST,
+          `INBOUND-${callSid}`,
+          'Refunded inbound call credits because the call session could not be created.'
+        );
+        throw sessionError;
       }
     }
 
-    // Generate TwiML response
-    logger.debug('Generating TwiML response for incoming call', {
-      callSid: req.body.CallSid
-    });
-
-    const twiml = twilioService.generateIncomingCallTwiML();
-
-    // Set proper content type for TwiML
+    const twiml = getTwilioService().generateIncomingCallTwiML();
     res.set('Content-Type', 'text/xml');
     res.send(twiml);
-
   } catch (error) {
     logger.error('Error handling incoming call', error instanceof Error ? error : new Error(String(error)));
+    next(error);
+  }
+};
+
+export const renderOutboundTwiML = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    validateTwilioRequest(req);
+    const params: {
+      ownerUserId?: string;
+      phoneNumber?: string;
+      purpose?: string;
+      script?: string;
+    } = {};
+
+    if (typeof req.query.ownerUserId === 'string') {
+      params.ownerUserId = req.query.ownerUserId;
+    }
+
+    if (typeof req.query.phoneNumber === 'string') {
+      params.phoneNumber = req.query.phoneNumber;
+    }
+
+    if (typeof req.query.purpose === 'string') {
+      params.purpose = req.query.purpose;
+    }
+
+    if (typeof req.query.script === 'string') {
+      params.script = req.query.script;
+    }
+
+    const twiml = outboundCallService.buildInitialOutboundTwiML(params);
+    res.set('Content-Type', 'text/xml');
+    res.send(twiml);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const handleOutboundResponse = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    validateTwilioRequest(req);
+
+    const callSid = String(req.body.CallSid || '');
+    if (!callSid) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, 'Call SID is required'));
+    }
+
+    const session = await callSessionRepo.findByCallSid(callSid);
+    const fallbackScript = typeof req.query.script === 'string'
+      ? req.query.script
+      : 'We are following up on your request. Please contact the business if you need anything else.';
+    const fallbackPhone = typeof req.query.phoneNumber === 'string' ? req.query.phoneNumber : '';
+    const fallbackOwnerUserId = typeof req.query.ownerUserId === 'string' ? Number(req.query.ownerUserId) : 0;
+
+    if ((!session || !session.user_id || !session.phone_number) && (!fallbackOwnerUserId || !fallbackPhone)) {
+      return next(new AppError(404, ErrorCode.NOT_FOUND, 'Outbound call session not found'));
+    }
+
+    const script = String(session?.metadata?.script || fallbackScript);
+    const twiml = await outboundCallService.buildOutboundResponseTwiML({
+      callSid,
+      ownerUserId: session?.user_id || fallbackOwnerUserId,
+      phoneNumber: session?.phone_number || fallbackPhone,
+      speechResult: typeof req.body.SpeechResult === 'string' ? req.body.SpeechResult : undefined,
+      script,
+    });
+
+    res.set('Content-Type', 'text/xml');
+    res.send(twiml);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const handleCallStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    validateTwilioRequest(req);
+
+    const callSid = String(req.body.CallSid || '');
+    const callStatus = String(req.body.CallStatus || '');
+    if (!callSid || !callStatus) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, 'CallSid and CallStatus are required'));
+    }
+
+    const session = await outboundCallService.updateStatusFromTwilio(callSid, callStatus, req.body);
+
+    if (session && isFinalFailedCallStatus(session.status)) {
+      await maybeRefundCallCredits(
+        session,
+        session.type === 'outgoing'
+          ? 'Refunded outbound call credits because the call did not connect.'
+          : 'Refunded inbound call credits because the customer did not complete the call.'
+      );
+    }
+
+    if (
+      session &&
+      session.type === 'incoming' &&
+      session.user_id &&
+      session.phone_number &&
+      !session.callback_requested &&
+      isFinalFailedCallStatus(session.status)
+    ) {
+      await outboundCallService.triggerMissedCallCallback({
+        ownerUserId: session.user_id,
+        phoneNumber: session.phone_number,
+        parentCallSid: session.call_sid,
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Call status processed',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
     next(error);
   }
 };
@@ -60,84 +323,68 @@ export const handleRecording = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const {
-      RecordingUrl,
-      RecordingDuration,
-      RecordingSid,
-      CallSid,
-      From,
-      To
-    } = req.body;
+    validateTwilioRequest(req);
 
-    // Log all recording details
-    logger.info('Recording callback received from Twilio', {
-      recordingUrl: RecordingUrl,
-      recordingDuration: RecordingDuration,
-      recordingSid: RecordingSid,
-      callSid: CallSid,
-      from: From,
-      to: To,
-      timestamp: new Date().toISOString()
-    });
+    const recordingUrl = typeof req.body.RecordingUrl === 'string' ? req.body.RecordingUrl : '';
+    const recordingDuration = parseInt(String(req.body.RecordingDuration || '0'), 10) || 0;
+    const recordingSid = typeof req.body.RecordingSid === 'string' ? req.body.RecordingSid : '';
+    const callSid = typeof req.body.CallSid === 'string' ? req.body.CallSid : '';
+    const fromNumber = typeof req.body.From === 'string' ? req.body.From : '';
+    const toNumber = typeof req.body.To === 'string' ? req.body.To : '';
 
-    // Validate required fields
-    if (!RecordingUrl || !RecordingDuration || !CallSid || !From) {
-      logger.warn('Missing required recording data in callback', {
-        body: req.body,
-        missingFields: {
-          RecordingUrl: !RecordingUrl,
-          RecordingDuration: !RecordingDuration,
-          CallSid: !CallSid,
-          From: !From
-        }
-      });
-      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, 'Missing required recording data'));
+    if (!callSid) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, 'Call SID is required for recording callbacks'));
     }
 
-    // Save recording to database
-    logger.debug('Saving call recording to database', {
-      callSid: CallSid,
-      phoneNumber: From,
-      recordingUrl: RecordingUrl,
-      duration: RecordingDuration
-    });
+    const session = await callSessionRepo.findByCallSid(callSid);
+    const effectivePhoneNumber = session?.phone_number
+      || normalizePhoneNumber(session?.type === 'outgoing' ? toNumber : fromNumber);
+
+    if (!recordingUrl || recordingDuration === 0) {
+      if (session?.type === 'incoming' && session.user_id && effectivePhoneNumber && !session.callback_requested) {
+        const updatedSession = await callSessionRepo.updateStatus(callSid, 'no-answer', {
+          reason: 'missed_call_detected',
+        });
+
+        await maybeRefundCallCredits(
+          updatedSession ?? session,
+          'Refunded inbound call credits because no customer recording was captured.'
+        );
+
+        await outboundCallService.triggerMissedCallCallback({
+          ownerUserId: session.user_id,
+          phoneNumber: effectivePhoneNumber,
+          parentCallSid: callSid,
+        });
+      }
+
+      res.set('Content-Type', 'text/xml');
+      res.send(buildSimpleTwiml('Thank you. We will follow up if needed.'));
+      return;
+    }
+
+    if (recordingSid && session) {
+      await callSessionRepo.setRecording(callSid, recordingUrl, recordingSid, recordingDuration);
+    }
 
     const recording = await CallModel.createCallRecording(
-      CallSid,
-      From,
-      RecordingUrl,
-      parseInt(RecordingDuration, 10)
+      callSid,
+      effectivePhoneNumber,
+      recordingUrl,
+      recordingDuration
     );
 
-    logger.info('Call recording saved to database successfully', {
-      recordingId: recording.id,
-      callSid: CallSid,
-      phoneNumber: From,
-      recordingUrl: RecordingUrl,
-      duration: RecordingDuration
-    });
+    await processCallRecording(recordingUrl, recording);
 
-    // Process the recording for AI (placeholder for future implementation)
-    await processCallRecording(RecordingUrl, recording);
-
-    // Lazy import to avoid initialization issues
-    const { getTwilioService } = await import('../../services/twilioService');
-    const twilioService = getTwilioService();
-    const twiml = twilioService.generateRecordingCompleteTwiML();
-
+    const twiml = getTwilioService().generateRecordingCompleteTwiML();
     res.set('Content-Type', 'text/xml');
     res.send(twiml);
-
   } catch (error) {
     logger.error('Error handling recording callback', error instanceof Error ? error : new Error(String(error)));
     next(error);
   }
 };
 
-/**
- * Placeholder function for future AI processing of call recordings
- * This will integrate with Sarvam AI for speech-to-text and OpenAI for response generation
- */
 async function processCallRecording(recordingUrl: string, recording: any): Promise<void> {
   try {
     logger.info('Processing call recording for AI', {
@@ -146,26 +393,15 @@ async function processCallRecording(recordingUrl: string, recording: any): Promi
       callSid: recording.call_sid
     });
 
-    // TODO: Implement AI processing pipeline
-    // 1. Send recording to Sarvam AI for speech-to-text
-    // 2. Process the transcription with OpenAI
-    // 3. Generate appropriate response
-    // 4. Store the results in database
-    // 5. Optionally send SMS response to caller
-
     logger.info('Call recording processing completed (placeholder)', {
       recordingId: recording.id
     });
-
   } catch (error) {
     logger.error('Error processing call recording', error instanceof Error ? error : new Error(String(error)), {
       recordingId: recording.id
     });
-    // Don't throw error here - we don't want to break the call flow
   }
 }
-
-// Additional helper endpoints for managing recordings
 
 export const getCallRecordings = async (
   req: Request,
@@ -175,15 +411,12 @@ export const getCallRecordings = async (
   try {
     const { phoneNumber, limit = '50', offset = '0' } = req.query;
 
-    let recordings;
-    if (phoneNumber) {
-      recordings = await CallModel.getCallRecordingsByPhoneNumber(phoneNumber as string);
-    } else {
-      recordings = await CallModel.getAllCallRecordings(
-        parseInt(limit as string, 10),
-        parseInt(offset as string, 10)
-      );
-    }
+    const recordings = phoneNumber
+      ? await CallModel.getCallRecordingsByPhoneNumber(phoneNumber as string)
+      : await CallModel.getAllCallRecordings(
+          parseInt(limit as string, 10),
+          parseInt(offset as string, 10)
+        );
 
     res.status(200).json({
       status: 'success',
@@ -191,9 +424,7 @@ export const getCallRecordings = async (
       data: recordings,
       timestamp: new Date().toISOString()
     });
-
   } catch (error) {
-    logger.error('Error getting call recordings', error instanceof Error ? error : new Error(String(error)));
     next(error);
   }
 };
@@ -222,9 +453,7 @@ export const getCallRecordingByCallSid = async (
       data: recording,
       timestamp: new Date().toISOString()
     });
-
   } catch (error) {
-    logger.error('Error getting call recording by call SID', error instanceof Error ? error : new Error(String(error)));
     next(error);
   }
 };

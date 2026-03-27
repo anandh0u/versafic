@@ -60,6 +60,20 @@ export const isValidPhone = (phone: string): boolean => {
 };
 
 /**
+ * Normalize phone number into a compact +E.164-like format when possible
+ */
+export const normalizePhoneNumber = (phone: string): string => {
+  const trimmed = phone.trim();
+  const digits = trimmed.replace(/\D/g, "");
+
+  if (trimmed.startsWith("+")) {
+    return `+${digits}`;
+  }
+
+  return digits;
+};
+
+/**
  * Validate business name
  */
 export const isValidBusinessName = (name: string): boolean => {

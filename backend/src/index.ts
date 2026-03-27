@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import type { Server } from "http";
 import type { Socket } from "net";
 
 // Import configuration and utilities
@@ -35,8 +36,9 @@ try {
   process.exit(1);
 }
 
-const app = express();
+export const app = express();
 const PORT = process.env.PORT || 5000;
+let initializationPromise: Promise<void> | null = null;
 
 // Middleware - Security headers
 app.use(helmet({
@@ -91,10 +93,19 @@ const isAllowedDevOrigin = (origin: string): boolean => {
   }
 };
 
+const isAllowedHostedOrigin = (origin: string): boolean => {
+  try {
+    const { hostname, protocol } = new URL(origin);
+    return protocol === "https:" && hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+};
+
 app.use(
   cors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || allowedOrigins.includes(origin) || isAllowedDevOrigin(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || isAllowedDevOrigin(origin) || isAllowedHostedOrigin(origin)) {
         return callback(null, true);
       }
 
@@ -103,7 +114,7 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning"],
     maxAge: 86400
   })
 );
@@ -191,24 +202,105 @@ app.use((req: Request, res: Response) => {
 // Global error handler (must be last)
 app.use(errorHandler);
 
-// Initialize server
-const startServer = async () => {
-  try {
-    // Initialize database — REQUIRED for auth and data persistence
-    await initializeDatabase();
-    logger.info("Database initialized successfully");
+export const initializeApp = async (): Promise<void> => {
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      await initializeDatabase();
+      logger.info("Database initialized successfully");
 
-    // Initialize conversation service (creates tables)
-    try {
-      const { conversationService } = await import("./services/conversation.service");
-      await conversationService.initializeTable();
-    } catch (convError) {
-      logger.warn("Conversation table init failed (non-critical)", {
-        error: convError instanceof Error ? convError.message : String(convError)
-      });
+      try {
+        const { conversationService } = await import("./services/conversation.service");
+        await conversationService.initializeTable();
+      } catch (convError) {
+        logger.warn("Conversation table init failed (non-critical)", {
+          error: convError instanceof Error ? convError.message : String(convError)
+        });
+      }
+    })().catch((error) => {
+      initializationPromise = null;
+      throw error;
+    });
+  }
+
+  await initializationPromise;
+};
+
+const attachGracefulShutdown = (server: Server) => {
+  const activeConnections = new Set<Socket>();
+  let isShuttingDown = false;
+
+  server.on("connection", (socket: Socket) => {
+    activeConnections.add(socket);
+    socket.on("close", () => {
+      activeConnections.delete(socket);
+    });
+  });
+
+  const gracefulShutdown = async (signal: string) => {
+    if (isShuttingDown) {
+      return;
     }
 
-    // Start HTTP server
+    isShuttingDown = true;
+    logger.info(`Received ${signal} signal, starting graceful shutdown...`);
+
+    const forceShutdownTimer = setTimeout(() => {
+      logger.error("Force shutdown after 30s timeout");
+      for (const socket of activeConnections) {
+        socket.destroy();
+      }
+      process.exit(1);
+    }, 30000);
+    forceShutdownTimer.unref();
+
+    const destroyLingeringConnectionsTimer = setTimeout(() => {
+      logger.warn("Force closing lingering HTTP connections");
+      server.closeAllConnections?.();
+      for (const socket of activeConnections) {
+        socket.destroy();
+      }
+    }, 10000);
+    destroyLingeringConnectionsTimer.unref();
+
+    server.close(async (serverError) => {
+      logger.info("HTTP server closed");
+      clearTimeout(forceShutdownTimer);
+      clearTimeout(destroyLingeringConnectionsTimer);
+
+      try {
+        const { voiceJobQueue, aiJobQueue } = await import("./utils/job-queue");
+        await Promise.all([voiceJobQueue.shutdown(), aiJobQueue.shutdown()]);
+        logger.info("Job queues shutdown completed");
+      } catch (error) {
+        logger.error("Error during job queue shutdown", error instanceof Error ? error : new Error(String(error)));
+      }
+
+      try {
+        await shutdownDatabase();
+        logger.info("Database shutdown completed");
+      } catch (error) {
+        logger.error("Error during database shutdown", error instanceof Error ? error : new Error(String(error)));
+      }
+
+      logger.info("Graceful shutdown completed");
+      process.exit(serverError ? 1 : 0);
+    });
+
+    server.closeIdleConnections?.();
+    for (const socket of activeConnections) {
+      socket.end();
+    }
+  };
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+};
+
+// Initialize server
+export const startServer = async () => {
+  try {
+    await initializeApp();
+
     const server = app.listen(PORT, () => {
       logger.info(`✅ Server running on port ${PORT}`);
       logger.info(`📍 Health: http://localhost:${PORT}/health`);
@@ -220,78 +312,7 @@ const startServer = async () => {
       logger.info(`🏢 Business: http://localhost:${PORT}/business`);
     });
 
-    const activeConnections = new Set<Socket>();
-    let isShuttingDown = false;
-
-    server.on("connection", (socket: Socket) => {
-      activeConnections.add(socket);
-      socket.on("close", () => {
-        activeConnections.delete(socket);
-      });
-    });
-
-    // Graceful shutdown handler
-    const gracefulShutdown = async (signal: string) => {
-      if (isShuttingDown) {
-        return;
-      }
-
-      isShuttingDown = true;
-      logger.info(`Received ${signal} signal, starting graceful shutdown...`);
-
-      const forceShutdownTimer = setTimeout(() => {
-        logger.error("Force shutdown after 30s timeout");
-        for (const socket of activeConnections) {
-          socket.destroy();
-        }
-        process.exit(1);
-      }, 30000);
-      forceShutdownTimer.unref();
-
-      const destroyLingeringConnectionsTimer = setTimeout(() => {
-        logger.warn("Force closing lingering HTTP connections");
-        server.closeAllConnections?.();
-        for (const socket of activeConnections) {
-          socket.destroy();
-        }
-      }, 10000);
-      destroyLingeringConnectionsTimer.unref();
-
-      server.close(async (serverError) => {
-        logger.info("HTTP server closed");
-        clearTimeout(forceShutdownTimer);
-        clearTimeout(destroyLingeringConnectionsTimer);
-
-        try {
-          // Shutdown job queues
-          const { voiceJobQueue, aiJobQueue } = await import("./utils/job-queue");
-          await Promise.all([voiceJobQueue.shutdown(), aiJobQueue.shutdown()]);
-          logger.info("Job queues shutdown completed");
-        } catch (error) {
-          logger.error("Error during job queue shutdown", error instanceof Error ? error : new Error(String(error)));
-        }
-
-        try {
-          await shutdownDatabase();
-          logger.info("Database shutdown completed");
-        } catch (error) {
-          logger.error("Error during database shutdown", error instanceof Error ? error : new Error(String(error)));
-        }
-
-        logger.info("Graceful shutdown completed");
-        process.exit(serverError ? 1 : 0);
-      });
-
-      server.closeIdleConnections?.();
-      for (const socket of activeConnections) {
-        socket.end();
-      }
-    };
-
-    // Signal handlers
-    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-
+    attachGracefulShutdown(server);
   } catch (error) {
     logger.error("Failed to start server", error instanceof Error ? error : new Error(String(error)));
     process.exit(1);
@@ -317,5 +338,9 @@ process.on("warning", (warning: any) => {
   });
 });
 
-// Start the server
-startServer();
+export default app;
+
+// Start the server only when running as the main process
+if (require.main === module) {
+  void startServer();
+}

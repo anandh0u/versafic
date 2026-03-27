@@ -64,6 +64,10 @@ export const chat = async (
       timestamp: new Date().toISOString()
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return next(error);
+    }
+
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Chat endpoint error', error instanceof Error ? error : new Error(errorMessage));
 

@@ -4,11 +4,19 @@ import { logger } from "../utils/logger";
 
 export interface CallSession {
   id: string;
+  user_id?: number | null;
   call_sid: string;
+  phone_number?: string | null;
+  type?: "incoming" | "outgoing";
+  purpose?: string | null;
   from_number: string;
   to_number: string;
   status: string;
   direction: string;
+  cost_credits?: number;
+  callback_requested?: boolean;
+  parent_call_sid?: string | null;
+  status_reason?: string | null;
   started_at: string;
   answered_at?: string;
   ended_at?: string;
@@ -51,6 +59,70 @@ export class CallSessionRepository extends BaseRepository {
     return result;
   }
 
+  async createDetailed(params: {
+    callSid: string;
+    userId?: number | null;
+    phoneNumber?: string | null;
+    type: "incoming" | "outgoing";
+    purpose?: string | null;
+    fromNumber: string;
+    toNumber: string;
+    direction: string;
+    status?: CallSessionStatus;
+    costCredits?: number;
+    parentCallSid?: string | null;
+    callbackRequested?: boolean;
+    metadata?: Record<string, unknown>;
+  }): Promise<CallSession> {
+    const result = await this.queryOne<CallSession>(
+      `INSERT INTO call_sessions (
+         user_id,
+         call_sid,
+         phone_number,
+         type,
+         purpose,
+         from_number,
+         to_number,
+         direction,
+         status,
+         cost_credits,
+         parent_call_sid,
+         callback_requested,
+         metadata
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+       RETURNING *`,
+      [
+        params.userId ?? null,
+        params.callSid,
+        params.phoneNumber ?? null,
+        params.type,
+        params.purpose ?? null,
+        params.fromNumber,
+        params.toNumber,
+        params.direction,
+        params.status ?? "initiated",
+        params.costCredits ?? 0,
+        params.parentCallSid ?? null,
+        params.callbackRequested ?? false,
+        JSON.stringify(params.metadata || {})
+      ]
+    );
+
+    if (!result) {
+      throw new Error("Failed to create call session");
+    }
+
+    logger.info("Detailed call session created", {
+      callSid: params.callSid,
+      userId: params.userId,
+      phoneNumber: params.phoneNumber,
+      type: params.type
+    });
+
+    return result;
+  }
+
   async findByCallSid(callSid: string): Promise<CallSession | null> {
     return this.queryOne<CallSession>(
       "SELECT * FROM call_sessions WHERE call_sid = $1",
@@ -78,6 +150,18 @@ export class CallSessionRepository extends BaseRepository {
     return this.queryOne<CallSession>(
       `UPDATE call_sessions SET ${updates.join(", ")} WHERE call_sid = $1 RETURNING *`,
       values
+    );
+  }
+
+  async markCallbackRequested(callSid: string, parentCallSid?: string): Promise<CallSession | null> {
+    return this.queryOne<CallSession>(
+      `UPDATE call_sessions
+       SET callback_requested = TRUE,
+           parent_call_sid = COALESCE($2, parent_call_sid),
+           updated_at = NOW()
+       WHERE call_sid = $1
+       RETURNING *`,
+      [callSid, parentCallSid ?? null]
     );
   }
 
@@ -119,8 +203,45 @@ export class CallSessionRepository extends BaseRepository {
   async getSessionsByPhone(phoneNumber: string, limit: number = 50): Promise<CallSession[]> {
     return this.queryMany<CallSession>(
       `SELECT * FROM call_sessions 
-       WHERE from_number = $1 
+       WHERE phone_number = $1 OR from_number = $1 OR to_number = $1
        ORDER BY started_at DESC 
+       LIMIT $2`,
+      [phoneNumber, limit]
+    );
+  }
+
+  async getRecentOutboundCountForDay(userId: number, since: Date): Promise<number> {
+    const result = await this.queryOne<{ total: string }>(
+      `SELECT COUNT(*) AS total
+       FROM call_sessions
+       WHERE user_id = $1
+         AND type = 'outgoing'
+         AND created_at >= $2`,
+      [userId, since]
+    );
+
+    return parseInt(result?.total ?? "0", 10);
+  }
+
+  async getLatestOutboundSession(userId: number, phoneNumber: string): Promise<CallSession | null> {
+    return this.queryOne<CallSession>(
+      `SELECT *
+       FROM call_sessions
+       WHERE user_id = $1
+         AND phone_number = $2
+         AND type = 'outgoing'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId, phoneNumber]
+    );
+  }
+
+  async getRecentPhoneInteractions(phoneNumber: string, limit: number = 5): Promise<CallSession[]> {
+    return this.queryMany<CallSession>(
+      `SELECT *
+       FROM call_sessions
+       WHERE phone_number = $1
+       ORDER BY created_at DESC
        LIMIT $2`,
       [phoneNumber, limit]
     );

@@ -5,6 +5,12 @@
 
 import { pool } from '../config/database';
 import { 
+  AutopayLog,
+  AutopayLogStatus,
+  AutopayMode,
+  AutopaySettings,
+  AutopayStatus,
+  AutopayTriggeredReason,
   Wallet, 
   Payment, 
   CreditTransaction, 
@@ -84,11 +90,13 @@ export class BillingModel {
     amountPaise: number;
     creditsToAdd: number;
     currency?: string;
+    paymentContext?: 'manual_topup' | 'autopay';
+    metadata?: Record<string, unknown>;
   }): Promise<Payment> {
     const result = await pool.query<Payment>(
       `INSERT INTO payments 
-       (user_id, business_id, razorpay_order_id, amount_paise, credits_to_add, currency, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'created')
+       (user_id, business_id, razorpay_order_id, amount_paise, credits_to_add, currency, status, payment_context, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, 'created', $7, $8::jsonb)
        RETURNING *`,
       [
         params.userId,
@@ -96,7 +104,9 @@ export class BillingModel {
         params.razorpayOrderId,
         params.amountPaise,
         params.creditsToAdd,
-        params.currency || 'INR'
+        params.currency || 'INR',
+        params.paymentContext || 'manual_topup',
+        JSON.stringify(params.metadata || {})
       ]
     );
     return result.rows[0]!;
@@ -187,6 +197,207 @@ export class BillingModel {
   }
 
   /**
+   * Get autopay settings for a user
+   */
+  async getAutopaySettings(userId: number): Promise<AutopaySettings | null> {
+    const result = await pool.query<AutopaySettings>(
+      'SELECT * FROM autopay_settings WHERE user_id = $1',
+      [userId]
+    );
+
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Create or update autopay settings
+   */
+  async upsertAutopaySettings(params: {
+    userId: number;
+    enabled: boolean;
+    thresholdCredits: number;
+    rechargeAmount: number;
+    mode: AutopayMode;
+    status?: AutopayStatus;
+    failureReason?: string | null;
+  }): Promise<AutopaySettings> {
+    const result = await pool.query<AutopaySettings>(
+      `INSERT INTO autopay_settings (
+         user_id,
+         enabled,
+         threshold_credits,
+         recharge_amount,
+         mode,
+         selected_plan,
+         trigger_type,
+         payment_method_reference,
+         status,
+         failure_reason
+       )
+       VALUES ($1, $2, $3, $4, $5, 'custom', 'low_balance', 'Razorpay checkout', $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET
+         enabled = EXCLUDED.enabled,
+         threshold_credits = EXCLUDED.threshold_credits,
+         recharge_amount = EXCLUDED.recharge_amount,
+         mode = EXCLUDED.mode,
+         selected_plan = EXCLUDED.selected_plan,
+         trigger_type = EXCLUDED.trigger_type,
+         payment_method_reference = EXCLUDED.payment_method_reference,
+         status = EXCLUDED.status,
+         failure_reason = EXCLUDED.failure_reason,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [
+        params.userId,
+        params.enabled,
+        params.thresholdCredits,
+        params.rechargeAmount,
+        params.mode,
+        params.status ?? 'active',
+        params.failureReason ?? null,
+      ]
+    );
+
+    return result.rows[0]!;
+  }
+
+  /**
+   * Store an autopay log for audit visibility
+   */
+  async createAutopayLog(params: {
+    userId: number;
+    amount: number;
+    credits: number;
+    status: AutopayLogStatus;
+    triggeredReason: AutopayTriggeredReason;
+    mode: AutopayMode;
+    razorpayOrderId?: string | null;
+    razorpayPaymentId?: string | null;
+    metadata?: Record<string, unknown>;
+  }): Promise<AutopayLog> {
+    const result = await pool.query<AutopayLog>(
+      `INSERT INTO autopay_logs (
+         user_id,
+         amount,
+         credits,
+         status,
+         triggered_reason,
+         mode,
+         razorpay_order_id,
+         razorpay_payment_id,
+         metadata
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+       RETURNING *`,
+      [
+        params.userId,
+        params.amount,
+        params.credits,
+        params.status,
+        params.triggeredReason,
+        params.mode,
+        params.razorpayOrderId ?? null,
+        params.razorpayPaymentId ?? null,
+        JSON.stringify(params.metadata || {})
+      ]
+    );
+
+    return result.rows[0]!;
+  }
+
+  /**
+   * Update autopay log status
+   */
+  async updateAutopayLogStatus(params: {
+    logId?: number;
+    razorpayOrderId?: string;
+    status: AutopayLogStatus;
+    razorpayPaymentId?: string | null;
+    metadata?: Record<string, unknown>;
+  }): Promise<AutopayLog | null> {
+    const filter = params.logId ? "id = $1" : "razorpay_order_id = $1";
+    const identifier = params.logId ?? params.razorpayOrderId;
+    const result = await pool.query<AutopayLog>(
+      `UPDATE autopay_logs
+       SET status = $2,
+           razorpay_payment_id = COALESCE($3, razorpay_payment_id),
+           metadata = metadata || $4::jsonb
+       WHERE ${filter}
+       RETURNING *`,
+      [
+        identifier,
+        params.status,
+        params.razorpayPaymentId ?? null,
+        JSON.stringify(params.metadata || {})
+      ]
+    );
+
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Get recent autopay logs for a user
+   */
+  async getRecentAutopayLogs(userId: number, limit: number = 10): Promise<AutopayLog[]> {
+    const result = await pool.query<AutopayLog>(
+      `SELECT * FROM autopay_logs
+       WHERE user_id = $1
+       ORDER BY timestamp DESC
+       LIMIT $2`,
+      [userId, limit]
+    );
+
+    return result.rows;
+  }
+
+  /**
+   * Get the latest autopay log for a user
+   */
+  async getLatestAutopayLog(userId: number): Promise<AutopayLog | null> {
+    const result = await pool.query<AutopayLog>(
+      `SELECT * FROM autopay_logs
+       WHERE user_id = $1
+       ORDER BY timestamp DESC
+       LIMIT 1`,
+      [userId]
+    );
+
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Get the latest pending checkout log for a user
+   */
+  async getPendingAutopayLog(userId: number): Promise<AutopayLog | null> {
+    const result = await pool.query<AutopayLog>(
+      `SELECT * FROM autopay_logs
+       WHERE user_id = $1
+         AND status = 'pending_checkout'
+       ORDER BY timestamp DESC
+       LIMIT 1`,
+      [userId]
+    );
+
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Expire stale pending checkout logs so a fresh checkout can be created
+   */
+  async expireStalePendingAutopayLogs(userId: number, olderThanMinutes: number): Promise<number> {
+    const result = await pool.query(
+      `UPDATE autopay_logs
+       SET status = 'failed',
+           metadata = metadata || '{"reason":"stale_pending_checkout"}'::jsonb
+       WHERE user_id = $1
+         AND status = 'pending_checkout'
+         AND timestamp < NOW() - ($2 * INTERVAL '1 minute')`,
+      [userId, olderThanMinutes]
+    );
+
+    return result.rowCount ?? 0;
+  }
+
+  /**
    * Check if wallet has sufficient balance
    */
   async hasSufficientBalance(userId: number, creditsRequired: number): Promise<boolean> {
@@ -270,7 +481,10 @@ export class BillingModel {
     credits: number,
     amountPaise: number,
     razorpayOrderId: string,
-    businessId?: number | null
+    businessId?: number | null,
+    source: TransactionSource = 'razorpay',
+    description?: string,
+    transactionType: Extract<TransactionType, 'topup' | 'refund' | 'adjustment'> = 'topup'
   ): Promise<{ wallet: Wallet; transaction: CreditTransaction }> {
     const client = await pool.connect();
     
@@ -306,15 +520,20 @@ export class BillingModel {
       const transactionResult = await client.query<CreditTransaction>(
         `INSERT INTO credit_transactions 
          (user_id, business_id, type, credits, amount_paise, source, reference_id, description)
-         VALUES ($1, $2, 'topup', $3, $4, 'razorpay', $5, $6)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING *`,
         [
-          userId, 
-          businessId || null, 
-          credits, 
-          amountPaise, 
+          userId,
+          businessId || null,
+          transactionType,
+          credits,
+          amountPaise,
+          source,
           razorpayOrderId,
-          `Credit top-up: ${credits} credits for ₹${(amountPaise / 100).toFixed(2)}`
+          description
+            || (transactionType === 'refund'
+              ? `Credit refund: ${credits} credits returned to the wallet.`
+              : `Credit top-up: ${credits} credits for ₹${(amountPaise / 100).toFixed(2)}`)
         ]
       );
 

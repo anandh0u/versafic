@@ -7,11 +7,13 @@ import request from 'supertest';
 import express from 'express';
 import authRoutes from '../routes/auth.routes';
 import { AppError } from '../middleware/error-handler';
+import { initializeDatabase } from '../config/database';
 
 describe('Authentication Endpoints', () => {
   let app: express.Application;
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    await initializeDatabase();
     app = express();
     app.use(express.json());
     app.use('/auth', authRoutes);

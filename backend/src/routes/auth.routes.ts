@@ -1,6 +1,7 @@
 // src/routes/auth.routes.ts
 import { Router } from "express";
 import * as AuthController from "../controllers/auth.controller";
+import { verifyToken } from "../middleware/jwt-auth";
 
 const router = Router();
 
@@ -38,5 +39,17 @@ router.post("/google", AuthController.googleAuth);
  * @body idToken (Google ID token from frontend)
  */
 router.post("/google/idtoken", AuthController.googleAuthWithIdToken);
+
+/**
+ * @route GET /auth/me
+ * @description Retrieve the authenticated user profile and call preferences
+ */
+router.get("/me", verifyToken, AuthController.getCurrentUser);
+
+/**
+ * @route PATCH /auth/me
+ * @description Update authenticated user contact and call preference settings
+ */
+router.patch("/me", verifyToken, AuthController.updateCurrentUserPreferences);
 
 export default router;

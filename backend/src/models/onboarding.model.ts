@@ -28,6 +28,24 @@ export const findBusinessByUserId = async (userId: string | number): Promise<Bus
   }
 };
 
+export const findBusinessByPhone = async (phone: string): Promise<BusinessProfile | null> => {
+  try {
+    const normalizedDigits = phone.replace(/\D/g, "");
+    const result = await pool.query(
+      `SELECT id, user_id, business_name, business_type, industry, website, country, phone, created_at, updated_at
+       FROM business_profiles
+       WHERE regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') = $1
+       LIMIT 1`,
+      [normalizedDigits]
+    );
+
+    return result.rows[0] || null;
+  } catch (error) {
+    logger.error("Error finding business profile by phone", error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
+};
+
 export const createBusinessProfile = async (
   userId: string | number,
   businessName: string,

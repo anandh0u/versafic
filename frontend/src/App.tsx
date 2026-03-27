@@ -7,6 +7,9 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import OverviewPage from './pages/OverviewPage';
+import CallsPage from './pages/CallsPage';
+import ChatsPage from './pages/ChatsPage';
+import WorkflowsPage from './pages/WorkflowsPage';
 import BillingPage from './pages/BillingPage';
 import DemoLabPage from './pages/DemoLabPage';
 import BusinessProfilePage from './pages/BusinessProfilePage';
@@ -28,6 +31,9 @@ function App() {
             }
           >
             <Route index element={<OverviewPage />} />
+            <Route path="calls" element={<CallsPage />} />
+            <Route path="chat" element={<ChatsPage />} />
+            <Route path="workflows" element={<WorkflowsPage />} />
             <Route path="billing" element={<BillingPage />} />
             <Route path="demo" element={<DemoLabPage />} />
             <Route path="business" element={<BusinessProfilePage />} />

@@ -1,4 +1,5 @@
-import { BadgeCheck, CreditCard, IndianRupee, Repeat2, ShieldAlert } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BadgeCheck, CreditCard, IndianRupee, Loader, Repeat2, ShieldAlert, Save } from 'lucide-react';
 import type { AutopaySettings, BillingTransaction, PricingPlan } from '../../types';
 import { formatCredits, formatCurrency, formatDateTime } from '../../lib/formatters';
 import { Panel } from '../shared/Panel';
@@ -8,24 +9,61 @@ export function AutopayPanel({
   autopay,
   plans,
   history,
-  onChange,
+  onSave,
+  onToggle,
   onTriggerNow,
+  isSaving,
   isTriggering,
 }: {
   autopay: AutopaySettings;
   plans: PricingPlan[];
   history: BillingTransaction[];
-  onChange: (patch: Partial<AutopaySettings>) => void;
+  onSave: (patch: Partial<AutopaySettings>) => void;
+  onToggle: (enabled: boolean) => void;
   onTriggerNow: () => void;
+  isSaving?: boolean;
   isTriggering?: boolean;
 }) {
-  const rechargeAmountInr = Math.round(autopay.rechargeAmount / 100);
+  const [draft, setDraft] = useState({
+    thresholdCredits: autopay.thresholdCredits,
+    rechargeAmount: autopay.rechargeAmount,
+    mode: autopay.mode,
+    selectedPlanId: autopay.selectedPlanId,
+  });
+
+  useEffect(() => {
+    setDraft({
+      thresholdCredits: autopay.thresholdCredits,
+      rechargeAmount: autopay.rechargeAmount,
+      mode: autopay.mode,
+      selectedPlanId: autopay.selectedPlanId,
+    });
+  }, [autopay.thresholdCredits, autopay.rechargeAmount, autopay.mode, autopay.selectedPlanId]);
+
+  const rechargeAmountInr = Math.round(draft.rechargeAmount / 100);
   const latestCompleted = history.find((entry) => entry.status === 'completed');
   const actionLabel = autopay.pendingCheckout
     ? 'Complete Razorpay Checkout'
     : isTriggering
       ? 'Processing...'
       : 'Trigger Autopay';
+  const isDirty =
+    draft.thresholdCredits !== autopay.thresholdCredits
+    || draft.rechargeAmount !== autopay.rechargeAmount
+    || draft.mode !== autopay.mode
+    || draft.selectedPlanId !== autopay.selectedPlanId;
+
+  const handleSave = () => {
+    onSave({
+      thresholdCredits: draft.thresholdCredits,
+      rechargeAmount: draft.rechargeAmount,
+      mode: draft.mode,
+      selectedPlanId: draft.selectedPlanId,
+      status: autopay.enabled ? 'active' : 'paused',
+      pendingCheckout: draft.mode === 'demo' ? null : autopay.pendingCheckout ?? null,
+      failedReason: undefined,
+    });
+  };
 
   return (
     <Panel
@@ -44,16 +82,16 @@ export function AutopayPanel({
                 </p>
               </div>
               <button
-                onClick={() =>
-                  onChange({
-                    enabled: !autopay.enabled,
-                    status: autopay.enabled ? 'paused' : 'active',
-                    pendingCheckout: autopay.enabled ? null : autopay.pendingCheckout ?? null,
-                  })
-                }
-                className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold transition ${autopay.enabled ? 'bg-emerald-400/15 text-emerald-100' : 'bg-white/10 text-slate-200'}`}
+                onClick={() => onToggle(!autopay.enabled)}
+                disabled={isSaving}
+                className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold transition ${autopay.enabled ? 'bg-emerald-400/15 text-emerald-100' : 'bg-white/10 text-slate-200'} disabled:cursor-not-allowed disabled:opacity-70`}
               >
-                {autopay.enabled ? 'Turn Off' : 'Turn On'}
+                {isSaving ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : autopay.enabled ? 'Turn Off' : 'Turn On'}
               </button>
             </div>
           </div>
@@ -64,8 +102,11 @@ export function AutopayPanel({
               <input
                 type="number"
                 min={0}
-                value={autopay.thresholdCredits}
-                onChange={(event) => onChange({ thresholdCredits: Number(event.target.value), enabled: true, status: 'active' })}
+                value={draft.thresholdCredits}
+                onChange={(event) => setDraft((current) => ({
+                  ...current,
+                  thresholdCredits: Number(event.target.value),
+                }))}
                 className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-lg font-semibold text-white outline-none"
               />
               <div className="mt-2 text-sm text-slate-400">When balance drops below this number, the recharge flow starts.</div>
@@ -79,24 +120,21 @@ export function AutopayPanel({
                   type="number"
                   min={1}
                   value={rechargeAmountInr}
-                  onChange={(event) =>
-                    onChange({
-                      rechargeAmount: Number(event.target.value || 0) * 100,
-                      enabled: true,
-                      status: 'active',
-                    })
-                  }
+                  onChange={(event) => setDraft((current) => ({
+                    ...current,
+                    rechargeAmount: Number(event.target.value || 0) * 100,
+                  }))}
                   className="w-full bg-transparent pl-2 text-lg font-semibold text-white outline-none"
                 />
               </div>
-              <div className="mt-2 text-sm text-slate-400">Credits added: {formatCredits(Math.floor(autopay.rechargeAmount / 10))}</div>
+              <div className="mt-2 text-sm text-slate-400">Credits added: {formatCredits(Math.floor(draft.rechargeAmount / 10))}</div>
             </label>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <button
-              onClick={() => onChange({ mode: 'demo', enabled: true, status: 'active', failedReason: undefined, pendingCheckout: null })}
-              className={`rounded-3xl border p-5 text-left ${autopay.mode === 'demo' ? 'border-emerald-300/30 bg-emerald-300/[0.08]' : 'border-white/10 bg-white/[0.03]'}`}
+              onClick={() => setDraft((current) => ({ ...current, mode: 'demo' }))}
+              className={`rounded-3xl border p-5 text-left ${draft.mode === 'demo' ? 'border-emerald-300/30 bg-emerald-300/[0.08]' : 'border-white/10 bg-white/[0.03]'}`}
             >
               <Repeat2 className="h-5 w-5 text-emerald-200" />
               <div className="mt-4 text-lg font-semibold text-white">Demo mode</div>
@@ -105,8 +143,8 @@ export function AutopayPanel({
               </p>
             </button>
             <button
-              onClick={() => onChange({ mode: 'real', enabled: true, status: 'active' })}
-              className={`rounded-3xl border p-5 text-left ${autopay.mode === 'real' ? 'border-sky-300/30 bg-sky-300/[0.08]' : 'border-white/10 bg-white/[0.03]'}`}
+              onClick={() => setDraft((current) => ({ ...current, mode: 'real' }))}
+              className={`rounded-3xl border p-5 text-left ${draft.mode === 'real' ? 'border-sky-300/30 bg-sky-300/[0.08]' : 'border-white/10 bg-white/[0.03]'}`}
             >
               <CreditCard className="h-5 w-5 text-sky-200" />
               <div className="mt-4 text-lg font-semibold text-white">Real mode</div>
@@ -121,23 +159,45 @@ export function AutopayPanel({
             {plans.map((plan) => (
               <button
                 key={plan.id}
-                onClick={() =>
-                  onChange({
-                    selectedPlanId: plan.id,
-                    rechargeAmount: plan.amountPaise,
-                    enabled: true,
-                    status: 'active',
-                  })
-                }
-                className={`flex w-full items-center justify-between rounded-2xl border px-4 py-4 text-left ${autopay.selectedPlanId === plan.id ? 'border-emerald-300/30 bg-emerald-300/[0.07]' : 'border-white/10 bg-white/[0.03]'}`}
+                onClick={() => setDraft((current) => ({
+                  ...current,
+                  selectedPlanId: plan.id,
+                  rechargeAmount: plan.amountPaise,
+                }))}
+                className={`flex w-full items-center justify-between rounded-2xl border px-4 py-4 text-left ${draft.selectedPlanId === plan.id ? 'border-emerald-300/30 bg-emerald-300/[0.07]' : 'border-white/10 bg-white/[0.03]'}`}
               >
                 <div>
                   <div className="font-semibold text-white">{plan.name}</div>
                   <div className="mt-1 text-sm text-slate-400">{formatCurrency(plan.amount)} · {plan.credits} credits</div>
                 </div>
-                {autopay.selectedPlanId === plan.id && <BadgeCheck className="h-5 w-5 text-emerald-200" />}
+                {draft.selectedPlanId === plan.id && <BadgeCheck className="h-5 w-5 text-emerald-200" />}
               </button>
             ))}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || isSaving}
+              className="inline-flex items-center rounded-2xl border border-sky-300/25 bg-sky-300/[0.10] px-4 py-3 text-sm font-semibold text-sky-100 transition disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.04] disabled:text-slate-500"
+            >
+              {isSaving ? (
+                <>
+                  <Loader className="mr-2 h-4 w-4 animate-spin" />
+                  Saving settings
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save settings
+                </>
+              )}
+            </button>
+            {isDirty && (
+              <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
+                Draft changes are ready. Save once instead of sending each edit immediately.
+              </div>
+            )}
           </div>
         </div>
 
@@ -156,7 +216,7 @@ export function AutopayPanel({
           <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
             <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Recharge amount</div>
             <div className="mt-2 text-lg font-semibold text-white">{formatCurrency(rechargeAmountInr)}</div>
-            <div className="mt-2 text-sm text-slate-400">{formatCredits(Math.floor(autopay.rechargeAmount / 10))} when triggered</div>
+            <div className="mt-2 text-sm text-slate-400">{formatCredits(Math.floor(draft.rechargeAmount / 10))} when triggered</div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">

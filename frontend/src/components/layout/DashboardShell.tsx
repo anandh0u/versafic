@@ -1,9 +1,12 @@
 import {
+  AudioLines,
   Bell,
   ChevronRight,
   CreditCard,
   Gauge,
   LogOut,
+  MessageSquareMore,
+  PhoneCall,
   RefreshCw,
   Settings2,
   Sparkles,
@@ -18,6 +21,9 @@ import { formatCredits } from '../../lib/formatters';
 
 const navigation = [
   { to: '/dashboard', label: 'Overview', icon: Gauge },
+  { to: '/dashboard/calls', label: 'Calls', icon: PhoneCall },
+  { to: '/dashboard/chat', label: 'Chat', icon: MessageSquareMore },
+  { to: '/dashboard/workflows', label: 'Workflows', icon: AudioLines },
   { to: '/dashboard/billing', label: 'Billing', icon: CreditCard },
   { to: '/dashboard/demo', label: 'Demo Lab', icon: Sparkles },
   { to: '/dashboard/business', label: 'Business', icon: Settings2 },

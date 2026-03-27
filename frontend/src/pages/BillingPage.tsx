@@ -6,13 +6,13 @@ import { MetricCard } from '../components/shared/MetricCard';
 import { UsageHistoryTable } from '../components/shared/UsageHistoryTable';
 import { PlanCard } from '../components/billing/PlanCard';
 import { AutopayPanel } from '../components/billing/AutopayPanel';
-import { OutboundCallDemo } from '../components/call/OutboundCallDemo';
 import { formatCredits, formatCurrency } from '../lib/formatters';
 
 export default function BillingPage() {
   const { workspace, purchasePlan, demoTopUp, updateAutopay, triggerAutopay } = useBilling();
   const [busyPlanId, setBusyPlanId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<'buy' | 'demo' | null>(null);
+  const [isSavingAutopay, setIsSavingAutopay] = useState(false);
   const [isTriggeringAutopay, setIsTriggeringAutopay] = useState(false);
 
   if (!workspace) {
@@ -48,6 +48,24 @@ export default function BillingPage() {
     } finally {
       setIsTriggeringAutopay(false);
     }
+  };
+
+  const handleSaveAutopay = async (patch: Parameters<typeof updateAutopay>[0]) => {
+    try {
+      setIsSavingAutopay(true);
+      await updateAutopay(patch);
+    } finally {
+      setIsSavingAutopay(false);
+    }
+  };
+
+  const handleToggleAutopay = async (enabled: boolean) => {
+    await handleSaveAutopay({
+      enabled,
+      status: enabled ? 'active' : 'paused',
+      pendingCheckout: enabled ? workspace.autopay.pendingCheckout ?? null : null,
+      failedReason: undefined,
+    });
   };
 
   return (
@@ -121,12 +139,12 @@ export default function BillingPage() {
         autopay={workspace.autopay}
         plans={workspace.pricingPlans}
         history={workspace.autopayHistory}
-        onChange={(patch) => void updateAutopay(patch)}
+        onSave={(patch) => void handleSaveAutopay(patch)}
+        onToggle={(enabled) => void handleToggleAutopay(enabled)}
         onTriggerNow={() => void handleTriggerAutopay()}
+        isSaving={isSavingAutopay}
         isTriggering={isTriggeringAutopay}
       />
-
-      <OutboundCallDemo />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Recharge history" subtitle="Show every credit addition that kept the account active.">

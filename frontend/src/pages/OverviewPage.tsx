@@ -1,6 +1,8 @@
 import {
   Activity,
+  AudioLines,
   CalendarClock,
+  ChevronRight,
   CreditCard,
   MessageSquareMore,
   PhoneCall,
@@ -8,6 +10,7 @@ import {
   Sparkles,
   Wallet2,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useBilling } from '../hooks/useBilling';
 import { MetricCard } from '../components/shared/MetricCard';
 import { Panel } from '../components/shared/Panel';
@@ -82,6 +85,37 @@ export default function OverviewPage() {
     },
   ];
 
+  const laneCards = [
+    {
+      title: 'Calls',
+      description: 'Inbound and outbound call sessions, guardrails, and search.',
+      to: '/dashboard/calls',
+      icon: PhoneCall,
+      stat: `${workspace.transactions.filter((item) => ['voice_call', 'premium_call', 'inbound_call', 'outbound_call'].includes(item.source)).length} events`,
+    },
+    {
+      title: 'Chat',
+      description: 'AI chat usage separated from phone activity for quicker lookup.',
+      to: '/dashboard/chat',
+      icon: MessageSquareMore,
+      stat: `${workspace.usageSummary.aiChatsUsed} chats`,
+    },
+    {
+      title: 'Workflows',
+      description: 'Voice processing, recordings, and background automation activity.',
+      to: '/dashboard/workflows',
+      icon: AudioLines,
+      stat: `${workspace.usageSummary.sarvamRequests + workspace.usageSummary.voiceProcesses + workspace.usageSummary.recordingsProcessed} ops`,
+    },
+    {
+      title: 'Billing',
+      description: 'Recharge plans, autopay controls, and wallet history.',
+      to: '/dashboard/billing',
+      icon: CreditCard,
+      stat: workspace.autopay.enabled ? 'Autopay on' : 'Autopay off',
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <section className="hero-panel">
@@ -140,6 +174,31 @@ export default function OverviewPage() {
           <MetricCard key={metric.label} {...metric} />
         ))}
       </section>
+
+      <Panel
+        title="Quick Access Lanes"
+        subtitle="Each workflow now has its own place so the team can jump straight to the right session area and search faster."
+      >
+        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+          {laneCards.map(({ title, description, to, icon: Icon, stat }) => (
+            <Link
+              key={title}
+              to={to}
+              className="group rounded-[1.7rem] border border-white/10 bg-white/[0.03] p-5 transition hover:border-sky-300/25 hover:bg-sky-300/[0.06]"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-3 text-sky-100">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <ChevronRight className="h-5 w-5 text-slate-500 transition group-hover:translate-x-1 group-hover:text-sky-100" />
+              </div>
+              <div className="mt-5 text-lg font-semibold text-white">{title}</div>
+              <div className="mt-2 text-sm leading-6 text-slate-400">{description}</div>
+              <div className="mt-4 text-sm font-medium text-sky-100">{stat}</div>
+            </Link>
+          ))}
+        </div>
+      </Panel>
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel

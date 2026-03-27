@@ -38,7 +38,7 @@ export function BillingProvider({ children }: { children: ReactNode }) {
   const workspace: BillingWorkspace | null =
     remoteSeed && demoState ? composeBillingWorkspace(remoteSeed, demoState) : null;
 
-  const syncWorkspace = async (refreshing = false) => {
+  const syncWorkspace = async (refreshing = false, stateOverride?: DemoState | null) => {
     if (!user) {
       return;
     }
@@ -52,7 +52,7 @@ export function BillingProvider({ children }: { children: ReactNode }) {
 
     try {
       const nextSeed = await loadRemoteBillingSeed(user);
-      const nextDemoState = resolveDemoState(user.id, nextSeed, demoState);
+      const nextDemoState = resolveDemoState(user.id, nextSeed, stateOverride ?? demoState);
       persistDemoState(user.id, nextDemoState);
       setRemoteSeed(nextSeed);
       setDemoState(nextDemoState);
@@ -174,10 +174,15 @@ export function BillingProvider({ children }: { children: ReactNode }) {
       throw new Error('Billing workspace is not ready yet');
     }
 
+    const previousDemoState = demoState;
+    const optimisticDemoState = buildUpdatedAutopayState(demoState, patch);
     const nextAutopay = {
       ...workspace.autopay,
       ...patch,
     };
+
+    persistDemoState(user.id, optimisticDemoState);
+    setDemoState(optimisticDemoState);
 
     try {
       if (apiConfig.billingMode !== 'mock') {
@@ -192,16 +197,16 @@ export function BillingProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        await syncWorkspace(true);
+        await syncWorkspace(true, optimisticDemoState);
         return;
       }
     } catch (autopayError) {
       if (apiConfig.billingMode === 'live') {
+        persistDemoState(user.id, previousDemoState);
+        setDemoState(previousDemoState);
         throw autopayError;
       }
     }
-
-    await updateDemoState((current) => buildUpdatedAutopayState(current, patch));
   };
 
   const triggerAutopay: BillingContextType['triggerAutopay'] = async () => {

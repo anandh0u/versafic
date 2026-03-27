@@ -92,6 +92,15 @@ export const billingApi = {
       body: JSON.stringify({ plan_id: planId }),
     }),
 
+  createCustomOrder: (amountPaise: number, credits: number) =>
+    apiRequest<CreateOrderResponse>('/billing/create-order', {
+      method: 'POST',
+      body: JSON.stringify({
+        amount_paise: amountPaise,
+        credits,
+      }),
+    }),
+
   verifyPayment: (
     razorpay_order_id: string,
     razorpay_payment_id: string,

@@ -18,10 +18,12 @@ import type {
   BusinessProfile,
   BusinessProfileApiPayload,
   BusinessStatusResponse,
+  CreditPack,
   CreditBreakdownItem,
   DemoState,
   PendingCheckout,
   PricingPlan,
+  PreferredPaymentMethod,
   SimulationAction,
   UsageSummary,
   User,
@@ -57,6 +59,24 @@ const randomId = (prefix: string): string =>
 
 const addHours = (value: string, hours: number): string =>
   new Date(new Date(value).getTime() + hours * 60 * 60 * 1000).toISOString();
+
+export const buildPaymentMethodLabel = (
+  method: PreferredPaymentMethod,
+  upiId?: string
+): string => {
+  switch (method) {
+    case 'upi':
+      return upiId?.trim()
+        ? `Preferred checkout: UPI (${upiId.trim()})`
+        : 'Preferred checkout: UPI';
+    case 'card':
+      return 'Preferred checkout: Card';
+    case 'netbanking':
+      return 'Preferred checkout: Net banking';
+    default:
+      return 'Customer-approved Razorpay checkout';
+  }
+};
 
 const createTransaction = (
   partial: Omit<BillingTransaction, 'id' | 'createdAt'>
@@ -166,6 +186,8 @@ const normalizeAutopaySettings = (payload: {
     thresholdCredits: payload.threshold_credits,
     rechargeAmount: payload.recharge_amount,
     mode: payload.mode,
+    preferredPaymentMethod: 'upi',
+    upiId: '',
     paymentMethodLabel: payload.mode === 'real' ? 'Customer-approved Razorpay checkout' : 'Demo instant recharge',
     status: payload.status,
     failedReason: payload.failure_reason || undefined,
@@ -570,6 +592,27 @@ export const buildDemoTopUpState = (state: DemoState, planId: string): DemoState
   };
 };
 
+export const buildCreditPackTopUpState = (
+  state: DemoState,
+  pack: Pick<CreditPack, 'id' | 'label' | 'credits' | 'amountPaise'>
+): DemoState => ({
+  ...state,
+  localTransactions: [
+    createTransaction({
+      kind: 'topup',
+      creditsDelta: pack.credits,
+      amountPaise: pack.amountPaise,
+      source: 'demo_topup',
+      sourceLabel: 'Credit Recharge',
+      description: `${pack.label} purchased and added to the wallet.`,
+      status: 'completed',
+      referenceId: randomId('PACK'),
+      featureKey: pack.id,
+    }),
+    ...state.localTransactions,
+  ],
+});
+
 export const buildUpdatedAutopayState = (
   state: DemoState,
   patch: Partial<DemoState['autopay']>
@@ -587,6 +630,16 @@ export const buildUpdatedAutopayState = (
         patch.rechargeAmount
         ?? (patch.selectedPlanId ? matchedPlan?.amountPaise : undefined)
         ?? state.autopay.rechargeAmount,
+      paymentMethodLabel:
+        patch.paymentMethodLabel
+        ?? (
+          patch.preferredPaymentMethod || patch.upiId !== undefined
+            ? buildPaymentMethodLabel(
+                patch.preferredPaymentMethod ?? state.autopay.preferredPaymentMethod,
+                patch.upiId ?? state.autopay.upiId
+              )
+            : state.autopay.paymentMethodLabel
+        ),
       pendingCheckout: patch.enabled === false ? null : patch.pendingCheckout ?? state.autopay.pendingCheckout ?? null,
       nextAutopayAttemptAt:
         patch.enabled === false

@@ -4,6 +4,7 @@ export type AutopayTriggerType = 'low_balance' | 'plan_expiry';
 export type WalletHealth = 'healthy' | 'low' | 'empty';
 export type TransactionKind = 'topup' | 'usage' | 'autopay' | 'refund' | 'adjustment';
 export type TransactionStatus = 'completed' | 'pending' | 'failed';
+export type PreferredPaymentMethod = 'upi' | 'card' | 'netbanking';
 
 export interface User {
   id: number;
@@ -39,6 +40,15 @@ export interface PricingPlan {
   monthlyCapacity: string;
   autopayEligible: boolean;
   highlight?: string;
+}
+
+export interface CreditPack {
+  id: string;
+  label: string;
+  amount: number;
+  amountPaise: number;
+  credits: number;
+  description: string;
 }
 
 export interface UsageRule {
@@ -168,6 +178,8 @@ export interface AutopaySettings {
   thresholdCredits: number;
   rechargeAmount: number;
   mode: 'demo' | 'real';
+  preferredPaymentMethod: PreferredPaymentMethod;
+  upiId?: string;
   paymentMethodLabel: string;
   status: 'active' | 'paused' | 'needs_attention';
   lastAutopayAt?: string;
@@ -329,13 +341,18 @@ export interface RazorpayOptions {
   };
 }
 
+export interface PurchasePlanOptions {
+  autopaySetup?: Partial<AutopaySettings> | null;
+}
+
 export interface BillingContextType {
   workspace: BillingWorkspace | null;
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  purchasePlan: (planId: string) => Promise<void>;
+  purchasePlan: (planId: string, options?: PurchasePlanOptions) => Promise<void>;
+  purchaseCredits: (amountPaise: number, credits: number) => Promise<void>;
   demoTopUp: (planId: string) => Promise<void>;
   simulateUsage: (actionId: string) => Promise<void>;
   updateAutopay: (patch: Partial<AutopaySettings>) => Promise<void>;

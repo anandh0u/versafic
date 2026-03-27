@@ -9,12 +9,14 @@ export function PlanCard({
   onBuy,
   onDemoTopUp,
   busyAction,
+  buyLabel,
 }: {
   plan: PricingPlan;
   isCurrent: boolean;
   onBuy: () => void;
   onDemoTopUp: () => void;
   busyAction?: 'buy' | 'demo' | null;
+  buyLabel?: string;
 }) {
   return (
     <div className={`rounded-[1.75rem] border p-6 transition duration-200 ${isCurrent ? 'border-emerald-300/30 bg-emerald-300/[0.08]' : 'border-white/10 bg-white/[0.04]'}`}>
@@ -52,7 +54,7 @@ export function PlanCard({
       <div className="mt-6 space-y-3">
         <button onClick={onBuy} disabled={busyAction !== null} className="button-primary w-full justify-center">
           <CreditCard className="mr-2 h-4 w-4" />
-          {busyAction === 'buy' ? 'Opening Razorpay...' : `Buy ${plan.name}`}
+          {busyAction === 'buy' ? 'Opening Razorpay...' : buyLabel ?? `Buy ${plan.name}`}
         </button>
         <button onClick={onDemoTopUp} disabled={busyAction !== null} className="button-secondary w-full justify-center">
           <Check className="mr-2 h-4 w-4" />

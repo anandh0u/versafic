@@ -1,6 +1,7 @@
 import type {
   AutopaySettings,
   BusinessProfile,
+  CreditPack,
   PricingPlan,
   SimulationAction,
   UsageRule,
@@ -43,6 +44,33 @@ export const pricingPlans: PricingPlan[] = [
     idealFor: 'Multi-branch operations',
     monthlyCapacity: 'Roughly 998 AI chats or 249 call minutes',
     autopayEligible: true,
+  },
+];
+
+export const quickCreditPacks: CreditPack[] = [
+  {
+    id: 'micro-10',
+    label: '10 credits',
+    amount: 1,
+    amountPaise: 100,
+    credits: 10,
+    description: 'Tiny recharge for testing a single AI task.',
+  },
+  {
+    id: 'micro-20',
+    label: '20 credits',
+    amount: 2,
+    amountPaise: 200,
+    credits: 20,
+    description: 'Enough for a short call minute or a few chat requests.',
+  },
+  {
+    id: 'micro-30',
+    label: '30 credits',
+    amount: 3,
+    amountPaise: 300,
+    credits: 30,
+    description: 'Small top-up for quick support bursts.',
   },
 ];
 
@@ -206,6 +234,8 @@ export const defaultAutopaySettings: AutopaySettings = {
   thresholdCredits: LOW_BALANCE_THRESHOLD,
   rechargeAmount: pricingPlans[1].amountPaise,
   mode: 'demo',
+  preferredPaymentMethod: 'upi',
+  upiId: '',
   paymentMethodLabel: 'Customer-approved Razorpay checkout',
   status: 'active',
   lastAutopayAt: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),

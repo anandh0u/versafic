@@ -16,7 +16,28 @@ import type {
   WalletApiResponse,
 } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const DEFAULT_LOCAL_API_URL = 'http://localhost:5000';
+const DEFAULT_PRODUCTION_API_URL = 'https://backend-pink-three-22.vercel.app';
+
+const resolveApiBaseUrl = (): string => {
+  const configuredBaseUrl = import.meta.env.VITE_API_URL?.trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, '');
+  }
+
+  if (typeof window !== 'undefined') {
+    const currentHost = window.location.hostname;
+    const isLocalHost = currentHost === 'localhost' || currentHost === '127.0.0.1';
+
+    if (!isLocalHost) {
+      return DEFAULT_PRODUCTION_API_URL;
+    }
+  }
+
+  return DEFAULT_LOCAL_API_URL;
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 type ApiErrorResponse = {
   message?: string;

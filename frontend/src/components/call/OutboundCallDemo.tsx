@@ -32,6 +32,34 @@ const CALL_PURPOSES: Array<{ value: CallPurpose; label: string; description: str
 ];
 
 const FALLBACK_CALL_COST = 20;
+const FALLBACK_AI_NUMBER = '+12603772925';
+const CALL_CONFIG_CACHE_KEY = 'versafic-call-config';
+
+const readCachedCallConfig = (): CallConfigResponse['data'] | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const cached = window.localStorage.getItem(CALL_CONFIG_CACHE_KEY);
+  if (!cached) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(cached) as CallConfigResponse['data'];
+  } catch {
+    window.localStorage.removeItem(CALL_CONFIG_CACHE_KEY);
+    return null;
+  }
+};
+
+const writeCachedCallConfig = (config: CallConfigResponse['data']) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(CALL_CONFIG_CACHE_KEY, JSON.stringify(config));
+};
 
 export function OutboundCallDemo({
   onCallTriggered,
@@ -43,7 +71,7 @@ export function OutboundCallDemo({
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [selectedPurpose, setSelectedPurpose] = useState<CallPurpose>('enquiry_follow_up');
   const [callConsent, setCallConsent] = useState(Boolean(user?.callConsent));
-  const [callConfig, setCallConfig] = useState<CallConfigResponse['data'] | null>(null);
+  const [callConfig, setCallConfig] = useState<CallConfigResponse['data'] | null>(() => readCachedCallConfig());
   const [configError, setConfigError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,8 +92,41 @@ export function OutboundCallDemo({
         setConfigError(null);
         const result = await callApi.getConfig();
         setCallConfig(result.data);
+        writeCachedCallConfig(result.data);
       } catch (configLoadError) {
-        setConfigError(configLoadError instanceof Error ? configLoadError.message : 'Failed to load call configuration.');
+        const cachedConfig = readCachedCallConfig();
+        if (cachedConfig) {
+          setCallConfig(cachedConfig);
+          setConfigError('Live call settings could not refresh. Showing the last known AI number.');
+          return;
+        }
+
+        setCallConfig((currentConfig) => currentConfig ?? {
+          configured: false,
+          ai_number: FALLBACK_AI_NUMBER,
+          call_credit_cost: FALLBACK_CALL_COST,
+          account_mode: 'trial',
+          demo_mode: true,
+          cooldown_enabled: false,
+          daily_limit_enabled: false,
+          app_name: 'Versafic',
+          intro_message: 'Hello, this is an AI assistant from Versafic.',
+          trial_guidance: 'Live call settings could not be loaded right now. Refresh once and ensure the backend is reachable.',
+          webhooks: {
+            incoming: '',
+            status: '',
+            recording: '',
+            outboundTwiml: '',
+          },
+          auto_sync_enabled: false,
+        });
+        setConfigError(
+          configLoadError instanceof Error && configLoadError.message === 'Failed to fetch'
+            ? 'The live backend could not be reached. Showing the fallback AI number for now.'
+            : configLoadError instanceof Error
+              ? configLoadError.message
+              : 'Failed to load call configuration.'
+        );
       } finally {
         setIsLoadingConfig(false);
       }

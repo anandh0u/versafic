@@ -25,6 +25,7 @@ import customerServiceRoutes from "./routes/customer-service.routes";
 import voiceRoutes from "./routes/voice.routes";
 import businessRoutes from "./routes/business.routes";
 import callRoutes from "./modules/call/call.routes";
+import demoCallRoutes from "./modules/demo-call/demo-call.routes";
 import observabilityRoutes from "./routes/observability.routes";
 import billingRoutes from "./routes/billing.routes";
 
@@ -176,6 +177,7 @@ app.use("/customer-service", generalLimiter, customerServiceRoutes);
 app.use("/voice", generalLimiter, voiceRoutes);
 app.use("/business", generalLimiter, businessRoutes);
 app.use("/call", generalLimiter, callRoutes);
+app.use("/demo/call", generalLimiter, demoCallRoutes);
 app.use("/billing", generalLimiter, billingRoutes);
 
 // Root endpoint

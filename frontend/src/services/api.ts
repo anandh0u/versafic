@@ -7,6 +7,8 @@ import type {
   BusinessStatusResponse,
   CreateOrderResponse,
   CallPurpose,
+  DemoCallListResponse,
+  DemoCallSimulationResponse,
   OutboundCallResponse,
   PaymentVerificationResponse,
   PlansApiResponse,
@@ -178,6 +180,23 @@ export const callApi = {
 
   getRecordingByCallSid: (callSid: string) =>
     apiRequest<unknown>(`/call/recordings/${callSid}`),
+};
+
+export const demoCallApi = {
+  listSessions: (limit = 12) =>
+    apiRequest<DemoCallListResponse>(`/demo/call/sessions?limit=${limit}`),
+
+  simulateOutbound: () =>
+    apiRequest<DemoCallSimulationResponse>('/demo/call/outbound', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  simulateIncoming: () =>
+    apiRequest<DemoCallSimulationResponse>('/demo/call/incoming', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
 };
 
 export const userApi = {

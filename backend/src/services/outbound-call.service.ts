@@ -67,6 +67,7 @@ export class OutboundCallService {
     parentCallSid?: string;
     callbackRequested?: boolean;
   }) {
+    const demoModeEnabled = this.isDemoModeEnabled();
     const normalizedPhone = normalizePhoneNumber(params.phoneNumber);
 
     if (!this.isAllowedPurpose(params.purpose)) {
@@ -82,15 +83,17 @@ export class OutboundCallService {
       throw new AppError(403, ErrorCode.FORBIDDEN, 'Recipient has not consented to AI calls or has opted out');
     }
 
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    if (!demoModeEnabled) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
 
-    const todayCount = await callSessionRepo.getRecentOutboundCountForDay(params.ownerUserId, startOfDay);
-    if (todayCount >= 2) {
-      throw new AppError(429, ErrorCode.FORBIDDEN, 'Daily outbound call limit reached for this business');
+      const todayCount = await callSessionRepo.getRecentOutboundCountForDay(params.ownerUserId, startOfDay);
+      if (todayCount >= 2) {
+        throw new AppError(429, ErrorCode.FORBIDDEN, 'Daily outbound call limit reached for this business');
+      }
     }
 
-    if (!this.isDemoModeEnabled()) {
+    if (!demoModeEnabled) {
       const latestOutbound = await callSessionRepo.getLatestOutboundSession(params.ownerUserId, normalizedPhone);
       if (latestOutbound && Date.now() - new Date(latestOutbound.created_at).getTime() < 24 * 60 * 60 * 1000) {
         throw new AppError(429, ErrorCode.FORBIDDEN, 'Cooldown active. Wait 24 hours before calling this number again');

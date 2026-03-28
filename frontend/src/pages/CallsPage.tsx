@@ -73,7 +73,7 @@ export default function CallsPage() {
               <div className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
                 <div>Only registered users with explicit consent can be called.</div>
                 <div>STOP opt-out is honored and blocks future AI calls.</div>
-                <div>Demo mode removes the repeat-call cooldown so you can rehearse the flow, while the daily outbound limit still stays at 2 calls.</div>
+                <div>Demo mode removes the repeat-call cooldown and daily outbound cap so you can rehearse the flow freely during presentations.</div>
               </div>
             </div>
 

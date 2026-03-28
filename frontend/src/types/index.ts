@@ -262,6 +262,7 @@ export interface CallConfigResponse extends ApiResponse<{
   account_mode: 'trial' | 'paid';
   demo_mode: boolean;
   cooldown_enabled: boolean;
+  daily_limit_enabled: boolean;
   app_name: string;
   intro_message: string;
   trial_guidance: string;

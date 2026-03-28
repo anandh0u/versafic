@@ -1,6 +1,6 @@
 export const sharedDemoCredentials = {
-  email: 'demo@example.com',
-  password: 'DemoPass123!',
+  email: 'developer@versafic.com',
+  password: 'Developer@2026!',
 };
 
 export const sharedDemoEntryPath = '/client-demo';

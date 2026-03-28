@@ -6,7 +6,7 @@ import { sharedDemoCredentials } from '../config/demo';
 import { useAuth } from '../hooks/useAuth';
 
 export default function ClientDemoAccessPage() {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, user, login, logout } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -14,11 +14,6 @@ export default function ClientDemoAccessPage() {
   const startedRef = useRef(false);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard/demo', { replace: true });
-      return;
-    }
-
     if (startedRef.current) {
       return;
     }
@@ -30,8 +25,12 @@ export default function ClientDemoAccessPage() {
       setIsLoading(true);
 
       try {
+        if (isAuthenticated && user?.email !== sharedDemoCredentials.email) {
+          logout();
+        }
+
         await login(sharedDemoCredentials.email, sharedDemoCredentials.password);
-        navigate('/dashboard/demo', { replace: true });
+        navigate('/dashboard/calls', { replace: true });
       } catch (loginError) {
         setError(
           loginError instanceof Error
@@ -44,7 +43,7 @@ export default function ClientDemoAccessPage() {
     };
 
     void run();
-  }, [attempt, isAuthenticated, login, navigate]);
+  }, [attempt, isAuthenticated, login, logout, navigate, user?.email]);
 
   const handleRetry = () => {
     startedRef.current = false;
@@ -84,7 +83,7 @@ export default function ClientDemoAccessPage() {
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-400">
                 {isLoading
-                  ? 'Preparing the live workspace, wallet, and AI call simulation dashboard.'
+                  ? 'Preparing the live funded workspace and opening the real Twilio call demo lane.'
                   : error || 'You will be redirected automatically.'}
               </p>
             </div>

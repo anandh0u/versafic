@@ -210,6 +210,17 @@ export class CallSessionRepository extends BaseRepository {
     );
   }
 
+  async listByUser(userId: number, limit: number = 20): Promise<CallSession[]> {
+    return this.queryMany<CallSession>(
+      `SELECT *
+       FROM call_sessions
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [userId, limit]
+    );
+  }
+
   async getRecentOutboundCountForDay(userId: number, since: Date): Promise<number> {
     const result = await this.queryOne<{ total: string }>(
       `SELECT COUNT(*) AS total

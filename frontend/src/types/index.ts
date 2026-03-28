@@ -255,6 +255,46 @@ export interface OutboundCallResponse extends ApiResponse<{
   balance_credits?: number;
 }> {}
 
+export interface CallConfigResponse extends ApiResponse<{
+  configured: boolean;
+  ai_number: string | null;
+  call_credit_cost: number;
+  account_mode: 'trial' | 'paid';
+  app_name: string;
+  intro_message: string;
+  trial_guidance: string;
+  webhooks: {
+    incoming: string;
+    status: string;
+    recording: string;
+    outboundTwiml: string;
+  };
+  auto_sync_enabled: boolean;
+}> {}
+
+export interface CallSessionItem {
+  id: string;
+  call_sid: string;
+  phone_number?: string | null;
+  type?: 'incoming' | 'outgoing';
+  purpose?: string | null;
+  from_number: string;
+  to_number: string;
+  status: string;
+  direction: string;
+  duration_seconds?: number | null;
+  recording_url?: string | null;
+  callback_requested?: boolean;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface CallSessionsResponse extends ApiResponse<{
+  sessions: CallSessionItem[];
+  credit_cost: number;
+}> {}
+
 export interface DemoCallSession {
   id: string;
   from_number: string;

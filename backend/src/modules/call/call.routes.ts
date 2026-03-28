@@ -3,6 +3,8 @@ import { Router } from 'express';
 import { verifyToken } from '../../middleware/jwt-auth';
 import {
   initiateOutboundCall,
+  getCallConfig,
+  getCallSessions,
   handleIncomingCall,
   renderOutboundTwiML,
   handleOutboundResponse,
@@ -22,6 +24,8 @@ router.post('/status', handleCallStatus);
 router.post('/recording', handleRecording);
 
 // API endpoints for managing recordings (require authentication)
+router.get('/config', verifyToken, getCallConfig);
+router.get('/sessions', verifyToken, getCallSessions);
 router.post('/outbound', verifyToken, initiateOutboundCall);
 router.get('/recordings', verifyToken, getCallRecordings);
 router.get('/recordings/:callSid', verifyToken, getCallRecordingByCallSid);

@@ -1,15 +1,18 @@
+import { useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Clock3, PhoneCall, ShieldCheck } from 'lucide-react';
 import { useBilling } from '../hooks/useBilling';
 import { MetricCard } from '../components/shared/MetricCard';
 import { Panel } from '../components/shared/Panel';
 import { SearchableActivityPanel } from '../components/activity/SearchableActivityPanel';
 import { OutboundCallDemo } from '../components/call/OutboundCallDemo';
+import { CallSessionsPanel } from '../components/call/CallSessionsPanel';
 import { formatCredits } from '../lib/formatters';
 
 const CALL_SOURCES = ['voice_call', 'premium_call', 'inbound_call', 'outbound_call'];
 
 export default function CallsPage() {
   const { workspace } = useBilling();
+  const [sessionRefreshSignal, setSessionRefreshSignal] = useState(0);
 
   if (!workspace) {
     return null;
@@ -58,7 +61,7 @@ export default function CallsPage() {
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <OutboundCallDemo />
+        <OutboundCallDemo onCallTriggered={() => setSessionRefreshSignal((current) => current + 1)} />
 
         <Panel
           title="Call Guardrails"
@@ -86,6 +89,8 @@ export default function CallsPage() {
           </div>
         </Panel>
       </div>
+
+      <CallSessionsPanel refreshSignal={sessionRefreshSignal} />
 
       <SearchableActivityPanel
         title="Call Activity History"

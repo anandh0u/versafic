@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle, Loader, Phone, ShieldAlert } from 'lucide-react';
-import type { CallPurpose, OutboundCallResponse } from '../../types';
+import type { CallConfigResponse, CallPurpose, OutboundCallResponse } from '../../types';
 import { callApi } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { useBilling } from '../../hooks/useBilling';
@@ -31,14 +31,23 @@ const CALL_PURPOSES: Array<{ value: CallPurpose; label: string; description: str
   },
 ];
 
-export function OutboundCallDemo() {
+const FALLBACK_CALL_COST = 20;
+
+export function OutboundCallDemo({
+  onCallTriggered,
+}: {
+  onCallTriggered?: () => void;
+}) {
   const { user, updateProfile } = useAuth();
   const { workspace } = useBilling();
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [selectedPurpose, setSelectedPurpose] = useState<CallPurpose>('enquiry_follow_up');
   const [callConsent, setCallConsent] = useState(Boolean(user?.callConsent));
+  const [callConfig, setCallConfig] = useState<CallConfigResponse['data'] | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [response, setResponse] = useState<OutboundCallResponse['data'] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +57,26 @@ export function OutboundCallDemo() {
     setCallConsent(Boolean(user?.callConsent));
   }, [user?.phoneNumber, user?.callConsent]);
 
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        setIsLoadingConfig(true);
+        setConfigError(null);
+        const result = await callApi.getConfig();
+        setCallConfig(result.data);
+      } catch (configLoadError) {
+        setConfigError(configLoadError instanceof Error ? configLoadError.message : 'Failed to load call configuration.');
+      } finally {
+        setIsLoadingConfig(false);
+      }
+    };
+
+    void loadConfig();
+  }, []);
+
   const isValidPhone = phoneNumber.trim().length >= 10;
-  const canTrigger = isValidPhone && callConsent && !isLoading && !isSaving;
+  const liveCallCost = callConfig?.call_credit_cost ?? FALLBACK_CALL_COST;
+  const canTrigger = isValidPhone && callConsent && !isLoading && !isSaving && Boolean(callConfig?.configured);
 
   const persistCallPreferences = async () => {
     if (!isValidPhone) {
@@ -97,8 +124,7 @@ export function OutboundCallDemo() {
       if (result.status === 'success') {
         setStatus('success');
         setResponse(result.data);
-        setPhoneNumber('');
-        setCallConsent(false);
+        onCallTriggered?.();
       } else {
         throw new Error(result.message || 'Failed to trigger call');
       }
@@ -121,15 +147,50 @@ export function OutboundCallDemo() {
 
   return (
     <Panel
-      title="Outbound Call Demo"
-      subtitle="Trigger an AI-powered outbound call with automatic script generation. Verify you own the number before calling."
-      action={<StatusBadge label="Demo Mode" tone="sky" />}
+      title="Live Twilio Call Demo"
+      subtitle="Trigger a real trial-safe call from your configured Twilio AI number, then watch the session appear in the app."
+      action={
+        <StatusBadge
+          label={
+            callConfig?.configured
+              ? `${callConfig.account_mode === 'trial' ? 'Trial' : 'Paid'} Twilio`
+              : 'Needs Twilio Setup'
+          }
+          tone={callConfig?.configured ? 'sky' : 'rose'}
+        />
+      }
     >
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <div className="text-xs uppercase tracking-[0.24em] text-slate-500">AI Number</div>
+              <div className="mt-3 text-2xl font-semibold text-white">
+                {isLoadingConfig ? 'Loading...' : (callConfig?.ai_number || 'Not configured')}
+              </div>
+              <p className="mt-2 text-xs leading-6 text-slate-400">
+                This is the live Twilio number that customers call and that outbound calls ring from.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+              <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Call Cost</div>
+              <div className="mt-3 text-2xl font-semibold text-white">{formatCredits(liveCallCost)}</div>
+              <p className="mt-2 text-xs leading-6 text-slate-400">
+                Reserved for each live call. Failed or missed sessions are refunded automatically.
+              </p>
+            </div>
+          </div>
+
+          {configError ? (
+            <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm leading-6 text-rose-100">
+              {configError}
+            </div>
+          ) : null}
+
           {/* Phone Input */}
           <label className="block rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-            <div className="text-sm font-semibold text-white">Phone Number</div>
+            <div className="text-sm font-semibold text-white">Customer Number</div>
             <p className="mt-1 text-xs text-slate-400">Include country code (e.g., +91 for India)</p>
             <input
               type="tel"
@@ -199,16 +260,19 @@ export function OutboundCallDemo() {
             <div className="flex items-start gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
               <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-200" />
               <div>
-                <div className="font-semibold text-emerald-50">Call initiated successfully</div>
-                <div className="mt-2 space-y-1 text-sm text-emerald-100/80">
-                  <div>
-                    <span className="font-medium">Call SID:</span> {response.callSid}
-                  </div>
-                  <div>
-                    <span className="font-medium">To:</span> {response.to}
-                  </div>
-                  <div className="mt-2 rounded bg-white/10 p-2 font-mono text-xs">"{response.script}"</div>
+              <div className="font-semibold text-emerald-50">Call initiated successfully</div>
+              <div className="mt-2 space-y-1 text-sm text-emerald-100/80">
+                <div>
+                  <span className="font-medium">Call SID:</span> {response.callSid}
                 </div>
+                <div>
+                  <span className="font-medium">AI Number:</span> {callConfig?.ai_number || 'Configured Twilio line'}
+                </div>
+                <div>
+                  <span className="font-medium">To:</span> {response.to}
+                </div>
+                <div className="mt-2 rounded bg-white/10 p-2 font-mono text-xs">"{response.script}"</div>
+              </div>
               </div>
             </div>
           )}
@@ -232,7 +296,7 @@ export function OutboundCallDemo() {
                   disabled={!isValidPhone || isSaving || isLoading}
                   className="flex-1 rounded-lg border border-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/5"
                 >
-                  {isSaving ? 'Saving...' : 'Save Preferences'}
+                  {isSaving ? 'Saving...' : 'Save Consent'}
                 </button>
                 <button
                   onClick={handleTriggerCall}
@@ -240,7 +304,7 @@ export function OutboundCallDemo() {
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Phone className="h-4 w-4" />
-                  Trigger Call
+                  Place Live Call
                 </button>
               </>
             ) : status === 'processing' ? (
@@ -265,27 +329,27 @@ export function OutboundCallDemo() {
             <div className="text-xs uppercase tracking-[0.24em] text-slate-500">How it works</div>
             <div className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
               <div>
-                <div className="font-semibold text-white">1. Register the number</div>
-                <p className="mt-1 text-slate-400">Save the same consented phone number on your user profile first.</p>
+                <div className="font-semibold text-white">1. Enter the customer number</div>
+                <p className="mt-1 text-slate-400">The entered number becomes the live call target for this session.</p>
               </div>
               <div>
-                <div className="font-semibold text-white">2. Select Purpose</div>
-                <p className="mt-1 text-slate-400">Choose the intent (follow-up, callback, support, confirmation)</p>
+                <div className="font-semibold text-white">2. Save consent</div>
+                <p className="mt-1 text-slate-400">We keep the number and consent on your profile so the backend guardrails can allow the call.</p>
               </div>
               <div>
-                <div className="font-semibold text-white">3. Confirm Consent</div>
-                <p className="mt-1 text-slate-400">Verify you own the number and have customer permission</p>
+                <div className="font-semibold text-white">3. Place the call</div>
+                <p className="mt-1 text-slate-400">Twilio dials the customer, the AI reads the generated script, and the call is recorded.</p>
               </div>
               <div>
-                <div className="font-semibold text-white">4. Trigger</div>
-                <p className="mt-1 text-slate-400">AI generates a script, Twilio places the call, and the STOP phrase is honored.</p>
+                <div className="font-semibold text-white">4. Track the session</div>
+                <p className="mt-1 text-slate-400">The new call session appears below with status, script, and webhook updates.</p>
               </div>
             </div>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-white/[0.05] p-4">
             <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Credits used</div>
-            <div className="mt-2 text-2xl font-semibold text-sky-100">20 credits</div>
+            <div className="mt-2 text-2xl font-semibold text-sky-100">{formatCredits(liveCallCost)}</div>
             <p className="mt-1 text-xs text-slate-400">
               Reserved for the one-minute call window. Failed or missed calls are refunded automatically.
             </p>
@@ -298,12 +362,22 @@ export function OutboundCallDemo() {
             <div className="flex gap-2 text-xs leading-5 text-amber-50">
               <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <div>
-                <div className="font-semibold">Compliance Enforced</div>
+                <div className="font-semibold">Trial Demo Notes</div>
                 <div className="mt-1 text-amber-100/80">
-                  Only registered, consented users can be called. Max 2 calls per day, 24-hour cooldown, and STOP opt-out are enforced.
+                  {callConfig?.trial_guidance || 'While Twilio is on trial, use verified customer numbers. Max 2 calls per day, 24-hour cooldown, and STOP opt-out are enforced.'}
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/[0.05] p-4">
+            <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Inbound webhook</div>
+            <div className="mt-2 text-sm font-semibold text-white">
+              {callConfig?.webhooks.incoming || 'Waiting for Twilio configuration'}
+            </div>
+            <p className="mt-2 text-xs leading-6 text-slate-400">
+              Ask the customer to dial the AI number above to create an incoming session in the app. If webhook auto-sync is enabled, the backend keeps this route attached to the Twilio number.
+            </p>
           </div>
         </div>
       </div>

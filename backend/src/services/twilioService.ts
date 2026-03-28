@@ -4,6 +4,13 @@ import { getOptionalEnv } from '../utils/env';
 import { logger } from '../utils/logger';
 import { getPublicUrl } from '../config/database';
 
+type TwilioWebhookSyncResult = {
+  status: 'synced' | 'already_configured' | 'skipped' | 'unavailable';
+  incomingUrl: string;
+  phoneNumber: string;
+  reason?: string;
+};
+
 export class TwilioService {
   private client: twilio.Twilio;
   private accountSid: string;
@@ -29,6 +36,100 @@ export class TwilioService {
 
   getPhoneNumber(): string {
     return this.phoneNumber;
+  }
+
+  getConfigurationSummary(): {
+    configured: boolean;
+    accountMode: 'trial' | 'paid';
+    phoneNumber: string;
+    maskedAccountSid: string;
+    publicBaseUrl: string;
+    webhooks: {
+      incoming: string;
+      status: string;
+      recording: string;
+      outboundTwiml: string;
+    };
+    autoSyncEnabled: boolean;
+  } {
+    return {
+      configured: true,
+      accountMode: getOptionalEnv('TWILIO_ACCOUNT_MODE', 'trial') === 'paid' ? 'paid' : 'trial',
+      phoneNumber: this.phoneNumber,
+      maskedAccountSid: `${this.accountSid.substring(0, 8)}...`,
+      publicBaseUrl: getPublicUrl(''),
+      webhooks: {
+        incoming: getPublicUrl('/call/incoming'),
+        status: getPublicUrl('/call/status'),
+        recording: getPublicUrl('/call/recording'),
+        outboundTwiml: getPublicUrl('/call/outbound/twiml'),
+      },
+      autoSyncEnabled: getOptionalEnv('TWILIO_AUTO_SYNC_WEBHOOKS', 'false') === 'true',
+    };
+  }
+
+  async syncIncomingVoiceWebhookIfEnabled(): Promise<TwilioWebhookSyncResult> {
+    const incomingUrl = getPublicUrl('/call/incoming');
+
+    if (getOptionalEnv('TWILIO_AUTO_SYNC_WEBHOOKS', 'false') !== 'true') {
+      return {
+        status: 'skipped',
+        incomingUrl,
+        phoneNumber: this.phoneNumber,
+        reason: 'twilio_auto_sync_disabled',
+      };
+    }
+
+    const numbers = await this.client.incomingPhoneNumbers.list({
+      phoneNumber: this.phoneNumber,
+      limit: 1,
+    });
+    const phoneNumber = numbers[0];
+
+    if (!phoneNumber) {
+      logger.warn('Twilio number was not found in IncomingPhoneNumbers inventory', {
+        phoneNumber: this.phoneNumber,
+      });
+
+      return {
+        status: 'unavailable',
+        incomingUrl,
+        phoneNumber: this.phoneNumber,
+        reason: 'phone_number_not_found',
+      };
+    }
+
+    const normalizedExistingVoiceUrl = (phoneNumber.voiceUrl || '').replace(/\/$/, '');
+    const normalizedTargetVoiceUrl = incomingUrl.replace(/\/$/, '');
+
+    if (normalizedExistingVoiceUrl === normalizedTargetVoiceUrl && phoneNumber.voiceMethod === 'POST') {
+      logger.info('Twilio incoming voice webhook already configured', {
+        phoneNumber: this.phoneNumber,
+        incomingUrl,
+      });
+
+      return {
+        status: 'already_configured',
+        incomingUrl,
+        phoneNumber: this.phoneNumber,
+      };
+    }
+
+    await this.client.incomingPhoneNumbers(phoneNumber.sid).update({
+      voiceUrl: incomingUrl,
+      voiceMethod: 'POST',
+    });
+
+    logger.info('Twilio incoming voice webhook synced', {
+      phoneNumber: this.phoneNumber,
+      incomingUrl,
+    });
+
+    return {
+      status: 'synced',
+      incomingUrl,
+      phoneNumber: this.phoneNumber,
+    };
   }
 
   /**

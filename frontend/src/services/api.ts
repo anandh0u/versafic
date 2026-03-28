@@ -5,6 +5,8 @@ import type {
   BalanceCheckResponse,
   BusinessProfileResponse,
   BusinessStatusResponse,
+  CallConfigResponse,
+  CallSessionsResponse,
   CreateOrderResponse,
   CallPurpose,
   DemoCallListResponse,
@@ -159,6 +161,11 @@ export const billingApi = {
 };
 
 export const callApi = {
+  getConfig: () => apiRequest<CallConfigResponse>('/call/config'),
+
+  getSessions: (limit = 12) =>
+    apiRequest<CallSessionsResponse>(`/call/sessions?limit=${limit}`),
+
   triggerOutboundCall: (payload: {
     phone_number: string;
     purpose: CallPurpose;

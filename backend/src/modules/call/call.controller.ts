@@ -14,6 +14,7 @@ import { normalizePhoneNumber } from '../../utils/validators';
 import { getPublicUrl } from '../../config/database';
 
 const CALL_CREDIT_COST = 20;
+const APP_NAME = process.env.APP_NAME || 'Versafic';
 
 const buildSimpleTwiml = (message: string): string => {
   const twiml = new twilio.twiml.VoiceResponse();
@@ -104,6 +105,93 @@ export const initiateOutboundCall = async (
       status: 'success',
       message: 'Outbound AI call initiated successfully',
       data: result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCallConfig = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      return next(new AppError(401, ErrorCode.UNAUTHORIZED, 'Authentication required'));
+    }
+
+    try {
+      const twilioConfig = getTwilioService().getConfigurationSummary();
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Call configuration retrieved',
+        data: {
+          configured: true,
+          ai_number: twilioConfig.phoneNumber,
+          call_credit_cost: CALL_CREDIT_COST,
+          account_mode: twilioConfig.accountMode,
+          app_name: APP_NAME,
+          intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
+          trial_guidance:
+            twilioConfig.accountMode === 'trial'
+              ? 'Use verified customer numbers while the Twilio account is on trial.'
+              : 'The calling system is configured for live Twilio usage.',
+          webhooks: twilioConfig.webhooks,
+          auto_sync_enabled: twilioConfig.autoSyncEnabled,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      res.status(200).json({
+        status: 'success',
+        message: 'Call configuration retrieved',
+        data: {
+          configured: false,
+          ai_number: null,
+          call_credit_cost: CALL_CREDIT_COST,
+          account_mode: 'trial',
+          app_name: APP_NAME,
+          intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
+          trial_guidance: 'Set the Twilio environment variables to enable live calling.',
+          webhooks: {
+            incoming: getPublicUrl('/call/incoming'),
+            status: getPublicUrl('/call/status'),
+            recording: getPublicUrl('/call/recording'),
+            outboundTwiml: getPublicUrl('/call/outbound/twiml'),
+          },
+          auto_sync_enabled: false,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCallSessions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      return next(new AppError(401, ErrorCode.UNAUTHORIZED, 'Authentication required'));
+    }
+
+    const limit = Math.min(parseInt(String(req.query.limit || '12'), 10) || 12, 50);
+    const sessions = await callSessionRepo.listByUser(Number(req.user.id), limit);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Call sessions retrieved',
+      data: {
+        sessions,
+        credit_cost: CALL_CREDIT_COST,
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

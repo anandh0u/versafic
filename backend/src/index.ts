@@ -218,6 +218,16 @@ export const initializeApp = async (): Promise<void> => {
           error: convError instanceof Error ? convError.message : String(convError)
         });
       }
+
+      try {
+        const { getTwilioService } = await import("./services/twilioService");
+        const syncResult = await getTwilioService().syncIncomingVoiceWebhookIfEnabled();
+        logger.info("Twilio incoming webhook sync checked", syncResult);
+      } catch (twilioError) {
+        logger.warn("Twilio webhook sync skipped", {
+          error: twilioError instanceof Error ? twilioError.message : String(twilioError)
+        });
+      }
     })().catch((error) => {
       initializationPromise = null;
       throw error;

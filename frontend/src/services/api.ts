@@ -22,11 +22,77 @@ type ApiErrorResponse = {
   message?: string;
 };
 
+const AUTH_STATE_CHANGED_EVENT = 'versafic-auth-state-changed';
+
 const getToken = (): string | null => localStorage.getItem('accessToken');
+const getRefreshToken = (): string | null => localStorage.getItem('refreshToken');
+const getUser = (): string | null => localStorage.getItem('user');
+
+const notifyAuthStateChanged = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTH_STATE_CHANGED_EVENT));
+  }
+};
+
+const persistAuthTokens = (accessToken: string, refreshToken: string) => {
+  localStorage.setItem('accessToken', accessToken);
+  localStorage.setItem('refreshToken', refreshToken);
+  notifyAuthStateChanged();
+};
+
+const clearStoredAuth = () => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('user');
+  notifyAuthStateChanged();
+};
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    clearStoredAuth();
+    return null;
+  }
+
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      const raw = await response.text();
+      const parsed = raw ? (JSON.parse(raw) as AuthResponse & ApiErrorResponse) : null;
+
+      if (!response.ok || !parsed?.data?.accessToken || !parsed.data.refreshToken) {
+        clearStoredAuth();
+        return null;
+      }
+
+      persistAuthTokens(parsed.data.accessToken, parsed.data.refreshToken);
+
+      if (getUser()) {
+        notifyAuthStateChanged();
+      }
+
+      return parsed.data.accessToken;
+    })().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+
+  return refreshInFlight;
+}
 
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  hasRetried: boolean = false
 ): Promise<T> {
   const token = getToken();
   const ngrokHeaders: Record<string, string> = {};
@@ -47,6 +113,22 @@ async function apiRequest<T>(
 
   const raw = await response.text();
   const parsed = raw ? (JSON.parse(raw) as T & ApiErrorResponse) : ({} as T & ApiErrorResponse);
+
+  if (response.status === 401 && !hasRetried && getRefreshToken()) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) {
+      return apiRequest<T>(
+        endpoint,
+        {
+          ...options,
+          headers: {
+            ...options.headers,
+          },
+        },
+        true
+      );
+    }
+  }
 
   if (!response.ok) {
     throw new Error(parsed.message || 'API request failed');
@@ -354,3 +436,5 @@ export const apiConfig = {
   baseUrl: API_BASE_URL,
   billingMode: (import.meta.env.VITE_BILLING_MODE || 'hybrid') as 'mock' | 'hybrid' | 'live',
 };
+
+export { AUTH_STATE_CHANGED_EVENT };

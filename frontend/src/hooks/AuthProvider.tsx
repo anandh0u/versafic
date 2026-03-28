@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from '../types';
-import { authApi } from '../services/api';
+import { AUTH_STATE_CHANGED_EVENT, authApi } from '../services/api';
 import { AuthContext } from './auth-context';
 
 const getStoredToken = (): string | null => {
@@ -34,6 +34,21 @@ const getStoredUser = (): User | null => {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => getStoredUser());
   const [token, setToken] = useState<string | null>(() => getStoredToken());
+
+  useEffect(() => {
+    const syncAuthState = () => {
+      setToken(getStoredToken());
+      setUser(getStoredUser());
+    };
+
+    window.addEventListener(AUTH_STATE_CHANGED_EVENT, syncAuthState);
+    window.addEventListener('storage', syncAuthState);
+
+    return () => {
+      window.removeEventListener(AUTH_STATE_CHANGED_EVENT, syncAuthState);
+      window.removeEventListener('storage', syncAuthState);
+    };
+  }, []);
 
   const persistUser = (nextUser: User) => {
     localStorage.setItem('user', JSON.stringify(nextUser));

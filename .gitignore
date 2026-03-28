@@ -32,3 +32,6 @@ coverage/
 # Temp files
 *.tmp
 *.temp
+
+# Local Codex artifacts
+.codex-artifacts/

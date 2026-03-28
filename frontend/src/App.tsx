@@ -12,7 +12,6 @@ import CallsPage from './pages/CallsPage';
 import ChatsPage from './pages/ChatsPage';
 import WorkflowsPage from './pages/WorkflowsPage';
 import BillingPage from './pages/BillingPage';
-import DemoLabPage from './pages/DemoLabPage';
 import BusinessProfilePage from './pages/BusinessProfilePage';
 
 function App() {
@@ -37,7 +36,7 @@ function App() {
             <Route path="chat" element={<ChatsPage />} />
             <Route path="workflows" element={<WorkflowsPage />} />
             <Route path="billing" element={<BillingPage />} />
-            <Route path="demo" element={<DemoLabPage />} />
+            <Route path="demo" element={<Navigate to="/dashboard/calls" replace />} />
             <Route path="business" element={<BusinessProfilePage />} />
           </Route>
         </Route>

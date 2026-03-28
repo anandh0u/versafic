@@ -9,7 +9,6 @@ import {
   PhoneCall,
   RefreshCw,
   Settings2,
-  Sparkles,
   Wallet,
 } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
@@ -25,7 +24,6 @@ const navigation = [
   { to: '/dashboard/chat', label: 'Chat', icon: MessageSquareMore },
   { to: '/dashboard/workflows', label: 'Workflows', icon: AudioLines },
   { to: '/dashboard/billing', label: 'Billing', icon: CreditCard },
-  { to: '/dashboard/demo', label: 'AI Call Demo', icon: Sparkles },
   { to: '/dashboard/business', label: 'Business', icon: Settings2 },
 ];
 

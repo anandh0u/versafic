@@ -254,7 +254,7 @@ export default function OverviewPage() {
         <UsageHistoryTable
           items={workspace.transactions.slice(0, 8)}
           emptyTitle="No wallet activity yet"
-          emptyCopy="Use the demo lab or trigger a Razorpay purchase to populate the billing timeline."
+          emptyCopy="Trigger a live Twilio call or complete a Razorpay purchase to populate the billing timeline."
         />
       </Panel>
     </div>

@@ -295,31 +295,6 @@ export interface CallSessionsResponse extends ApiResponse<{
   credit_cost: number;
 }> {}
 
-export interface DemoCallSession {
-  id: string;
-  from_number: string;
-  to_number: string;
-  type: 'incoming' | 'outbound';
-  message: string;
-  status: 'completed' | 'blocked';
-  created_at: string;
-}
-
-export interface DemoCallListResponse extends ApiResponse<{
-  sessions: DemoCallSession[];
-  aiNumber: string;
-  customerNumber: string;
-  creditCost: number;
-}> {}
-
-export interface DemoCallSimulationResponse extends ApiResponse<{
-  session: DemoCallSession;
-  balanceCredits: number;
-  creditsDeducted: number;
-  aiNumber: string;
-  customerNumber: string;
-}> {}
-
 export interface UsageSummary {
   monthCreditsUsed: number;
   totalCallsHandled: number;

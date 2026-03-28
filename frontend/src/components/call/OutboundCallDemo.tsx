@@ -162,10 +162,10 @@ export function OutboundCallDemo({
     >
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
               <div className="text-xs uppercase tracking-[0.24em] text-slate-500">AI Number</div>
-              <div className="mt-3 text-2xl font-semibold text-white">
+              <div className="mt-3 break-all text-[1.8rem] leading-tight font-semibold tracking-tight text-white sm:text-2xl">
                 {isLoadingConfig ? 'Loading...' : (callConfig?.ai_number || 'Not configured')}
               </div>
               <p className="mt-2 text-xs leading-6 text-slate-400">
@@ -173,9 +173,11 @@ export function OutboundCallDemo({
               </p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
               <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Call Cost</div>
-              <div className="mt-3 text-2xl font-semibold text-white">{formatCredits(liveCallCost)}</div>
+              <div className="mt-3 text-[1.8rem] leading-tight font-semibold tracking-tight text-white sm:text-2xl">
+                {formatCredits(liveCallCost)}
+              </div>
               <p className="mt-2 text-xs leading-6 text-slate-400">
                 Reserved for each call. Failed or missed sessions are refunded automatically.
               </p>
@@ -266,10 +268,11 @@ export function OutboundCallDemo({
                     <span className="font-medium">Call SID:</span> {response.callSid}
                   </div>
                   <div>
-                    <span className="font-medium">AI Number:</span> {callConfig?.ai_number || 'Configured Twilio line'}
+                    <span className="font-medium">AI Number:</span>{' '}
+                    <span className="break-all">{callConfig?.ai_number || 'Configured Twilio line'}</span>
                   </div>
                   <div>
-                    <span className="font-medium">To:</span> {response.to}
+                    <span className="font-medium">To:</span> <span className="break-all">{response.to}</span>
                   </div>
                   <div className="mt-2 rounded bg-white/10 p-2 font-mono text-xs">"{response.script}"</div>
                 </div>

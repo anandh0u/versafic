@@ -124,6 +124,7 @@ export const getCallConfig = async (
 
     try {
       const twilioConfig = getTwilioService().getConfigurationSummary();
+      const demoModeEnabled = outboundCallService.isDemoModeEnabled();
 
       res.status(200).json({
         status: 'success',
@@ -133,11 +134,15 @@ export const getCallConfig = async (
           ai_number: twilioConfig.phoneNumber,
           call_credit_cost: CALL_CREDIT_COST,
           account_mode: twilioConfig.accountMode,
+          demo_mode: demoModeEnabled,
+          cooldown_enabled: !demoModeEnabled,
           app_name: APP_NAME,
           intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
           trial_guidance:
             twilioConfig.accountMode === 'trial'
-              ? 'Use verified customer numbers while the Twilio account is on trial.'
+              ? demoModeEnabled
+                ? 'Use verified customer numbers while the Twilio account is on trial. Demo mode removes the 24-hour repeat-call cooldown.'
+                : 'Use verified customer numbers while the Twilio account is on trial.'
               : 'The calling system is configured for live Twilio usage.',
           webhooks: twilioConfig.webhooks,
           auto_sync_enabled: twilioConfig.autoSyncEnabled,
@@ -153,6 +158,8 @@ export const getCallConfig = async (
           ai_number: null,
           call_credit_cost: CALL_CREDIT_COST,
           account_mode: 'trial',
+          demo_mode: true,
+          cooldown_enabled: false,
           app_name: APP_NAME,
           intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
           trial_guidance: 'Set the Twilio environment variables to enable live calling.',

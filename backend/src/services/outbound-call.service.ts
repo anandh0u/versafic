@@ -10,6 +10,7 @@ import { getTwilioService } from './twilioService';
 import { AppError } from '../middleware/error-handler';
 import { ErrorCode } from '../types';
 import { logger } from '../utils/logger';
+import { getOptionalEnv } from '../utils/env';
 import { normalizePhoneNumber } from '../utils/validators';
 
 const APP_NAME = process.env.APP_NAME || 'Versafic';
@@ -30,6 +31,11 @@ type TwilioLikeError = Error & {
 };
 
 export class OutboundCallService {
+  isDemoModeEnabled(): boolean {
+    const fallbackDemoMode = getOptionalEnv('TWILIO_ACCOUNT_MODE', 'trial') === 'paid' ? 'false' : 'true';
+    return getOptionalEnv('CALL_DEMO_MODE', fallbackDemoMode) === 'true';
+  }
+
   private isAllowedPurpose(purpose: string): purpose is AllowedCallPurpose {
     return ALLOWED_PURPOSES.includes(purpose as AllowedCallPurpose);
   }
@@ -84,9 +90,11 @@ export class OutboundCallService {
       throw new AppError(429, ErrorCode.FORBIDDEN, 'Daily outbound call limit reached for this business');
     }
 
-    const latestOutbound = await callSessionRepo.getLatestOutboundSession(params.ownerUserId, normalizedPhone);
-    if (latestOutbound && Date.now() - new Date(latestOutbound.created_at).getTime() < 24 * 60 * 60 * 1000) {
-      throw new AppError(429, ErrorCode.FORBIDDEN, 'Cooldown active. Wait 24 hours before calling this number again');
+    if (!this.isDemoModeEnabled()) {
+      const latestOutbound = await callSessionRepo.getLatestOutboundSession(params.ownerUserId, normalizedPhone);
+      if (latestOutbound && Date.now() - new Date(latestOutbound.created_at).getTime() < 24 * 60 * 60 * 1000) {
+        throw new AppError(429, ErrorCode.FORBIDDEN, 'Cooldown active. Wait 24 hours before calling this number again');
+      }
     }
 
     const businessProfile = await OnboardingModel.findBusinessByUserId(params.ownerUserId);

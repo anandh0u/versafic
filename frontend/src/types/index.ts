@@ -260,6 +260,8 @@ export interface CallConfigResponse extends ApiResponse<{
   ai_number: string | null;
   call_credit_cost: number;
   account_mode: 'trial' | 'paid';
+  demo_mode: boolean;
+  cooldown_enabled: boolean;
   app_name: string;
   intro_message: string;
   trial_guidance: string;

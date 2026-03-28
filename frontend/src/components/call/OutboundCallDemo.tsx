@@ -364,7 +364,7 @@ export function OutboundCallDemo({
               <div>
                 <div className="font-semibold">Trial account notes</div>
                 <div className="mt-1 text-amber-100/80">
-                  {callConfig?.trial_guidance || 'While Twilio is on trial, use verified customer numbers. Max 2 calls per day, 24-hour cooldown, and STOP opt-out are enforced.'}
+                  {callConfig?.trial_guidance || 'While Twilio is on trial, use verified customer numbers. Demo mode allows repeat calls without the 24-hour wait. The daily call limit and STOP opt-out still apply.'}
                 </div>
               </div>
             </div>

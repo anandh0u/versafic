@@ -32,7 +32,7 @@ export const pricingPlans: PricingPlan[] = [
     idealFor: 'Hotels, clinics, service teams',
     monthlyCapacity: 'Roughly 398 AI chats or 99 call minutes',
     autopayEligible: true,
-    highlight: 'Most popular for demos',
+    highlight: 'Most popular',
   },
   {
     id: 'pro',
@@ -244,7 +244,7 @@ export const defaultAutopaySettings: AutopaySettings = {
 };
 
 export const defaultBusinessProfile: BusinessProfile = {
-  businessName: 'Versafic Demo Operations',
+  businessName: 'Versafic Operations',
   businessType: 'AI Customer Support Platform',
   industry: 'Hospitality & Services',
   website: 'https://versafic.com',
@@ -252,7 +252,7 @@ export const defaultBusinessProfile: BusinessProfile = {
   phone: '+91 98765 43210',
   supportWorkflowStatus: 'Voice + chat flows active',
   aiSetupStatus: 'Knowledge base synced 2 hours ago',
-  onboardingStage: 'Live demo ready',
+  onboardingStage: 'Workspace ready',
   lastSyncAt: new Date().toISOString(),
 };
 

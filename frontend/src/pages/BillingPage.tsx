@@ -93,7 +93,7 @@ export default function BillingPage() {
               upiId: /^[^\s@]+@[^\s@]+$/.test(purchaseSetup.upiId.trim()) ? purchaseSetup.upiId.trim() : '',
               paymentMethodLabel: workspace.paymentReadiness.canUseRazorpay
                 ? purchasePaymentLabel
-                : 'Demo instant recharge',
+                : 'Instant recharge',
               status: 'active',
               failedReason: undefined,
               pendingCheckout: null,
@@ -195,7 +195,7 @@ export default function BillingPage() {
           icon={Wallet}
           label="Current balance"
           value={formatCredits(workspace.balanceCredits)}
-          helper="The live number your client cares about first"
+          helper="The number the team should see first"
           tone="mint"
         />
         <MetricCard
@@ -215,7 +215,7 @@ export default function BillingPage() {
         <MetricCard
           icon={Banknote}
           label="Recharge posture"
-          value={workspace.paymentReadiness.canUseRazorpay ? 'Live top-up' : 'Demo top-up'}
+          value={workspace.paymentReadiness.canUseRazorpay ? 'Live checkout' : 'Instant top-up'}
           helper={workspace.paymentReadiness.message}
           tone="violet"
         />
@@ -236,7 +236,7 @@ export default function BillingPage() {
                 {workspace.walletHealth === 'empty' ? 'Wallet is empty' : 'Balance is running low'}
               </div>
               <p className="mt-1 text-sm leading-6 text-slate-200">
-                This is the right moment to show a tiny credit buy, a full plan purchase, or the low-balance recharge rule.
+                This is the right moment to buy a small credit pack, purchase a plan, or turn on low-balance recharge.
               </p>
             </div>
           </div>
@@ -245,7 +245,7 @@ export default function BillingPage() {
 
       <Panel
         title="Buy Plan + Save Recharge Rule"
-        subtitle="This section is now simpler: pick the low-credit point once, pick the preferred approval method, then whichever plan you buy becomes the recharge pack."
+        subtitle="Choose a low-credit point, choose the preferred approval method, and the plan you buy becomes the future recharge pack."
       >
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
@@ -254,7 +254,7 @@ export default function BillingPage() {
                 <div>
                   <div className="text-sm font-semibold text-white">Start low-balance recharge when buying a plan</div>
                   <div className="mt-2 text-sm leading-6 text-slate-400">
-                    If this is on, the plan you purchase becomes the pack that gets recharged later.
+                    If this is on, the plan you purchase becomes the pack used for future recharges.
                   </div>
                 </div>
                 <button
@@ -329,7 +329,7 @@ export default function BillingPage() {
                 <div className="text-xs uppercase tracking-[0.24em] text-slate-500">What will be saved</div>
                 <div className="mt-2 text-sm leading-6 text-slate-300">
                   Recharge at <span className="font-semibold text-white">{purchaseSetup.thresholdCredits} credits</span> using{' '}
-                  <span className="font-semibold text-white">{workspace.paymentReadiness.canUseRazorpay ? purchasePaymentLabel : 'demo instant recharge'}</span>.
+                  <span className="font-semibold text-white">{workspace.paymentReadiness.canUseRazorpay ? purchasePaymentLabel : 'instant recharge'}</span>.
                 </div>
               </div>
             </div>
@@ -353,7 +353,7 @@ export default function BillingPage() {
 
       <Panel
         title="Quick Credit Recharge"
-        subtitle="Small packs for 10, 20, or 30 credits when you only need a tiny top-up."
+        subtitle="Small packs for 10, 20, or 30 credits when you only need a quick top-up."
       >
         <div className="grid gap-4 md:grid-cols-3">
           {quickCreditPacks.map((pack) => (
@@ -389,7 +389,7 @@ export default function BillingPage() {
           <UsageHistoryTable
             items={workspace.rechargeHistory}
             emptyTitle="No recharges yet"
-            emptyCopy="Run a demo top-up or purchase a real plan to populate recharge history."
+            emptyCopy="Complete a plan purchase or instant top-up to populate recharge history."
           />
         </Panel>
 
@@ -397,7 +397,7 @@ export default function BillingPage() {
           <UsageHistoryTable
             items={workspace.usageHistory}
             emptyTitle="No usage burned yet"
-            emptyCopy="The demo lab will generate consumption events here so the billing model becomes obvious."
+            emptyCopy="Calls, chat, and workflow activity will appear here as soon as credits are used."
           />
         </Panel>
       </div>

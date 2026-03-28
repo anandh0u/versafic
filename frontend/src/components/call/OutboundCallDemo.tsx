@@ -147,8 +147,8 @@ export function OutboundCallDemo({
 
   return (
     <Panel
-      title="Live Twilio Call Demo"
-      subtitle="Trigger a real trial-safe call from your configured Twilio AI number, then watch the session appear in the app."
+      title="AI Calling"
+      subtitle="Start a real Twilio-backed call from your configured AI number and track the session in the app."
       action={
         <StatusBadge
           label={
@@ -169,7 +169,7 @@ export function OutboundCallDemo({
                 {isLoadingConfig ? 'Loading...' : (callConfig?.ai_number || 'Not configured')}
               </div>
               <p className="mt-2 text-xs leading-6 text-slate-400">
-                This is the live Twilio number that customers call and that outbound calls ring from.
+                This is the Twilio number customers call and the number outbound calls ring from.
               </p>
             </div>
 
@@ -177,7 +177,7 @@ export function OutboundCallDemo({
               <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Call Cost</div>
               <div className="mt-3 text-2xl font-semibold text-white">{formatCredits(liveCallCost)}</div>
               <p className="mt-2 text-xs leading-6 text-slate-400">
-                Reserved for each live call. Failed or missed sessions are refunded automatically.
+                Reserved for each call. Failed or missed sessions are refunded automatically.
               </p>
             </div>
           </div>
@@ -201,14 +201,14 @@ export function OutboundCallDemo({
               className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/55 px-4 py-3 text-white placeholder-slate-500 outline-none transition hover:border-white/20 focus:border-white/30 disabled:opacity-50"
             />
             {phoneNumber && !isValidPhone && (
-              <div className="mt-2 text-xs text-rose-300">Phone number must be at least 10 digits</div>
+              <div className="mt-2 text-xs text-rose-300">Phone number must be at least 10 digits.</div>
             )}
           </label>
 
           {/* Call Purpose Selection */}
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
             <div className="text-sm font-semibold text-white">Call Purpose</div>
-            <p className="mt-1 text-xs text-slate-400">The AI will generate a script matching this intent</p>
+            <p className="mt-1 text-xs text-slate-400">The AI will generate a script that matches this intent.</p>
             <div className="mt-4 space-y-2">
               {CALL_PURPOSES.map((purpose) => (
                 <label
@@ -260,19 +260,19 @@ export function OutboundCallDemo({
             <div className="flex items-start gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
               <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-200" />
               <div>
-              <div className="font-semibold text-emerald-50">Call initiated successfully</div>
-              <div className="mt-2 space-y-1 text-sm text-emerald-100/80">
-                <div>
-                  <span className="font-medium">Call SID:</span> {response.callSid}
+                <div className="font-semibold text-emerald-50">Call started successfully</div>
+                <div className="mt-2 space-y-1 text-sm text-emerald-100/80">
+                  <div>
+                    <span className="font-medium">Call SID:</span> {response.callSid}
+                  </div>
+                  <div>
+                    <span className="font-medium">AI Number:</span> {callConfig?.ai_number || 'Configured Twilio line'}
+                  </div>
+                  <div>
+                    <span className="font-medium">To:</span> {response.to}
+                  </div>
+                  <div className="mt-2 rounded bg-white/10 p-2 font-mono text-xs">"{response.script}"</div>
                 </div>
-                <div>
-                  <span className="font-medium">AI Number:</span> {callConfig?.ai_number || 'Configured Twilio line'}
-                </div>
-                <div>
-                  <span className="font-medium">To:</span> {response.to}
-                </div>
-                <div className="mt-2 rounded bg-white/10 p-2 font-mono text-xs">"{response.script}"</div>
-              </div>
               </div>
             </div>
           )}
@@ -304,13 +304,13 @@ export function OutboundCallDemo({
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Phone className="h-4 w-4" />
-                  Place Live Call
+                  Start Call
                 </button>
               </>
             ) : status === 'processing' ? (
               <div className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-3 text-sm font-semibold text-white">
                 <Loader className="h-4 w-4 animate-spin" />
-                Initiating Call
+                Starting Call
               </div>
             ) : (
               <button
@@ -334,7 +334,7 @@ export function OutboundCallDemo({
               </div>
               <div>
                 <div className="font-semibold text-white">2. Save consent</div>
-                <p className="mt-1 text-slate-400">We keep the number and consent on your profile so the backend guardrails can allow the call.</p>
+                <p className="mt-1 text-slate-400">We keep the number and consent on your profile so backend guardrails can allow the call.</p>
               </div>
               <div>
                 <div className="font-semibold text-white">3. Place the call</div>
@@ -362,7 +362,7 @@ export function OutboundCallDemo({
             <div className="flex gap-2 text-xs leading-5 text-amber-50">
               <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <div>
-                <div className="font-semibold">Trial Demo Notes</div>
+                <div className="font-semibold">Trial account notes</div>
                 <div className="mt-1 text-amber-100/80">
                   {callConfig?.trial_guidance || 'While Twilio is on trial, use verified customer numbers. Max 2 calls per day, 24-hour cooldown, and STOP opt-out are enforced.'}
                 </div>

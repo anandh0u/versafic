@@ -61,7 +61,7 @@ export default function WorkflowsPage() {
           items={workflowTransactions}
           placeholder="Search workflow activity by source or reference"
           emptyTitle="No workflow activity yet"
-          emptyCopy="Use the demo lab or voice features to populate workflow events."
+          emptyCopy="Use voice, recordings, or onboarding features to populate workflow events."
         />
 
         <Panel

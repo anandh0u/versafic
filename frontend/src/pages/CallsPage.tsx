@@ -65,7 +65,7 @@ export default function CallsPage() {
 
         <Panel
           title="Call Guardrails"
-          subtitle="This lane stays focused on phone interactions so the team can find call history and compliance details quickly."
+          subtitle="This area stays focused on phone interactions so the team can find call history and safety details quickly."
         >
           <div className="space-y-4">
             <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-5">
@@ -98,7 +98,7 @@ export default function CallsPage() {
         items={callTransactions}
         placeholder="Search call activity by purpose, source, or reference"
         emptyTitle="No call activity yet"
-        emptyCopy="Trigger an outbound AI call or run call simulations to populate this area."
+        emptyCopy="Trigger an outbound AI call or receive an incoming call to populate this area."
       />
     </div>
   );

@@ -75,7 +75,7 @@ export function AutopayPanel({
 
   const paymentLabel = useMemo(() => (
     draft.mode === 'demo'
-      ? 'Demo instant recharge'
+      ? 'Instant recharge'
       : buildPaymentMethodLabel(draft.preferredPaymentMethod, normalizedUpiId)
   ), [draft.mode, draft.preferredPaymentMethod, normalizedUpiId]);
 
@@ -218,8 +218,8 @@ export function AutopayPanel({
                   onClick={() => setDraft((current) => ({ ...current, mode: 'demo' }))}
                   className={`rounded-2xl border px-4 py-4 text-left transition ${draft.mode === 'demo' ? 'border-emerald-300/30 bg-emerald-300/[0.10]' : 'border-white/10 bg-slate-950/55'}`}
                 >
-                  <div className="text-sm font-semibold text-white">Demo mode</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">Adds credits instantly for demos without a live payment step.</div>
+                  <div className="text-sm font-semibold text-white">Instant mode</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">Adds credits instantly without opening a live payment step.</div>
                 </button>
               </div>
 

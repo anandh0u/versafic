@@ -29,7 +29,7 @@ export default function OverviewPage() {
       icon: Wallet2,
       label: 'Current credit balance',
       value: formatCredits(workspace.balanceCredits),
-      helper: `${workspace.baseBalanceCredits} base credits from wallet + live demo activity overlay`,
+      helper: `${workspace.baseBalanceCredits} starting credits plus recent workspace activity`,
       tone: 'mint' as const,
     },
     {
@@ -66,7 +66,7 @@ export default function OverviewPage() {
       icon: MessageSquareMore,
       label: 'AI chats used',
       value: `${workspace.usageSummary.aiChatsUsed}`,
-      helper: 'Client-friendly proof that every support touchpoint burns credits',
+      helper: 'Chat activity tracked separately from calls and workflows',
       tone: 'mint' as const,
     },
     {
@@ -121,13 +121,13 @@ export default function OverviewPage() {
       <section className="hero-panel">
         <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr]">
           <div>
-            <div className="eyebrow">Client demo narrative</div>
+            <div className="eyebrow">Workspace Overview</div>
             <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-              Show credit balance, burn transparency, and auto-recharge in one serious SaaS control room.
+              Keep credit balance, usage visibility, and recharge controls in one place.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">
-              This overview helps a client instantly understand how plans are purchased, how calls and chat burn credits,
-              and how autopay keeps the service online without manual intervention.
+              This overview helps teams understand how plans are purchased, how calls and chat consume credits,
+              and how low-balance recharge keeps the service available.
             </p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -143,7 +143,7 @@ export default function OverviewPage() {
               </div>
               <div className="rounded-3xl border border-white/10 bg-slate-950/45 p-4">
                 <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Live payment status</div>
-                <div className="mt-3 text-xl font-semibold text-white">{workspace.paymentReadiness.canUseRazorpay ? 'Ready' : 'Demo'}</div>
+                <div className="mt-3 text-xl font-semibold text-white">{workspace.paymentReadiness.canUseRazorpay ? 'Ready' : 'Limited'}</div>
                 <div className="mt-2 text-sm leading-6 text-slate-400">{workspace.paymentReadiness.message}</div>
               </div>
             </div>
@@ -177,7 +177,7 @@ export default function OverviewPage() {
 
       <Panel
         title="Quick Access Lanes"
-        subtitle="Each workflow now has its own place so the team can jump straight to the right session area and search faster."
+        subtitle="Each workflow has its own place so the team can jump straight to the right area and search faster."
       >
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
           {laneCards.map(({ title, description, to, icon: Icon, stat }) => (
@@ -203,7 +203,7 @@ export default function OverviewPage() {
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel
           title="Usage concentration"
-          subtitle="This helps explain where credits go each month and which features drive value."
+          subtitle="This shows where credits go each month and which features drive the most activity."
         >
           <div className="space-y-4">
             {workspace.consumptionBreakdown.map((item) => (
@@ -218,14 +218,14 @@ export default function OverviewPage() {
               </div>
             ))}
             {workspace.consumptionBreakdown.length === 0 && (
-              <p className="text-sm leading-6 text-slate-400">Run a few demo simulations to show how the usage mix changes in real time.</p>
+              <p className="text-sm leading-6 text-slate-400">Activity will appear here as calls, chat, and workflows start using credits.</p>
             )}
           </div>
         </Panel>
 
         <Panel
           title="Plan + autopay snapshot"
-          subtitle="A quick story you can narrate while demoing the wallet."
+          subtitle="A quick summary of the current plan and low-balance recharge setup."
         >
           <div className="space-y-4">
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
@@ -249,12 +249,12 @@ export default function OverviewPage() {
 
       <Panel
         title="Latest wallet history"
-        subtitle="Every top-up and every credit burn is traceable, which is exactly what clients need to trust the billing model."
+        subtitle="Every top-up and every credit burn is traceable in one timeline."
       >
         <UsageHistoryTable
           items={workspace.transactions.slice(0, 8)}
           emptyTitle="No wallet activity yet"
-          emptyCopy="Trigger a live Twilio call or complete a Razorpay purchase to populate the billing timeline."
+          emptyCopy="Start a call, use chat, or complete a purchase to populate the billing timeline."
         />
       </Panel>
     </div>

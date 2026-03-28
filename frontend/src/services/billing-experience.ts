@@ -188,7 +188,7 @@ const normalizeAutopaySettings = (payload: {
     mode: payload.mode,
     preferredPaymentMethod: 'upi',
     upiId: '',
-    paymentMethodLabel: payload.mode === 'real' ? 'Customer-approved Razorpay checkout' : 'Demo instant recharge',
+    paymentMethodLabel: payload.mode === 'real' ? 'Customer-approved Razorpay checkout' : 'Instant recharge',
     status: payload.status,
     failedReason: payload.failure_reason || undefined,
     pendingCheckout: pendingCheckout ?? null,
@@ -253,8 +253,8 @@ const deriveBusinessProfile = (
     supportWorkflowStatus:
       statusPayload?.hasBusinessProfile ? 'Voice + chat flows configured' : defaultBusinessProfile.supportWorkflowStatus,
     aiSetupStatus:
-      statusPayload?.isOnboarded ? 'Assistant prompts published for demo' : defaultBusinessProfile.aiSetupStatus,
-    onboardingStage: statusPayload?.isOnboarded ? 'Onboarding completed' : 'Demo workspace seeded',
+      statusPayload?.isOnboarded ? 'Assistant prompts published' : defaultBusinessProfile.aiSetupStatus,
+    onboardingStage: statusPayload?.isOnboarded ? 'Onboarding completed' : 'Workspace ready',
     lastSyncAt: source?.updated_at || source?.created_at || new Date().toISOString(),
   };
 };
@@ -270,8 +270,8 @@ const buildSeedTransaction = (): BillingTransaction => createTransaction({
   creditsDelta: getPlanById('growth').credits,
   amountPaise: getPlanById('growth').amountPaise,
   source: 'demo_seed',
-  sourceLabel: 'Demo Wallet Seed',
-  description: 'Demo balance seeded so client walkthrough starts with live-looking credits.',
+  sourceLabel: 'Opening Balance',
+  description: 'Opening balance added so the workspace starts ready for calls and billing.',
   status: 'completed',
   referenceId: randomId('SEED'),
   featureKey: 'growth',
@@ -410,8 +410,8 @@ const buildAlerts = (
   if (mode !== 'live') {
     alerts.push({
       severity: 'info',
-      title: 'Hybrid demo mode is active',
-      body: 'Live auth and top-ups can stay real while usage simulation, autopay, and advanced billing stories run locally for demos.',
+      title: 'Hybrid billing mode is active',
+      body: 'Live login and checkout are available while some workspace activity is still tracked locally for presentation speed.',
     });
   }
 
@@ -419,13 +419,13 @@ const buildAlerts = (
     alerts.push({
       severity: 'danger',
       title: 'Credits exhausted',
-      body: 'Top up now or enable autopay to keep calls and AI support live during the client walkthrough.',
+      body: 'Top up now or enable autopay to keep calls and AI support available.',
     });
   } else if (balanceCredits < LOW_BALANCE_THRESHOLD) {
     alerts.push({
       severity: 'warning',
       title: 'Low balance warning',
-      body: `Balance is below ${LOW_BALANCE_THRESHOLD} credits. This is the right moment to show recharge or autopay.`,
+      body: `Balance is below ${LOW_BALANCE_THRESHOLD} credits. Recharge now or let autopay handle the next top-up.`,
     });
   }
 
@@ -486,8 +486,8 @@ export const composeBillingWorkspace = (
     paymentReadiness: {
       canUseRazorpay: seed.canUseRazorpay,
       message: seed.canUseRazorpay
-        ? 'Razorpay top-ups are ready. Usage simulation stays local in hybrid mode, and autopay can be demonstrated from the billing panel.'
-        : 'Running in mock billing mode. Use demo recharge for storytelling or connect a live backend URL.',
+        ? 'Razorpay top-ups are ready. Live checkout can open from the billing page whenever you buy a plan or recharge.'
+        : 'Live checkout is not connected yet. Use instant recharge until Razorpay is available.',
     },
   };
 };
@@ -581,8 +581,8 @@ export const buildDemoTopUpState = (state: DemoState, planId: string): DemoState
         creditsDelta: plan.credits,
         amountPaise: plan.amountPaise,
         source: 'demo_topup',
-        sourceLabel: 'Demo Top-up',
-        description: `${plan.name} recharge applied in demo mode.`,
+        sourceLabel: 'Instant Recharge',
+        description: `${plan.name} credits were added instantly.`,
         status: 'completed',
         referenceId: randomId('TOPUP'),
         featureKey: planId,

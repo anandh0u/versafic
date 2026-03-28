@@ -58,7 +58,7 @@ export function PlanCard({
         </button>
         <button onClick={onDemoTopUp} disabled={busyAction !== null} className="button-secondary w-full justify-center">
           <Check className="mr-2 h-4 w-4" />
-          {busyAction === 'demo' ? 'Applying demo recharge...' : 'Instant demo top-up'}
+          {busyAction === 'demo' ? 'Adding credits...' : 'Instant credit add'}
         </button>
       </div>
     </div>

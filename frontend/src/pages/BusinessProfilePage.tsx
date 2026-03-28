@@ -18,7 +18,7 @@ export default function BusinessProfilePage() {
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel
           title="Business profile"
-          subtitle="This section helps the client connect the billing model to a real business operating environment."
+          subtitle="This section connects the workspace to a real business operating environment."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             {[
@@ -71,13 +71,13 @@ export default function BusinessProfilePage() {
       </section>
 
       <Panel
-        title="Why this matters in the billing story"
-        subtitle="These talking points help position the platform as a serious, measurable SaaS system for operations teams."
+        title="Why this matters"
+        subtitle="These points help position the platform as a serious, measurable SaaS system for operations teams."
       >
         <div className="grid gap-4 md:grid-cols-3">
           {[
             'Each call, chat, and transcript is measurable, which makes the credit model easy to explain to finance and operations.',
-            'Business setup status shows the platform is not just a billing demo. It feels like a product the client can actually onboard into.',
+            'Business setup status shows the platform is ready for real onboarding, not just a disconnected prototype.',
             'Autopay and transparent usage history make the service look production-minded, not like a one-off prototype.',
           ].map((copy) => (
             <div key={copy} className="rounded-3xl border border-white/10 bg-slate-950/55 p-5 text-sm leading-7 text-slate-300">

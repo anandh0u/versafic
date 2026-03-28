@@ -14,6 +14,7 @@ import {
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { BrandMark } from '../shared/BrandMark';
 import { StatusBadge } from '../shared/StatusBadge';
+import { ThemeToggle } from '../shared/ThemeToggle';
 import { useAuth } from '../../hooks/useAuth';
 import { useBilling } from '../../hooks/useBilling';
 import { formatCredits } from '../../lib/formatters';
@@ -36,14 +37,20 @@ export function DashboardShell() {
     return (
       <div className="site-shell flex min-h-screen items-center justify-center">
         <div className="panel max-w-md text-center">
-          <div className="text-lg font-semibold text-white">Loading your command center...</div>
+          <div className="text-lg font-semibold text-white">Loading your workspace...</div>
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            Pulling wallet, usage, and demo billing state.
+            Pulling wallet, usage, and billing data.
           </p>
         </div>
       </div>
     );
   }
+
+  const modeBadge = workspace.mode === 'live'
+    ? { label: 'Live', tone: 'mint' as const }
+    : workspace.mode === 'hybrid'
+      ? { label: 'Hybrid', tone: 'amber' as const }
+      : { label: 'Offline', tone: 'neutral' as const };
 
   const handleLogout = () => {
     logout();
@@ -57,7 +64,7 @@ export function DashboardShell() {
           <BrandMark />
 
           <div className="mt-8 rounded-[1.6rem] border border-white/10 bg-white/[0.04] p-5">
-            <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Wallet</div>
+            <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Wallet Balance</div>
             <div className="mt-3 text-3xl font-semibold tracking-tight text-white">{formatCredits(workspace.balanceCredits)}</div>
             <p className="mt-3 text-sm leading-6 text-slate-400">{workspace.currentPlan.name} plan · {workspace.currentPlanStatus}</p>
           </div>
@@ -86,7 +93,7 @@ export function DashboardShell() {
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-300">
               {workspace.autopay.enabled
-                ? `Recharge ${workspace.autopay.selectedPlanId} when balance drops below ${workspace.autopay.thresholdCredits} credits.`
+                ? `Recharge is prepared when balance drops below ${workspace.autopay.thresholdCredits} credits.`
                 : 'Manual top-up mode is active for this account.'}
             </p>
           </div>
@@ -98,7 +105,7 @@ export function DashboardShell() {
               <div>
                 <div className="flex flex-wrap items-center gap-3">
                   <BrandMark compact />
-                  <StatusBadge label={workspace.mode === 'live' ? 'Live billing' : workspace.mode === 'hybrid' ? 'Hybrid demo' : 'Mock mode'} tone={workspace.mode === 'live' ? 'mint' : workspace.mode === 'hybrid' ? 'amber' : 'neutral'} />
+                  <StatusBadge label={modeBadge.label} tone={modeBadge.tone} />
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-400">
                   <span className="inline-flex items-center gap-2">
@@ -111,6 +118,7 @@ export function DashboardShell() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
+                <ThemeToggle compact />
                 <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300">
                   <Bell className="h-4 w-4 text-amber-200" />
                   <span>{user?.email}</span>

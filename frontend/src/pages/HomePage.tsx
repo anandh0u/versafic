@@ -11,6 +11,7 @@ import {
 import { Link } from 'react-router-dom';
 import { BrandMark } from '../components/shared/BrandMark';
 import { StatusBadge } from '../components/shared/StatusBadge';
+import { sharedDemoEntryPath } from '../config/demo';
 import { pricingPlans, usageRules } from '../config/billing';
 import { formatCurrency } from '../lib/formatters';
 
@@ -54,7 +55,7 @@ export default function HomePage() {
           </nav>
           <div className="flex flex-wrap gap-3">
             <Link to="/login" className="button-secondary">Login</Link>
-            <Link to="/register" className="button-primary">Get demo access</Link>
+            <Link to={sharedDemoEntryPath} className="button-primary">Get demo access</Link>
           </div>
         </div>
       </header>
@@ -72,7 +73,7 @@ export default function HomePage() {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
-              <Link to="/register" className="button-primary">
+              <Link to={sharedDemoEntryPath} className="button-primary">
                 Launch client demo
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -224,7 +225,7 @@ export default function HomePage() {
                   {plan.monthlyCapacity}
                 </div>
                 <div className="mt-4 text-sm text-slate-400">Ideal for: {plan.idealFor}</div>
-                <Link to="/register" className="button-primary mt-6 w-full justify-center">Start with {plan.name}</Link>
+                <Link to={sharedDemoEntryPath} className="button-primary mt-6 w-full justify-center">Start with {plan.name}</Link>
               </div>
             ))}
           </div>
@@ -242,7 +243,7 @@ export default function HomePage() {
                 </p>
               </div>
               <div className="flex flex-col justify-center gap-4">
-                <Link to="/register" className="button-primary justify-center">
+                <Link to={sharedDemoEntryPath} className="button-primary justify-center">
                   Enter the demo workspace
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>

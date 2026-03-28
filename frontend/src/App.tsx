@@ -6,6 +6,7 @@ import { DashboardShell } from './components/layout/DashboardShell';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ClientDemoAccessPage from './pages/ClientDemoAccessPage';
 import OverviewPage from './pages/OverviewPage';
 import CallsPage from './pages/CallsPage';
 import ChatsPage from './pages/ChatsPage';
@@ -19,6 +20,7 @@ function App() {
     <AuthProvider>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/client-demo" element={<ClientDemoAccessPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route element={<ProtectedRoute />}>

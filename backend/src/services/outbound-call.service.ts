@@ -23,6 +23,12 @@ const ALLOWED_PURPOSES = [
 
 export type AllowedCallPurpose = (typeof ALLOWED_PURPOSES)[number];
 
+type TwilioLikeError = Error & {
+  code?: number;
+  status?: number;
+  moreInfo?: string;
+};
+
 export class OutboundCallService {
   private isAllowedPurpose(purpose: string): purpose is AllowedCallPurpose {
     return ALLOWED_PURPOSES.includes(purpose as AllowedCallPurpose);
@@ -185,8 +191,45 @@ export class OutboundCallService {
         );
       }
 
-      throw error;
+      throw this.normalizeTwilioCallError(error, normalizedPhone);
     }
+  }
+
+  private normalizeTwilioCallError(error: unknown, targetPhone: string): Error {
+    if (error instanceof AppError) {
+      return error;
+    }
+
+    const twilioError = error as TwilioLikeError;
+    const twilioCode = twilioError?.code;
+    const twilioStatus = twilioError?.status;
+    const rawMessage = twilioError?.message || 'Twilio could not place the call.';
+
+    logger.warn('Twilio outbound call failed', {
+      targetPhone,
+      twilioCode,
+      twilioStatus,
+      message: rawMessage,
+      moreInfo: twilioError?.moreInfo,
+    });
+
+    if (twilioCode === 21219) {
+      return new AppError(
+        400,
+        ErrorCode.VALIDATION_ERROR,
+        `Twilio trial restriction: ${targetPhone} is not a verified phone number. Verify it in Twilio before placing the call.`
+      );
+    }
+
+    if (twilioStatus && twilioStatus >= 400 && twilioStatus < 500) {
+      return new AppError(
+        400,
+        ErrorCode.VALIDATION_ERROR,
+        `Twilio could not place the call: ${rawMessage}`
+      );
+    }
+
+    return error instanceof Error ? error : new Error(String(error));
   }
 
   buildInitialOutboundTwiML(params?: {

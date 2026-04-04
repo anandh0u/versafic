@@ -4,6 +4,7 @@ import { verifyToken } from '../../middleware/jwt-auth';
 import {
   initiateOutboundCall,
   getCallConfig,
+  getPublicCallConfig,
   getCallSessions,
   handleIncomingCall,
   renderOutboundTwiML,
@@ -24,6 +25,7 @@ router.post('/status', handleCallStatus);
 router.post('/recording', handleRecording);
 
 // API endpoints for managing recordings (require authentication)
+router.get('/public-config', getPublicCallConfig);
 router.get('/config', verifyToken, getCallConfig);
 router.get('/sessions', verifyToken, getCallSessions);
 router.post('/outbound', verifyToken, initiateOutboundCall);

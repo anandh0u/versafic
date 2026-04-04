@@ -181,6 +181,56 @@ export const getCallConfig = async (
   }
 };
 
+export const getPublicCallConfig = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    try {
+      const twilioConfig = getTwilioService().getConfigurationSummary();
+      const demoModeEnabled = outboundCallService.isDemoModeEnabled();
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Public call configuration retrieved',
+        data: {
+          configured: true,
+          ai_number: twilioConfig.phoneNumber,
+          call_credit_cost: CALL_CREDIT_COST,
+          account_mode: twilioConfig.accountMode,
+          demo_mode: demoModeEnabled,
+          app_name: APP_NAME,
+          intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
+          trial_guidance:
+            twilioConfig.accountMode === 'trial'
+              ? 'Calls on the trial account work with verified numbers while Twilio trial restrictions are active.'
+              : 'The AI number is ready for live calling.',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      res.status(200).json({
+        status: 'success',
+        message: 'Public call configuration retrieved',
+        data: {
+          configured: false,
+          ai_number: null,
+          call_credit_cost: CALL_CREDIT_COST,
+          account_mode: 'trial',
+          demo_mode: true,
+          app_name: APP_NAME,
+          intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
+          trial_guidance: 'The AI number is not configured yet.',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getCallSessions = async (
   req: AuthRequest,
   res: Response,

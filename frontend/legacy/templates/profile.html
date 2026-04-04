@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Versafic — Business Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .page-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+        }
+
+        .bg-gradient {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, #0f0820 0%, #0a0a14 40%, #080d1a 100%);
+        }
+
+        .bg-glow {
+            position: absolute;
+            width: 700px;
+            height: 700px;
+            border-radius: 50%;
+            filter: blur(120px);
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .bg-pattern {
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 20%, transparent 100%);
+        }
+
+        /* TOPBAR */
+        .topbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            background: rgba(10, 10, 20, 0.7);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            z-index: 100;
+        }
+
+        .topbar-logo {
+            font-size: 0.95rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: #fff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .topbar-logo-icon {
+            width: 22px;
+            height: 22px;
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 900;
+        }
+
+        .verified-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.25);
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #4ade80;
+        }
+
+        /* PROFILE WRAP */
+        .profile-wrap {
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 80px 20px 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* AVATAR */
+        .profile-avatar {
+            width: 90px;
+            height: 90px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.8rem;
+            margin-bottom: 16px;
+            position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .avatar-status {
+            position: absolute;
+            bottom: -4px;
+            right: -4px;
+            width: 20px;
+            height: 20px;
+            background: #22c55e;
+            border-radius: 50%;
+            border: 3px solid rgba(10, 10, 20, 0.9);
+        }
+
+        .profile-name {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+
+        .profile-handle {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.4);
+            margin-bottom: 12px;
+        }
+
+        .profile-badges {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .profile-bio {
+            font-size: 0.88rem;
+            color: rgba(255, 255, 255, 0.5);
+            text-align: center;
+            line-height: 1.65;
+            max-width: 380px;
+            margin-bottom: 22px;
+        }
+
+        .profile-meta {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.82rem;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .meta-value {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* ===== PRIMARY CTA — CALL AI ===== */
+        .call-btn {
+            width: 100%;
+            padding: 16px;
+            border-radius: 14px;
+            border: none;
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.2s;
+            box-shadow: 0 8px 30px rgba(124, 58, 237, 0.35);
+            margin-bottom: 8px;
+            letter-spacing: -0.01em;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .call-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(255, 255, 255, 0.06), transparent);
+        }
+
+        .call-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 40px rgba(124, 58, 237, 0.45);
+        }
+
+        .call-btn-sub {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.35);
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        /* ===== SECTION LABELS ===== */
+        .link-section-title {
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.22);
+            width: 100%;
+            margin-bottom: 8px;
+            margin-top: 4px;
+            padding-left: 2px;
+        }
+
+        /* ===== LINKTREE BUTTONS ===== */
+        .link-btn {
+            width: 100%;
+            padding: 14px 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background: rgba(255, 255, 255, 0.04);
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.15s;
+            margin-bottom: 8px;
+            text-decoration: none;
+        }
+
+        .link-btn:hover {
+            background: rgba(255, 255, 255, 0.09);
+            border-color: rgba(255, 255, 255, 0.18);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .link-btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .link-btn-content {
+            flex: 1;
+            text-align: left;
+        }
+
+        .link-btn-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .link-btn-sub {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.38);
+            margin-top: 1px;
+        }
+
+        .link-arrow {
+            color: rgba(255, 255, 255, 0.22);
+            font-size: 0.85rem;
+        }
+
+        /* ===== SOCIAL MEDIA PLATFORM BUTTONS ===== */
+        .social-platforms {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .social-platform-btn {
+            width: 100%;
+            padding: 13px 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.15s;
+            text-decoration: none;
+        }
+
+        .social-platform-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateX(4px);
+        }
+
+        .sp-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .sp-handle {
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .sp-followers {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.35);
+            font-weight: 600;
+        }
+
+        /* Instagram */
+        .sp-instagram {
+            background: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+        }
+
+        /* TikTok */
+        .sp-tiktok {
+            background: #000;
+            border: 1px solid #333;
+        }
+
+        /* YouTube */
+        .sp-youtube {
+            background: #ff0000;
+        }
+
+        /* Twitter/X */
+        .sp-twitter {
+            background: #000;
+            border: 1px solid #333;
+        }
+
+        /* WhatsApp */
+        .sp-whatsapp {
+            background: #25d366;
+        }
+
+        /* Website */
+        .sp-website {
+            background: rgba(124, 58, 237, 0.2);
+            border: 1px solid rgba(124, 58, 237, 0.3) !important;
+        }
+
+        /* ===== INFO CARD ===== */
+        .info-card {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 8px;
+        }
+
+        .info-card-title {
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.28);
+            margin-bottom: 14px;
+        }
+
+        .hours-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.84rem;
+            margin-bottom: 8px;
+        }
+
+        .hours-day {
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .hours-time {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        /* ===== TRUST SCORE ===== */
+        .trust-banner {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: rgba(34, 197, 94, 0.05);
+            border: 1px solid rgba(34, 197, 94, 0.13);
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-bottom: 8px;
+        }
+
+        .trust-score-num {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #4ade80;
+            letter-spacing: -0.04em;
+        }
+
+        .trust-label {
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .trust-subtitle {
+            font-size: 0.72rem;
+            color: rgba(34, 197, 94, 0.65);
+            font-weight: 600;
+        }
+
+        /* ===== FOOTER ===== */
+        .profile-footer {
+            margin-top: 36px;
+            text-align: center;
+        }
+
+        .profile-footer a {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.22);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+
+        .profile-footer a:hover {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .powered-icon {
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.55rem;
+        }
+
+        /* ===== CALL MODAL ===== */
+        .call-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(12px);
+            z-index: 1000;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+
+        .call-modal.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .call-sheet {
+            width: 100%;
+            max-width: 520px;
+            background: #111;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 32px;
+            text-align: center;
+            transform: translateY(40px);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 -8px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .call-modal.open .call-sheet {
+            transform: translateY(0);
+        }
+
+        .call-avatar-big {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.4rem;
+            position: relative;
+        }
+
+        .ripple-ring {
+            position: absolute;
+            inset: -8px;
+            border: 2px solid rgba(124, 58, 237, 0.4);
+            border-radius: 28px;
+            animation: ripple-box 2s ease-out infinite;
+        }
+
+        @keyframes ripple-box {
+            from {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            to {
+                opacity: 0;
+                transform: scale(1.4);
+            }
+        }
+
+        .ripple-ring-2 {
+            animation-delay: 1s;
+        }
+
+        .call-sheet h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .call-sheet p {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 20px;
+        }
+
+        .call-status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            font-size: 0.82rem;
+            color: #4ade80;
+            font-weight: 600;
+            margin-bottom: 22px;
+        }
+
+        .status-pulse {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+            box-shadow: 0 0 8px #22c55e;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.3
+            }
+        }
+
+        .call-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .call-confirm-btn {
+            flex: 1;
+            padding: 14px;
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 4px 20px rgba(124, 58, 237, 0.3);
+        }
+
+        .call-confirm-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .call-cancel-btn {
+            padding: 14px 20px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .call-credits-note {
+            font-size: 0.72rem;
+            color: rgba(255, 255, 255, 0.22);
+            margin-top: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="page-bg">
+        <div class="bg-gradient"></div>
+        <div class="bg-glow" id="bgGlow"></div>
+        <div class="bg-pattern"></div>
+    </div>
+
+    <div class="topbar">
+        <a href="index.html" class="topbar-logo">
+            <div class="topbar-logo-icon">V</div>
+            Versafic
+        </a>
+        <span class="verified-chip">✓ Verified on Versafic</span>
+        <a href="search.html" style="font-size:0.78rem;color:rgba(255,255,255,0.32);text-decoration:none">← Back to
+            search</a>
+    </div>
+
+    <div class="profile-wrap" id="profileWrap"></div>
+
+    <!-- CALL MODAL -->
+    <div class="call-modal" id="callModal" onclick="if(event.target===this)closeCallModal()">
+        <div class="call-sheet">
+            <div class="call-avatar-big" id="modalAvatar">
+                <div class="ripple-ring"></div>
+                <div class="ripple-ring ripple-ring-2"></div>🏨
+            </div>
+            <h3 id="modalName">Connecting...</h3>
+            <p>The AI assistant for <strong id="modalBiz">—</strong> will answer instantly.<br>Ask about bookings,
+                pricing, availability, or anything.</p>
+            <div class="call-status-indicator"><span class="status-pulse"></span> AI Agent Ready · Avg answer &lt;2s
+            </div>
+            <div class="call-actions">
+                <button class="call-confirm-btn" onclick="startCall()">📞 Start Call</button>
+                <button class="call-cancel-btn" onclick="closeCallModal()">Cancel</button>
+            </div>
+            <div class="call-credits-note">🔒 ~1 Versafic credit per minute · Your info stays private</div>
+        </div>
+    </div>
+
+    <script>
+        const businesses = {
+            1: {
+                emoji: '🏨', color: '#1e40af', glow: 'rgba(59,130,246,0.5)',
+                name: 'Grand Horizon Hotel', handle: '@grandhorizon', category: 'Luxury Hotel · New York',
+                bio: 'New York\'s premier luxury hotel. Award-winning service, stunning views, and an AI concierge available 24/7. Over 500 five-star reviews.',
+                rating: '4.9', reviews: '2,341', response: '< 2s',
+                verifiedType: '✓ Verified Business',
+                links: [
+                    { icon: '📅', color: '#7c3aed', title: 'Book a Room', sub: 'Check availability & reserve' },
+                    { icon: '🍽️', color: '#2563eb', title: 'Restaurant Reservation', sub: 'Book a table at our dining room' },
+                    { icon: '🛎️', color: '#0891b2', title: 'Concierge & Spa', sub: 'Room service, spa, experiences' },
+                    { icon: '🎉', color: '#7c3aed', title: 'Events & Meetings', sub: 'Corporate & private events' },
+                ],
+                socials: [
+                    { name: 'Instagram', handle: '@grandhorizonhotel', followers: '84K', icon: '📸', cls: 'sp-instagram' },
+                    { name: 'Website', handle: 'grandhorizonhotel.com', followers: '', icon: '🌐', cls: 'sp-website' },
+                    { name: 'WhatsApp', handle: 'Message us directly', followers: '', icon: '💬', cls: 'sp-whatsapp' },
+                    { name: 'YouTube', handle: '@grandhorizon · Hotel tours & reviews', followers: '12K', icon: '▶️', cls: 'sp-youtube' },
+                ],
+                hours: [
+                    { day: 'Check-in / Check-out', time: '3:00 PM / 12:00 PM' },
+                    { day: 'Restaurant', time: '7am – 11pm daily' },
+                    { day: 'AI Concierge', time: '24/7 always on' },
+                ],
+                trustScore: 98
+            },
+            2: {
+                emoji: '🍽️', color: '#065f46', glow: 'rgba(16,185,129,0.4)',
+                name: 'La Bella Cucina', handle: '@labelacucina', category: 'Italian Restaurant · San Francisco',
+                bio: 'Award-winning Italian restaurant in the heart of SF. Authentic recipes, hand-crafted pasta, and the finest wine list on the West Coast.',
+                rating: '4.8', reviews: '1,087', response: '< 2s',
+                verifiedType: '✓ Verified Business',
+                links: [
+                    { icon: '📅', color: '#059669', title: 'Reserve a Table', sub: 'Dinner, brunch & private dining' },
+                    { icon: '🍷', color: '#7c2d12', title: 'Wine List & Events', sub: 'Tastings & sommelier sessions' },
+                    { icon: '🎂', color: '#d97706', title: 'Private Events', sub: 'Birthday, anniversary, buyouts' },
+                    { icon: '📦', color: '#6366f1', title: 'Catering & Delivery', sub: 'Corporate catering orders' },
+                ],
+                socials: [
+                    { name: 'Instagram', handle: '@labelacucina · Daily specials', followers: '42K', icon: '📸', cls: 'sp-instagram' },
+                    { name: 'TikTok', handle: '@labelacucina · Recipe videos', followers: '128K', icon: '🎵', cls: 'sp-tiktok' },
+                    { name: 'Website', handle: 'labelacucina.com · Full menu', followers: '', icon: '🌐', cls: 'sp-website' },
+                    { name: 'WhatsApp', handle: 'Message for group bookings', followers: '', icon: '💬', cls: 'sp-whatsapp' },
+                ],
+                hours: [
+                    { day: 'Lunch', time: 'Tue – Fri, 12pm – 3pm' },
+                    { day: 'Dinner', time: 'Daily, 5:30pm – 11pm' },
+                    { day: 'Brunch', time: 'Sat – Sun, 10am – 3pm' },
+                ],
+                trustScore: 95
+            },
+            3: {
+                emoji: '✂️', color: '#1e3a5f', glow: 'rgba(59,130,246,0.35)',
+                name: 'The Barber Co.', handle: '@thebarbercola', category: 'Premium Barbershop · Los Angeles',
+                bio: 'LA\'s highest-rated barbershop. Classic cuts, hot towel shaves, and beard styling by master barbers. Walk-ins welcome, appointments preferred.',
+                rating: '4.9', reviews: '856', response: '< 2s',
+                verifiedType: '✓ Verified Business',
+                links: [
+                    { icon: '📅', color: '#2563eb', title: 'Book a Cut', sub: 'Haircut, fade, or style' },
+                    { icon: '🪒', color: '#1d4ed8', title: 'Hot Towel Shave', sub: 'Classic straight-razor shave' },
+                    { icon: '💈', color: '#6366f1', title: 'Beard Styling', sub: 'Shape, trim & groom' },
+                    { icon: '🎁', color: '#7c3aed', title: 'Gift Cards', sub: 'For the man in your life' },
+                ],
+                socials: [
+                    { name: 'Instagram', handle: '@thebarbercola · Portfolio', followers: '31K', icon: '📸', cls: 'sp-instagram' },
+                    { name: 'TikTok', handle: '@thebarbercola · Before & after', followers: '67K', icon: '🎵', cls: 'sp-tiktok' },
+                    { name: 'WhatsApp', handle: 'Text us for same-day bookings', followers: '', icon: '💬', cls: 'sp-whatsapp' },
+                    { name: 'Website', handle: 'thebarbercola.com', followers: '', icon: '🌐', cls: 'sp-website' },
+                ],
+                hours: [
+                    { day: 'Mon – Sat', time: '9:00 AM – 8:00 PM' },
+                    { day: 'Sunday', time: '10:00 AM – 5:00 PM' },
+                    { day: 'AI Booking', time: '24/7 always available' },
+                ],
+                trustScore: 97
+            },
+            4: {
+                emoji: '🏥', color: '#0c4a6e', glow: 'rgba(14,165,233,0.35)',
+                name: 'MedCare Clinic', handle: '@medcareclinic', category: 'Healthcare Clinic · Chicago',
+                bio: 'A trusted general practice clinic serving Chicago for 15+ years. HIPAA-compliant AI scheduling for appointments, prescriptions, and urgent care.',
+                rating: '4.7', reviews: '3,198', response: '< 2s',
+                verifiedType: '✓ Verified Healthcare',
+                links: [
+                    { icon: '📅', color: '#0284c7', title: 'Book an Appointment', sub: 'General, specialist & urgent' },
+                    { icon: '💊', color: '#0891b2', title: 'Prescription Refills', sub: 'Request via AI, no hold times' },
+                    { icon: '🩺', color: '#0e7490', title: 'Urgent Care', sub: 'Same-day slots available' },
+                    { icon: '🧪', color: '#0f766e', title: 'Lab Results & Reports', sub: 'Ask the AI about your results' },
+                ],
+                socials: [
+                    { name: 'Website', handle: 'medcarechicago.com · Patient portal', followers: '', icon: '🌐', cls: 'sp-website' },
+                    { name: 'WhatsApp', handle: 'Non-emergency health questions', followers: '', icon: '💬', cls: 'sp-whatsapp' },
+                    { name: 'Instagram', handle: '@medcareclinic · Health tips', followers: '8.2K', icon: '📸', cls: 'sp-instagram' },
+                ],
+                hours: [
+                    { day: 'Mon – Fri', time: '8:00 AM – 6:00 PM' },
+                    { day: 'Saturday', time: '9:00 AM – 2:00 PM' },
+                    { day: 'Urgent Care', time: 'Daily until 9:00 PM' },
+                ],
+                trustScore: 99
+            },
+            5: {
+                emoji: '📸', color: '#5b21b6', glow: 'rgba(124,58,237,0.5)',
+                name: 'Maya Lifestyle', handle: '@lifestyle.maya', category: 'Lifestyle Influencer · 2.1M Followers',
+                bio: 'Lifestyle, travel & fashion creator with 2.1M followers across platforms. Open for brand collaborations, sponsored content, events, and ambassador roles.',
+                rating: '4.9', reviews: '12,543', response: '< 2s',
+                verifiedType: '✓ Verified Creator',
+                links: [
+                    { icon: '🤝', color: '#7c3aed', title: 'Brand Collaborations', sub: 'Sponsored posts & partnerships' },
+                    { icon: '📦', color: '#2563eb', title: 'Product Deals & PR', sub: 'Gifting & unboxing requests' },
+                    { icon: '🎤', color: '#dc2626', title: 'Speaking & Events', sub: 'Appearances, panels & hosting' },
+                    { icon: '📸', color: '#0891b2', title: 'UGC & Custom Content', sub: 'Rates for custom content creation' },
+                ],
+                socials: [
+                    { name: 'Instagram', handle: '@lifestyle.maya', followers: '1.4M', icon: '📸', cls: 'sp-instagram' },
+                    { name: 'TikTok', handle: '@lifestyle.maya', followers: '620K', icon: '🎵', cls: 'sp-tiktok' },
+                    { name: 'YouTube', handle: 'Maya Lifestyle Vlogs', followers: '280K', icon: '▶️', cls: 'sp-youtube' },
+                    { name: 'Twitter / X', handle: '@lifestylemaya', followers: '89K', icon: '𝕏', cls: 'sp-twitter' },
+                    { name: 'Website', handle: 'mayalifestyle.co · Media kit', followers: '', icon: '🌐', cls: 'sp-website' },
+                ],
+                hours: [
+                    { day: 'Collaboration inquiries', time: 'Always open via AI' },
+                    { day: 'AI response time', time: '< 2 seconds' },
+                    { day: 'Human follow-up', time: '< 4 hours' },
+                ],
+                trustScore: 96
+            },
+            6: {
+                emoji: '💼', color: '#1e3a5f', glow: 'rgba(6,182,212,0.3)',
+                name: 'Rodriguez Legal Group', handle: '@rodriguezlegal', category: 'Business Consultant · Austin',
+                bio: 'Corporate legal consulting for startups and SMBs in Texas. Free AI-powered initial case assessment. 15+ years of experience in business law.',
+                rating: '4.6', reviews: '489', response: '< 2s',
+                verifiedType: '✓ Verified Professional',
+                links: [
+                    { icon: '📅', color: '#0284c7', title: 'Book a Consultation', sub: 'Free first 30-min session' },
+                    { icon: '⚖️', color: '#6366f1', title: 'Legal Q&A via AI', sub: 'Quick business law questions' },
+                    { icon: '📝', color: '#0891b2', title: 'Case Intake', sub: 'Submit your case details' },
+                ],
+                socials: [
+                    { name: 'Website', handle: 'rodriguezlegal.com', followers: '', icon: '🌐', cls: 'sp-website' },
+                    { name: 'LinkedIn', handle: 'Rodriguez Legal Group', followers: '3.2K', icon: '💼', cls: 'sp-website' },
+                    { name: 'WhatsApp', handle: 'Urgent legal queries', followers: '', icon: '💬', cls: 'sp-whatsapp' },
+                ],
+                hours: [
+                    { day: 'Mon – Fri', time: '9:00 AM – 6:00 PM CST' },
+                    { day: 'AI Available', time: '24/7 for case intake' },
+                ],
+                trustScore: 93
+            },
+            7: {
+                emoji: '🎵', color: '#1c1917', glow: 'rgba(139,92,246,0.4)',
+                name: 'BeatCraft Studio', handle: '@beatcraftstudio', category: 'Music Creator · Nashville',
+                bio: 'Grammy-nominated producer & beatmaker. Beat licensing, studio session bookings, and exclusive artist collab requests. Let the AI handle your inquiry.',
+                rating: '4.8', reviews: '734', response: '< 2s',
+                verifiedType: '✓ Verified Creator',
+                links: [
+                    { icon: '🎵', color: '#7c3aed', title: 'Beat Licensing', sub: 'Lease or exclusive rights' },
+                    { icon: '🎙️', color: '#dc2626', title: 'Studio Sessions', sub: 'Book recording time' },
+                    { icon: '🤝', color: '#2563eb', title: 'Artist Collaborations', sub: 'Features & co-productions' },
+                ],
+                socials: [
+                    { name: 'Instagram', handle: '@beatcraftstudio', followers: '92K', icon: '📸', cls: 'sp-instagram' },
+                    { name: 'YouTube', handle: 'BeatCraft · Free beats & tutorials', followers: '421K', icon: '▶️', cls: 'sp-youtube' },
+                    { name: 'TikTok', handle: '@beatcraft', followers: '310K', icon: '🎵', cls: 'sp-tiktok' },
+                    { name: 'Website', handle: 'beatcraftstudio.com · Buy beats', followers: '', icon: '🌐', cls: 'sp-website' },
+                ],
+                hours: [
+                    { day: 'Studio hours', time: 'Mon – Sat, 11am – 11pm' },
+                    { day: 'AI Booking', time: '24/7 availability' },
+                ],
+                trustScore: 91
+            },
+            8: {
+                emoji: '💻', color: '#0f2a50', glow: 'rgba(6,182,212,0.3)',
+                name: 'Dev Freelance Pro', handle: '@devfreelancepro', category: 'Freelance Developer · Remote',
+                bio: 'Full-stack React & Node.js developer with 8+ years experience. Let the AI handle your project scoping, get an instant quote, and book a discovery call.',
+                rating: '4.7', reviews: '312', response: '< 2s',
+                verifiedType: '✓ Verified Consultant',
+                links: [
+                    { icon: '📅', color: '#0284c7', title: 'Book a Discovery Call', sub: 'Free 30-min project scope' },
+                    { icon: '💻', color: '#0891b2', title: 'Get a Project Quote', sub: 'AI scopes your project instantly' },
+                    { icon: '💰', color: '#059669', title: 'Rates & Availability', sub: 'Hourly & project-based pricing' },
+                ],
+                socials: [
+                    { name: 'GitHub', handle: '@devfreelancepro · Portfolio', followers: '1.2K', icon: '📁', cls: 'sp-website' },
+                    { name: 'Website', handle: 'devfreelancepro.com', followers: '', icon: '🌐', cls: 'sp-website' },
+                    { name: 'Twitter / X', handle: '@devfreepro · Dev tips', followers: '14K', icon: '𝕏', cls: 'sp-twitter' },
+                ],
+                hours: [
+                    { day: 'Available for projects', time: 'PST business hours' },
+                    { day: 'AI intake', time: '24/7 always on' },
+                ],
+                trustScore: 88
+            }
+        };
+
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get('id') || '1';
+        const biz = businesses[id] || businesses['1'];
+
+        document.getElementById('bgGlow').style.background = `radial-gradient(circle, ${biz.glow} 0%, transparent 70%)`;
+
+        function renderProfile() {
+            const wrap = document.getElementById('profileWrap');
+
+            const linksHTML = biz.links.map(l => `
+    <a href="#" class="link-btn" onclick="return false">
+      <div class="link-btn-icon" style="background:${l.color}22;border:1px solid ${l.color}44">${l.icon}</div>
+      <div class="link-btn-content">
+        <div class="link-btn-title">${l.title}</div>
+        <div class="link-btn-sub">${l.sub}</div>
+      </div>
+      <span class="link-arrow">→</span>
+    </a>
+  `).join('');
+
+            const socialsHTML = biz.socials.map(s => `
+    <a href="#" class="social-platform-btn" onclick="return false">
+      <div class="sp-icon ${s.cls}">${s.icon}</div>
+      <div style="flex:1">
+        <div style="font-size:0.88rem;font-weight:600">${s.name}</div>
+        <div class="sp-handle">${s.handle}</div>
+      </div>
+      ${s.followers ? `<span class="sp-followers">${s.followers}</span>` : ''}
+      <span style="color:rgba(255,255,255,0.2);font-size:0.8rem">→</span>
+    </a>
+  `).join('');
+
+            const hoursHTML = biz.hours.map(h => `
+    <div class="hours-row">
+      <span class="hours-day">${h.day}</span>
+      <span class="hours-time">${h.time}</span>
+    </div>
+  `).join('');
+
+            wrap.innerHTML = `
+    <div class="profile-avatar" style="background:${biz.color}33">
+      ${biz.emoji}
+      <div class="avatar-status"></div>
+    </div>
+    <div class="profile-name">${biz.name}</div>
+    <div class="profile-handle">${biz.handle}</div>
+    <div class="profile-badges">
+      <span class="verified-chip">${biz.verifiedType}</span>
+    </div>
+    <p class="profile-bio">${biz.bio}</p>
+    <div class="profile-meta">
+      <div class="meta-item">⭐ <span class="meta-value">${biz.rating}</span>(${biz.reviews})</div>
+      <div class="meta-item">⚡ <span class="meta-value">${biz.response}</span>response</div>
+    </div>
+
+    <button class="call-btn" onclick="openCallModal()">
+      📞&nbsp; Call AI Assistant
+    </button>
+    <div class="call-btn-sub">AI answers instantly · Book, ask questions, or get info</div>
+
+    <div class="link-section-title">Services & Actions</div>
+    ${linksHTML}
+
+    <div class="link-section-title" style="margin-top:8px">Find us on social media</div>
+    <div class="social-platforms">
+      ${socialsHTML}
+    </div>
+
+    <div class="info-card" style="margin-top:16px">
+      <div class="info-card-title">Hours & Availability</div>
+      ${hoursHTML}
+    </div>
+
+    <div class="trust-banner">
+      <div>
+        <div class="trust-score-num">${biz.trustScore}%</div>
+      </div>
+      <div style="flex:1">
+        <div class="trust-label">Versafic Trust Score</div>
+        <div class="trust-subtitle">✓ ID verified · ✓ Active AI · ✓ Community trusted</div>
+      </div>
+    </div>
+
+    <div class="profile-footer">
+      <a href="index.html"><div class="powered-icon">V</div> Powered by Signefic</a>
+    </div>
+  `;
+
+            document.getElementById('modalAvatar').innerHTML = `<div class="ripple-ring"></div><div class="ripple-ring ripple-ring-2"></div>${biz.emoji}`;
+            document.getElementById('modalName').textContent = biz.name;
+            document.getElementById('modalBiz').textContent = biz.name;
+            document.title = `${biz.name} — Versafic`;
+        }
+        renderProfile();
+
+        function openCallModal() { document.getElementById('callModal').classList.add('open'); }
+        function closeCallModal() { document.getElementById('callModal').classList.remove('open'); }
+        function startCall() {
+            const btn = document.querySelector('.call-confirm-btn');
+            btn.textContent = '🤖 AI Answering...';
+            btn.style.background = 'linear-gradient(135deg, #059669, #10b981)';
+            document.querySelector('.call-status-indicator').innerHTML = '<span class="status-pulse"></span> Connected';
+            setTimeout(() => {
+                btn.textContent = '✅ Call ended · 0m 08s';
+                btn.style.background = '#1f2937';
+                setTimeout(closeCallModal, 1500);
+            }, 3000);
+        }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCallModal(); });
+    </script>
+</body>
+
+</html>

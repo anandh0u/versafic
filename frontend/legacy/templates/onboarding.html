@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Versafic - Onboarding</title>
+    <style>
+        /* ===== DARK THEME ONBOARDING ===== */
+        body {
+            background-color: #09090b;
+            color: #ffffff;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        :root {
+            --purple: #8b5cf6;
+            --purple-glow: rgba(139, 92, 246, 0.5);
+            --bg-card: #09090b;
+            --bg-input: #18181b;
+            --border-color: #27272a;
+            --text-main: #f4f4f5;
+            --text-muted: #a1a1aa;
+        }
+
+        .onboarding-container {
+            width: 100%;
+            max-width: 550px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px;
+            box-sizing: border-box;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ===== PROGRESS DOTS ===== */
+        .progress-dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 32px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .dot.active {
+            width: 24px;
+            border-radius: 4px;
+            background: var(--purple);
+            box-shadow: 0 0 8px var(--purple-glow);
+        }
+
+        .dot.completed {
+            background: #10b981;
+        }
+
+        /* ===== TYPOGRAPHY ===== */
+        .step-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: var(--purple);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .step-title {
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 0 0 12px 0;
+            color: var(--text-main);
+        }
+
+        .step-title .highlight {
+            color: var(--purple);
+        }
+
+        .step-desc {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin: 0 0 32px 0;
+            line-height: 1.5;
+        }
+
+        /* ===== FORM ELEMENTS ===== */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .input-field {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 14px 16px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: var(--purple);
+        }
+
+        select.input-field {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23a1a1aa%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px top 50%;
+            background-size: 10px auto;
+        }
+
+        /* Phone Input Group */
+        .phone-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .phone-prefix {
+            width: 80px;
+            text-align: center;
+            background: var(--bg-input);
+            color: var(--text-main);
+            flex-shrink: 0;
+            cursor: not-allowed;
+        }
+
+        /* Validation Message */
+        .validation-msg {
+            color: #ef4444;
+            font-size: 0.8rem;
+            margin-top: 6px;
+            display: none;
+        }
+
+        /* ===== CARD GRIDS ===== */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .card-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .card-grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .selection-card {
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .selection-card:hover {
+            border-color: #3f3f46;
+        }
+
+        .selection-card.active {
+            border-color: var(--purple);
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .card-icon {
+            font-size: 1.6rem;
+            margin-bottom: 8px;
+        }
+
+        .card-text {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        /* Multi-select tag pills */
+        .tags-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .tag-pill {
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tag-pill:hover {
+            border-color: #3f3f46;
+        }
+
+        .tag-pill.active {
+            border-color: var(--purple);
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--purple);
+            font-weight: 600;
+        }
+
+        /* ===== NAVIGATION BUTTONS ===== */
+        .nav-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 40px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .step-counter {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-primary {
+            background: #ffffff;
+            color: #000000;
+        }
+
+        .btn-primary:hover {
+            background: #e4e4e7;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-ghost:hover {
+            color: #ffffff;
+            border-color: #52525b;
+        }
+
+        /* Hide all steps by default */
+        .step-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .step-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="onboarding-container">
+
+        <div class="progress-dots" id="progressDots"></div>
+
+        <div class="step-content active" id="step-1">
+            <div class="step-label" id="label-1"></div>
+            <h1 class="step-title">Welcome to <span class="highlight">Versafic</span></h1>
+            <p class="step-desc">Let's get your account set up. What is your name?</p>
+
+            <div class="form-group">
+                <label class="input-label">Full Name</label>
+                <input type="text" id="fullName" class="input-field" placeholder="e.g. Alex Johnson">
+            </div>
+            <div class="form-group">
+                <label class="input-label">Email Address</label>
+                <input type="email" class="input-field" placeholder="alex@example.com">
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin-top: 32px; margin-bottom: 0;">
+        </div>
+
+        <div class="step-content" id="step-2">
+            <div class="step-label" id="label-2"></div>
+            <h1 class="step-title">Your <span class="highlight">contact details</span></h1>
+            <p class="step-desc">We'll use this to connect your AI phone number.</p>
+
+            <div class="form-group">
+                <label class="input-label">Country</label>
+                <select id="countrySelect" class="input-field" onchange="updateCountryDefaults()"></select>
+            </div>
+
+            <div class="form-group">
+                <label class="input-label">Phone Number</label>
+                <div class="phone-group">
+                    <input type="text" id="phonePrefix" class="input-field phone-prefix" readonly>
+                    <input type="tel" class="input-field" placeholder="(555) 234-5678">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="input-label">Time Zone</label>
+                <select id="timezoneSelect" class="input-field"></select>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin-top: 32px; margin-bottom: 0;">
+        </div>
+
+        <div class="step-content" id="step-3">
+            <div class="step-label" id="label-3"></div>
+            <h1 class="step-title">What <span class="highlight">best describes</span> you?</h1>
+            <p class="step-desc">We'll personalize your AI assistant based on your account type.</p>
+
+            <div class="card-grid-2" style="max-width: 480px; margin: 0 auto 30px auto;">
+                <div class="selection-card acc-type active" onclick="selectAccountType(this, 'Business')">
+                    <div class="card-icon">🏢</div>
+                    <div class="card-text">Business</div>
+                </div>
+                <div class="selection-card acc-type" onclick="selectAccountType(this, 'Personal')">
+                    <div class="card-icon">👤</div>
+                    <div class="card-text">Personal</div>
+                </div>
+            </div>
+
+            <!-- Business Sub-categories -->
+            <div id="bus-sub-categories" class="form-group" style="display: block; animation: fadeIn 0.3s ease;">
+                <label class="input-label" style="text-align: center; margin-bottom: 12px;">What type of
+                    business?</label>
+                <div class="tags-grid" style="justify-content: center;">
+                    <div class="tag-pill active" onclick="selectSubCategory(this)">Healthcare</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Retail</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Wholesale</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Vendor</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Distributor</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Agency</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Other</div>
+                </div>
+            </div>
+
+            <!-- Personal Sub-categories -->
+            <div id="per-sub-categories" class="form-group" style="display: none; animation: fadeIn 0.3s ease;">
+                <label class="input-label" style="text-align: center; margin-bottom: 12px;">What best describes
+                    you?</label>
+                <div class="tags-grid" style="justify-content: center;">
+                    <div class="tag-pill active" onclick="selectSubCategory(this)">Creator</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Influencer</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Consultant</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Freelancer</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Professional</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Student</div>
+                    <div class="tag-pill" onclick="selectSubCategory(this)">Other</div>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top:24px;">
+                <label class="input-label">Custom Description (Optional)</label>
+                <input type="text" class="input-field" placeholder="Type what describes you if not listed above...">
+            </div>
+
+            <div class="form-group" id="dynamic-name-fields">
+                <label class="input-label" id="dynamic-name-label">Account Owner Full Name</label>
+                <input type="text" class="input-field" id="dynamic-name-input" placeholder="Owner Name">
+            </div>
+
+            <div class="form-group">
+                <label class="input-label" style="display: flex; justify-content: space-between; align-items: center;">
+                    Date of Birth
+                    <span id="ageDisplay" style="color: var(--purple); font-weight: 700;"></span>
+                </label>
+                <input type="date" id="dobInput" class="input-field" onchange="calculateAge()">
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin-top: 32px; margin-bottom: 0;">
+        </div>
+
+        <div class="step-content" id="step-4">
+            <div class="step-label" id="label-4"></div>
+            <h1 class="step-title">Set up your <span class="highlight">Handle</span></h1>
+            <p class="step-desc">Create your unique Versafic profile link. This will be public.</p>
+
+            <div class="form-group">
+                <label class="input-label">Business / Personal Name</label>
+                <input type="text" id="profileNameInput" class="input-field" placeholder="e.g. Grand Horizon Hotel"
+                    oninput="cleanBusinessName()">
+            </div>
+
+            <div class="form-group">
+                <label class="input-label">Versafic Connect Handle</label>
+
+                <div style="display:flex; align-items:center; background:var(--bg-input); border:1px solid var(--border-color); border-radius:8px; padding-left:16px; transition:border-color 0.2s;"
+                    id="handleWrap">
+                    <span style="color:var(--text-muted); font-size:0.95rem; flex-shrink:0;">versafic.com/</span>
+                    <input type="text" id="handleInput" class="input-field"
+                        style="border:none; background:transparent; padding-left:2px; box-shadow:none; flex-grow:1;"
+                        placeholder="your-handle" oninput="handleInputChanged()">
+                </div>
+
+                <div id="handleStatus" style="font-size: 0.85rem; margin-top: 8px; font-weight: 500; display: none;">
+                </div>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin-top: 32px; margin-bottom: 0;">
+        </div>
+
+        <div class="step-content" id="step-5">
+            <div class="step-label" id="label-5"></div>
+            <h1 class="step-title">What should your <span class="highlight">AI handle?</span></h1>
+            <p class="step-desc">Select what your AI assistant should be trained to do.</p>
+
+            <label class="input-label">Main Selection</label>
+            <div class="card-grid">
+                <div class="selection-card channel-type active" id="channel-call"
+                    onclick="selectCard(this, 'channel-type')">
+                    <div class="card-icon" style="font-size:1.4rem;">📞</div>
+                    <div class="card-text">Call</div>
+                </div>
+                <div class="selection-card channel-type" id="channel-chat" onclick="selectCard(this, 'channel-type')">
+                    <div class="card-icon" style="font-size:1.4rem;">💬</div>
+                    <div class="card-text">Chat</div>
+                </div>
+                <div class="selection-card channel-type" id="channel-both" onclick="selectCard(this, 'channel-type')">
+                    <div class="card-icon" style="font-size:1.4rem;">⚡</div>
+                    <div class="card-text">Chat and Call</div>
+                </div>
+            </div>
+
+            <label class="input-label" style="margin-top:24px; margin-bottom:12px;">Sub Selections</label>
+            <div class="tags-grid">
+                <div class="tag-pill active" onclick="this.classList.toggle('active')">Bookings and Appointments</div>
+                <div class="tag-pill active" onclick="this.classList.toggle('active')">Customer Support and Query
+                    Resolution</div>
+                <div class="tag-pill" onclick="this.classList.toggle('active')">Information Retrieval and Recommendation
+                </div>
+                <div class="tag-pill" onclick="this.classList.toggle('active')">Lead Identification and Generation</div>
+                <div class="tag-pill" onclick="this.classList.toggle('active')">Sentiment Analysis</div>
+                <div class="tag-pill" onclick="this.classList.toggle('active')">Predictive Intelligence</div>
+                <div class="tag-pill" onclick="this.classList.toggle('active')">Campaigns</div>
+                <div class="tag-pill" onclick="this.classList.toggle('active')">Spam Call Filtering</div>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin-top: 32px; margin-bottom: 0;">
+        </div>
+
+        <div class="step-content" id="step-6">
+            <div class="step-label" id="label-6"></div>
+            <h1 class="step-title">Choose an <span class="highlight">AI Voice</span></h1>
+            <p class="step-desc">Since you selected Call support, pick a persona for your AI.</p>
+
+            <div class="card-grid-2">
+                <div class="selection-card voice-type active" onclick="selectCard(this, 'voice-type')">
+                    <div class="card-icon">💼</div>
+                    <div class="card-text">Professional</div>
+                </div>
+                <div class="selection-card voice-type" onclick="selectCard(this, 'voice-type')">
+                    <div class="card-icon">😊</div>
+                    <div class="card-text">Friendly</div>
+                </div>
+                <div class="selection-card voice-type" onclick="selectCard(this, 'voice-type')">
+                    <div class="card-icon">😎</div>
+                    <div class="card-text">Casual</div>
+                </div>
+                <div class="selection-card voice-type" onclick="selectCard(this, 'voice-type')">
+                    <div class="card-icon">🏥</div>
+                    <div class="card-text">Empathetic</div>
+                </div>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin-top: 32px; margin-bottom: 0;">
+        </div>
+
+        <div class="step-content" id="step-7">
+            <div class="step-label" id="label-7"></div>
+            <h1 class="step-title">Select your <span class="highlight">Credits</span></h1>
+            <p class="step-desc">Choose a starting plan to power your AI interactions.</p>
+
+            <div style="display:flex; flex-direction:column; gap:16px;">
+                <div class="selection-card plan-type" onclick="selectCard(this, 'plan-type')"
+                    style="display:flex; justify-content:space-between; align-items:center; text-align:left; padding:20px;">
+                    <div>
+                        <div class="card-text" style="font-size:1.1rem;">Starter</div>
+                        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">1,000 AI Credits</div>
+                    </div>
+                    <div style="font-size:1.4rem; font-weight:800;">$9<span
+                            style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/mo</span></div>
+                </div>
+
+                <div class="selection-card plan-type active" onclick="selectCard(this, 'plan-type')"
+                    style="display:flex; justify-content:space-between; align-items:center; text-align:left; padding:20px; border-color:var(--purple); position:relative;">
+                    <div
+                        style="position:absolute; top:-10px; left:20px; background:var(--purple); color:white; font-size:0.7rem; font-weight:700; padding:2px 8px; border-radius:4px;">
+                        POPULAR</div>
+                    <div>
+                        <div class="card-text" style="font-size:1.1rem;">Pro</div>
+                        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">5,000 AI Credits</div>
+                    </div>
+                    <div style="font-size:1.4rem; font-weight:800;">$39<span
+                            style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/mo</span></div>
+                </div>
+
+                <div class="selection-card plan-type" onclick="selectCard(this, 'plan-type')"
+                    style="display:flex; justify-content:space-between; align-items:center; text-align:left; padding:20px;">
+                    <div>
+                        <div class="card-text" style="font-size:1.1rem;">Max</div>
+                        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">10,000 AI Credits</div>
+                    </div>
+                    <div style="font-size:1.4rem; font-weight:800;">$99<span
+                            style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/mo</span></div>
+                </div>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin-top: 32px; margin-bottom: 0;">
+        </div>
+
+        <div class="nav-footer">
+            <button class="btn btn-ghost" id="btnBack" onclick="prevStep()" style="visibility:hidden;">← Back</button>
+            <div class="step-counter" id="stepCounter">Step 1 of 7</div>
+            <button class="btn btn-primary" id="btnNext" onclick="nextStep()">Continue →</button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 1. Robust Country & Timezone Data ---
+        const countries = [
+            { code: 'IN', name: 'India', dial: '+91', tz: 'Asia/Kolkata' },
+            { code: 'US', name: 'United States', dial: '+1', tz: 'America/New_York' },
+            { code: 'UK', name: 'United Kingdom', dial: '+44', tz: 'Europe/London' },
+            { code: 'CA', name: 'Canada', dial: '+1', tz: 'America/Toronto' },
+            { code: 'AU', name: 'Australia', dial: '+61', tz: 'Australia/Sydney' },
+            { code: 'AE', name: 'United Arab Emirates', dial: '+971', tz: 'Asia/Dubai' },
+            { code: 'SG', name: 'Singapore', dial: '+65', tz: 'Asia/Singapore' },
+            { code: 'ZA', name: 'South Africa', dial: '+27', tz: 'Africa/Johannesburg' },
+            { code: 'NZ', name: 'New Zealand', dial: '+64', tz: 'Pacific/Auckland' },
+            { code: 'IE', name: 'Ireland', dial: '+353', tz: 'Europe/Dublin' },
+            { code: 'DE', name: 'Germany', dial: '+49', tz: 'Europe/Berlin' },
+            { code: 'FR', name: 'France', dial: '+33', tz: 'Europe/Paris' },
+            { code: 'IT', name: 'Italy', dial: '+39', tz: 'Europe/Rome' },
+            { code: 'ES', name: 'Spain', dial: '+34', tz: 'Europe/Madrid' },
+            { code: 'BR', name: 'Brazil', dial: '+55', tz: 'America/Sao_Paulo' },
+            { code: 'MX', name: 'Mexico', dial: '+52', tz: 'America/Mexico_City' },
+            { code: 'JP', name: 'Japan', dial: '+81', tz: 'Asia/Tokyo' }
+        ];
+
+        const timezones = [
+            { val: 'Asia/Kolkata', label: 'Indian Standard Time (IST)' },
+            { val: 'America/New_York', label: 'Eastern Time (EST/EDT)' },
+            { val: 'America/Chicago', label: 'Central Time (CST/CDT)' },
+            { val: 'America/Denver', label: 'Mountain Time (MST/MDT)' },
+            { val: 'America/Los_Angeles', label: 'Pacific Time (PST/PDT)' },
+            { val: 'America/Toronto', label: 'Eastern Time (Canada)' },
+            { val: 'Europe/London', label: 'Greenwich Mean Time (GMT)' },
+            { val: 'Europe/Berlin', label: 'Central European Time (CET)' },
+            { val: 'Europe/Paris', label: 'Central European Time (CET)' },
+            { val: 'Europe/Rome', label: 'Central European Time (CET)' },
+            { val: 'Europe/Madrid', label: 'Central European Time (CET)' },
+            { val: 'Asia/Dubai', label: 'Gulf Standard Time (GST)' },
+            { val: 'Asia/Singapore', label: 'Singapore Time (SGT)' },
+            { val: 'Asia/Tokyo', label: 'Japan Standard Time (JST)' },
+            { val: 'Australia/Sydney', label: 'Australian Eastern Time (AEST)' },
+            { val: 'Pacific/Auckland', label: 'New Zealand Time (NZST)' },
+            { val: 'Africa/Johannesburg', label: 'South Africa Standard Time (SAST)' },
+            { val: 'America/Sao_Paulo', label: 'Brasilia Time (BRT)' },
+            { val: 'America/Mexico_City', label: 'Central Standard Time (Mexico)' }
+        ];
+
+        function initDropdowns() {
+            const countrySelect = document.getElementById('countrySelect');
+            const tzSelect = document.getElementById('timezoneSelect');
+
+            countrySelect.innerHTML = countries.map(c => `<option value="${c.code}">${c.name}</option>`).join('');
+            tzSelect.innerHTML = timezones.map(t => `<option value="${t.val}">${t.label}</option>`).join('');
+
+            autoDetectLocation();
+        }
+
+        function autoDetectLocation() {
+            try {
+                const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                let matchedCountry = countries.find(c => c.tz === userTz);
+
+                if (!matchedCountry) {
+                    if (userTz.includes('America')) matchedCountry = countries.find(c => c.code === 'US');
+                    else if (userTz.includes('Europe')) matchedCountry = countries.find(c => c.code === 'UK');
+                    else if (userTz.includes('Australia')) matchedCountry = countries.find(c => c.code === 'AU');
+                    else matchedCountry = countries.find(c => c.code === 'IN');
+                }
+
+                document.getElementById('countrySelect').value = matchedCountry.code;
+                updateCountryDefaults();
+
+                const tzDropdownHasIt = timezones.some(t => t.val === userTz);
+                if (tzDropdownHasIt) {
+                    document.getElementById('timezoneSelect').value = userTz;
+                }
+            } catch (e) {
+                document.getElementById('countrySelect').value = 'IN';
+                updateCountryDefaults();
+            }
+        }
+
+        function updateCountryDefaults() {
+            const code = document.getElementById('countrySelect').value;
+            const country = countries.find(c => c.code === code);
+            if (country) {
+                document.getElementById('phonePrefix').value = country.dial;
+                document.getElementById('timezoneSelect').value = country.tz;
+            }
+        }
+
+        // --- Step 3: Age Calculation ---
+        function calculateAge() {
+            const dobInput = document.getElementById('dobInput').value;
+            const ageDisplay = document.getElementById('ageDisplay');
+
+            if (!dobInput) {
+                ageDisplay.innerText = '';
+                return;
+            }
+
+            const dob = new Date(dobInput);
+            const today = new Date();
+
+            let age = today.getFullYear() - dob.getFullYear();
+            const monthDiff = today.getMonth() - dob.getMonth();
+
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                age--;
+            }
+
+            if (age < 0) {
+                ageDisplay.innerText = 'Invalid Date';
+                ageDisplay.style.color = '#ef4444';
+            } else {
+                ageDisplay.innerText = `${age} years old`;
+                ageDisplay.style.color = 'var(--purple)';
+            }
+        }
+
+        function selectAccountType(element, type) {
+            selectCard(element, 'acc-type');
+
+            const nameLabel = document.getElementById('dynamic-name-label');
+            const nameInput = document.getElementById('dynamic-name-input');
+            const busSub = document.getElementById('bus-sub-categories');
+            const perSub = document.getElementById('per-sub-categories');
+
+            if (type === 'Business') {
+                if (nameLabel) nameLabel.innerText = 'Account Owner Full Name';
+                if (nameInput) nameInput.placeholder = 'Owner Name';
+                if (busSub) busSub.style.display = 'block';
+                if (perSub) perSub.style.display = 'none';
+            } else {
+                if (nameLabel) nameLabel.innerText = 'Your Full Name';
+                if (nameInput) nameInput.placeholder = 'e.g. Alex Johnson';
+                if (busSub) busSub.style.display = 'none';
+                if (perSub) perSub.style.display = 'block';
+            }
+        }
+
+        function selectSubCategory(element) {
+            const parent = element.closest('.tags-grid');
+            if (parent) {
+                parent.querySelectorAll('.tag-pill').forEach(el => el.classList.remove('active'));
+            }
+            element.classList.add('active');
+        }
+
+        // --- Step 4: Handle Auto-Generation, Validation ---
+        const takenHandles = ["admin", "test", "swedwee12"];
+        let handleCheckTimeout = null;
+        let isHandleValidAndAvailable = false;
+
+        function cleanBusinessName() {
+            const nameInput = document.getElementById('profileNameInput');
+            const cleanedValue = nameInput.value.replace(/[^a-zA-Z0-9 ]/g, '');
+            if (nameInput.value !== cleanedValue) nameInput.value = cleanedValue;
+            autoGenerateHandle();
+        }
+
+        function autoGenerateHandle() {
+            const name = document.getElementById('profileNameInput').value;
+            const generated = name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
+            document.getElementById('handleInput').value = generated;
+            checkHandleAvailability(generated);
+        }
+
+        function handleInputChanged() {
+            const input = document.getElementById('handleInput');
+            let cleanedValue = input.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            if (input.value !== cleanedValue) input.value = cleanedValue;
+            checkHandleAvailability(cleanedValue);
+        }
+
+        function checkHandleAvailability(handle) {
+            const wrap = document.getElementById('handleWrap');
+            const status = document.getElementById('handleStatus');
+            const btnNext = document.getElementById('btnNext');
+
+            clearTimeout(handleCheckTimeout);
+            isHandleValidAndAvailable = false;
+
+            if (!handle || handle.trim() === '') {
+                status.style.display = 'none';
+                wrap.style.borderColor = 'var(--border-color)';
+                if (currentDOMStep === 4) disableNextButton(btnNext);
+                return;
+            }
+
+            status.style.display = 'block';
+            status.style.color = 'var(--text-muted)';
+            status.innerHTML = '⏳ Checking...';
+            wrap.style.borderColor = 'var(--border-color)';
+            if (currentDOMStep === 4) disableNextButton(btnNext);
+
+            handleCheckTimeout = setTimeout(() => {
+                if (takenHandles.includes(handle)) {
+                    status.style.color = '#ef4444';
+                    status.innerHTML = '❌ Handle already taken';
+                    wrap.style.borderColor = '#ef4444';
+                    isHandleValidAndAvailable = false;
+                    if (currentDOMStep === 4) disableNextButton(btnNext);
+                } else {
+                    status.style.color = '#10b981';
+                    status.innerHTML = '✅ Handle available';
+                    wrap.style.borderColor = '#10b981';
+                    isHandleValidAndAvailable = true;
+                    if (currentDOMStep === 4) enableNextButton(btnNext);
+                }
+            }, 400);
+        }
+
+        function disableNextButton(btn) {
+            if (btn) {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            }
+        }
+
+        function enableNextButton(btn) {
+            if (btn) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+            }
+        }
+
+        // --- 5. DYNAMIC WIZARD NAVIGATION LOGIC ---
+        let currentDOMStep = 1; // Tracks the actual HTML div (1-7)
+
+        function updateUI() {
+            // Check if user selected "Chat Only" to determine total steps dynamically
+            const isChatOnly = document.getElementById('channel-chat').classList.contains('active');
+            const totalDisplaySteps = isChatOnly ? 6 : 7;
+
+            // Calculate the visual step number (e.g., if we are on HTML step 7, but skipped 6, we show "Step 6 of 6")
+            let displayStepNum = currentDOMStep;
+            if (currentDOMStep === 7 && isChatOnly) {
+                displayStepNum = 6;
+            }
+
+            // Toggle HTML Views
+            document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step-${currentDOMStep}`).classList.add('active');
+
+            // Dynamically update all headers to reflect the correct total count and skipped numbers
+            document.getElementById('label-1').innerText = `STEP 1 OF ${totalDisplaySteps} — BASICS`;
+            document.getElementById('label-2').innerText = `STEP 2 OF ${totalDisplaySteps} — CONTACT INFORMATION`;
+            document.getElementById('label-3').innerText = `STEP 3 OF ${totalDisplaySteps} — ACCOUNT TYPE`;
+            document.getElementById('label-4').innerText = `STEP 4 OF ${totalDisplaySteps} — CONNECT PROFILE`;
+            document.getElementById('label-5').innerText = `STEP 5 OF ${totalDisplaySteps} — AI CAPABILITIES`;
+            document.getElementById('label-6').innerText = `STEP 6 OF ${totalDisplaySteps} — VOICE SETTINGS`;
+            document.getElementById('label-7').innerText = `STEP ${isChatOnly ? 6 : 7} OF ${totalDisplaySteps} — SUBSCRIPTION`;
+
+            // Update bottom footer counter
+            document.getElementById('stepCounter').innerText = `Step ${displayStepNum} of ${totalDisplaySteps}`;
+            document.getElementById('btnBack').style.visibility = currentDOMStep === 1 ? 'hidden' : 'visible';
+
+            const btnNext = document.getElementById('btnNext');
+
+            // Contextual Button Text
+            if (currentDOMStep === 7) {
+                btnNext.innerText = 'Go to Dashboard';
+            } else if (currentDOMStep === 4) {
+                btnNext.innerText = 'Create Account';
+            } else {
+                btnNext.innerText = 'Continue →';
+            }
+
+            // Enforce Step 4 Validation Lock
+            if (currentDOMStep === 4) {
+                if (!isHandleValidAndAvailable) {
+                    disableNextButton(btnNext);
+                } else {
+                    enableNextButton(btnNext);
+                }
+            } else {
+                enableNextButton(btnNext);
+            }
+
+            // Dynamically render the correct number of dots
+            const dotsContainer = document.getElementById('progressDots');
+            let dotsHTML = '';
+            for (let i = 1; i <= totalDisplaySteps; i++) {
+                if (i < displayStepNum) {
+                    dotsHTML += `<div class="dot completed"></div>`;
+                } else if (i === displayStepNum) {
+                    dotsHTML += `<div class="dot active"></div>`;
+                } else {
+                    dotsHTML += `<div class="dot"></div>`;
+                }
+            }
+            dotsContainer.innerHTML = dotsHTML;
+        }
+
+        function nextStep() {
+            if (currentDOMStep === 4 && !isHandleValidAndAvailable) return;
+
+            const btnNext = document.getElementById('btnNext');
+
+            // Loading state for Step 4 Account Creation
+            if (currentDOMStep === 4) {
+                btnNext.innerText = "Creating Account...";
+                disableNextButton(btnNext);
+                setTimeout(() => {
+                    enableNextButton(btnNext);
+                    currentDOMStep = 5;
+                    updateUI();
+                }, 1200);
+                return;
+            }
+
+            let nextDOMStep = currentDOMStep + 1;
+
+            // Skip HTML Step 6 if "Chat Only" is selected
+            if (currentDOMStep === 5) {
+                const isChatOnly = document.getElementById('channel-chat').classList.contains('active');
+                if (isChatOnly) nextDOMStep = 7;
+            }
+
+            if (nextDOMStep <= 7) {
+                currentDOMStep = nextDOMStep;
+                updateUI();
+            } else {
+                // Final step redirect
+                btnNext.innerText = "Redirecting...";
+                disableNextButton(btnNext);
+                setTimeout(() => {
+                    window.location.href = "dashboard.html";
+                }, 600);
+            }
+        }
+
+        function prevStep() {
+            let prevDOMStep = currentDOMStep - 1;
+
+            // Skip back over HTML Step 6 if Chat Only was selected
+            if (currentDOMStep === 7) {
+                const isChatOnly = document.getElementById('channel-chat').classList.contains('active');
+                if (isChatOnly) prevDOMStep = 5;
+            }
+
+            if (prevDOMStep >= 1) {
+                currentDOMStep = prevDOMStep;
+                updateUI();
+            }
+        }
+
+        // --- 6. Generic Card Selection ---
+        function selectCard(element, groupClass) {
+            document.querySelectorAll(`.${groupClass}`).forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+
+            // If the user clicks the Channel selection, force UI update to instantly fix step counts
+            if (groupClass === 'channel-type') {
+                updateUI();
+            }
+        }
+
+        window.onload = () => {
+            initDropdowns();
+            updateUI(); // Run once on load to establish baseline steps and dots
+        };
+
+    </script>
+</body>
+
+</html>

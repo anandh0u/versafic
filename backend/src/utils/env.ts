@@ -67,12 +67,13 @@ export const getEnv = (key: string, defaultValue?: string): string => {
     logger.error(`Environment variable ${key} is not set`);
     process.exit(1);
   }
-  return value;
+  return value.trim();
 };
 
 /**
  * Get optional environment variable with default
  */
 export const getOptionalEnv = (key: string, defaultValue: string = ""): string => {
-  return process.env[key] || defaultValue;
+  const value = process.env[key] || defaultValue;
+  return value.trim();
 };

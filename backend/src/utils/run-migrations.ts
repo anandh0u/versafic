@@ -10,7 +10,7 @@
  * etc.
  */
 
-import { pool } from '../config/db';
+import { pool } from '../config/database';
 import fs from 'fs';
 import path from 'path';
 import { logger } from './logger';

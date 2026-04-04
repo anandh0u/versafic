@@ -136,6 +136,15 @@ export class BusinessController {
       });
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
+      const errorCode = (error as { code?: string } | undefined)?.code;
+      if (errorCode === "23505") {
+        res.status(409).json({
+          status: "error",
+          statusCode: 409,
+          message: "Business with this email already exists"
+        });
+        return;
+      }
       logger.error("Business onboarding error", err);
       res.status(500).json({
         status: "error",
@@ -152,6 +161,7 @@ export class BusinessController {
   static async getByEmail(req: Request, res: Response): Promise<void> {
     try {
       const email = Array.isArray(req.params.email) ? req.params.email[0] : req.params.email;
+      await this.initializeTable();
 
       if (!email) {
         res.status(400).json({
@@ -214,6 +224,7 @@ export class BusinessController {
     try {
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
       const offset = parseInt(req.query.offset as string) || 0;
+      await this.initializeTable();
 
       logger.info("Retrieving businesses list", { limit, offset });
 
@@ -254,6 +265,7 @@ export class BusinessController {
     try {
       const { id } = req.params;
       const { business_name, business_type, owner_name, phone, email } = req.body;
+      await this.initializeTable();
 
       if (!id) {
         res.status(400).json({

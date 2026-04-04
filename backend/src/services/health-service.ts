@@ -1,4 +1,4 @@
-import { pool } from "../config/db";
+import { pool } from "../config/database";
 
 export const getHealthStatus = async () => {
   try {

@@ -11,7 +11,7 @@ import { logger } from "./utils/logger";
 import { pool, initializeDatabase, shutdownDatabase, validateTwilioWebhookConfig } from "./config/database";
 import { errorHandler } from "./middleware/error-handler";
 // Import security middleware
-import { generalLimiter, authLimiter, validateRequestSize, rateLimitAI } from "./middleware/rate-limit";
+import { generalLimiter, validateRequestSize, rateLimitAI } from "./middleware/rate-limit";
 // Import request context middleware
 import { requestContextMiddleware } from "./middleware/request-context";
 // Import metrics
@@ -169,7 +169,7 @@ app.get("/health", async (req: Request, res: Response) => {
 });
 
 // API Routes
-app.use("/auth", authLimiter, authRoutes);
+app.use("/auth", authRoutes);
 app.use("/setup", setupRoutes);
 app.use("/ai", rateLimitAI, aiRoutes);
 app.use("/customer-service", generalLimiter, customerServiceRoutes);

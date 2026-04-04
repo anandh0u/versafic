@@ -1,6 +1,6 @@
 // src/middleware/rate-limit.ts
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { logger } from '../utils/logger';
 import { ErrorCode } from '../types';
 
@@ -85,39 +85,12 @@ const rateLimitAIInstance = rateLimit({
 export const rateLimitAI = rateLimitAIInstance;
 
 /**
- * Auth endpoint rate limiter
- * Production: 5 attempts per 15 minutes
- * Development: 100 attempts per 15 minutes
+ * Auth endpoint limiter intentionally disabled for the live demo flow.
+ * We keep the exported middleware so existing route wiring stays compatible.
  */
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isDev ? 100 : 5,
-  message: 'Too many login attempts, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req: Request) => {
-    // Rate limit by email if provided, otherwise by IPv6-safe IP
-    if (req.body?.email) {
-      return req.body.email.toLowerCase();
-    }
-    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
-    return ipKeyGenerator(ip);
-  },
-  handler: (req: Request, res: Response) => {
-    logger.warn('Auth rate limit exceeded', {
-      email: req.body?.email,
-      ip: req.ip
-    });
-
-    res.status(429).json({
-      status: 'error',
-      statusCode: 429,
-      errorCode: ErrorCode.SERVICE_UNAVAILABLE,
-      message: 'Too many login attempts. Please try again in 15 minutes.',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
+export const authLimiter: RequestHandler = (_req: Request, _res: Response, next: NextFunction) => {
+  next();
+};
 
 /**
  * Request size limiter

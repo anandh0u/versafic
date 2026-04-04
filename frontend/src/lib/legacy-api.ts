@@ -167,6 +167,22 @@ const API_BASE_URL =
 
 const SESSION_KEY = "versafic.legacy.session";
 const PREFERRED_PLAN_KEY = "versafic.legacy.selected-plan";
+const DATA_CHANGED_EVENT = "versafic:data-changed";
+
+const notifyDataChanged = (reason: string) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(DATA_CHANGED_EVENT, {
+      detail: {
+        reason,
+        at: Date.now(),
+      },
+    })
+  );
+};
 
 const parseJson = async <T>(response: Response): Promise<ApiEnvelope<T> | null> => {
   const text = await response.text();
@@ -374,7 +390,10 @@ export const updateCurrentUser = async (payload: Record<string, unknown>) =>
       body: JSON.stringify(payload),
     },
     { auth: true }
-  );
+  ).then((result) => {
+    notifyDataChanged("user-updated");
+    return result;
+  });
 
 export const getPlans = async () =>
   request<{ plans: BillingPlan[] }>("/billing/plans");
@@ -415,7 +434,10 @@ export const verifyPayment = async (payload: {
       body: JSON.stringify(payload),
     },
     { auth: true }
-  );
+  ).then((result) => {
+    notifyDataChanged("payment-verified");
+    return result;
+  });
 
 export const getCallConfig = async () =>
   request<CallConfig>("/call/config", undefined, { auth: true });
@@ -434,7 +456,10 @@ export const initiateOutboundCall = async (payload: { phone_number: string; purp
       body: JSON.stringify(payload),
     },
     { auth: true }
-  );
+  ).then((result) => {
+    notifyDataChanged("outbound-call-started");
+    return result;
+  });
 
 export const getChatHistory = async () =>
   request<{ messages: ChatHistoryItem[]; count: number }>("/ai/chat/history?limit=25", undefined, { auth: true });
@@ -450,7 +475,10 @@ export const sendAiChat = async (message: string) =>
       body: JSON.stringify({ message }),
     },
     { auth: true }
-  );
+  ).then((result) => {
+    notifyDataChanged("ai-chat-sent");
+    return result;
+  });
 
 export const startCustomerServiceSession = async () =>
   request<CustomerServiceSession>("/customer-service/start", {
@@ -497,7 +525,10 @@ export const createBusinessRecord = async (payload: {
       method: "POST",
       body: JSON.stringify(payload),
     }
-  );
+  ).then((result) => {
+    notifyDataChanged("business-created");
+    return result;
+  });
 
 export const getSetupBusiness = async () =>
   request<SetupProfile>("/setup/business", undefined, { auth: true });
@@ -510,7 +541,10 @@ export const saveSetupBusiness = async (payload: SetupProfile) =>
       body: JSON.stringify(payload),
     },
     { auth: true }
-  );
+  ).then((result) => {
+    notifyDataChanged("setup-saved");
+    return result;
+  });
 
 export const getSetupStatus = async () =>
   request<Record<string, unknown>>("/setup/status", undefined, { auth: true });

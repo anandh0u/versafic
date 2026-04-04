@@ -104,9 +104,18 @@ type RazorpayWindow = Window & {
 };
 
 const selectedPlanOutline = "2px solid #6366f1";
+const DATA_CHANGED_EVENT = "versafic:data-changed";
+const RAZORPAY_SCRIPT_SELECTOR = 'script[data-razorpay="true"]';
+const RAZORPAY_SCRIPT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
+const RAZORPAY_LOAD_TIMEOUT_MS = 12000;
 let razorpayLoader: Promise<void> | null = null;
+let dashboardRefreshTimer: number | null = null;
+let dashboardAutoRefreshTimer: number | null = null;
+let dashboardRefreshInFlight = false;
 
 const getWindowRef = (): RazorpayWindow => window as RazorpayWindow;
+
+const isDashboardRoute = () => typeof window !== "undefined" && window.location.pathname.startsWith("/dashboard");
 
 const showToast = (message: string, type: "success" | "info" | "warn" = "info") => {
   const win = getWindowRef();
@@ -351,32 +360,73 @@ const parseTopUpOption = (label: string) => {
   };
 };
 
+const resetRazorpayLoader = () => {
+  razorpayLoader = null;
+  document.querySelectorAll<HTMLScriptElement>(RAZORPAY_SCRIPT_SELECTOR).forEach((script) => script.remove());
+  delete getWindowRef().Razorpay;
+};
+
+const loadRazorpayScript = () =>
+  new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(RAZORPAY_SCRIPT_SELECTOR);
+    if (existing) {
+      existing.remove();
+    }
+
+    const script = document.createElement("script");
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      script.onload = null;
+      script.onerror = null;
+    };
+    const fail = (message: string) => {
+      cleanup();
+      script.remove();
+      reject(new Error(message));
+    };
+    const timeoutId = window.setTimeout(() => fail("Razorpay is taking too long to load."), RAZORPAY_LOAD_TIMEOUT_MS);
+
+    script.src = RAZORPAY_SCRIPT_SRC;
+    script.async = true;
+    script.dataset.razorpay = "true";
+    script.onload = () => {
+      cleanup();
+      if (getWindowRef().Razorpay) {
+        resolve();
+        return;
+      }
+      fail("Razorpay loaded without initializing checkout.");
+    };
+    script.onerror = () => fail("Razorpay failed to load.");
+    document.head.appendChild(script);
+  });
+
 const ensureRazorpay = async () => {
   const win = getWindowRef();
   if (win.Razorpay) {
     return;
   }
 
-  if (!razorpayLoader) {
-    razorpayLoader = new Promise<void>((resolve, reject) => {
-      const existing = document.querySelector<HTMLScriptElement>('script[data-razorpay="true"]');
-      if (existing) {
-        existing.addEventListener("load", () => resolve(), { once: true });
-        existing.addEventListener("error", () => reject(new Error("Razorpay failed to load")), { once: true });
-        return;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      if (!razorpayLoader) {
+        razorpayLoader = loadRazorpayScript().catch((error) => {
+          razorpayLoader = null;
+          throw error;
+        });
       }
 
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.async = true;
-      script.dataset.razorpay = "true";
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Razorpay failed to load"));
-      document.head.appendChild(script);
-    });
+      await razorpayLoader;
+      return;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Razorpay checkout is unavailable.");
+      resetRazorpayLoader();
+    }
   }
 
-  await razorpayLoader;
+  throw lastError || new Error("Razorpay checkout is unavailable.");
 };
 
 const openCheckout = async (planPayload: {
@@ -385,6 +435,7 @@ const openCheckout = async (planPayload: {
   credits?: number;
   onSuccess?: () => Promise<void> | void;
 }) => {
+  showToast("Preparing Razorpay checkout...", "info");
   await ensureRazorpay();
 
   const order = await createOrder({
@@ -430,6 +481,31 @@ const openCheckout = async (planPayload: {
     });
 
     checkout.open();
+  });
+};
+
+const queueDashboardRefresh = (delayMs: number = 900) => {
+  if (!isDashboardRoute()) {
+    return;
+  }
+
+  if (dashboardRefreshTimer) {
+    window.clearTimeout(dashboardRefreshTimer);
+  }
+
+  dashboardRefreshTimer = window.setTimeout(() => {
+    dashboardRefreshTimer = null;
+    void refreshDashboardData();
+  }, delayMs);
+};
+
+const primeRazorpayCheckout = () => {
+  if (!isDashboardRoute()) {
+    return;
+  }
+
+  void ensureRazorpay().catch(() => {
+    razorpayLoader = null;
   });
 };
 
@@ -1669,6 +1745,13 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
 };
 
 const bindDashboardPage = async () => {
+  if (dashboardRefreshInFlight) {
+    return;
+  }
+
+  dashboardRefreshInFlight = true;
+
+  try {
   let user = getStoredUser();
 
   if (!user) {
@@ -1728,6 +1811,22 @@ const bindDashboardPage = async () => {
   updateCallsPage(state);
   updateChatsPage(state);
   await bindAiSettingsPanel(state);
+  primeRazorpayCheckout();
+  } finally {
+    dashboardRefreshInFlight = false;
+  }
+};
+
+const refreshDashboardData = async () => {
+  if (!isDashboardRoute()) {
+    return;
+  }
+
+  try {
+    await bindDashboardPage();
+  } catch (error) {
+    console.error("Failed to refresh dashboard data", error);
+  }
 };
 
 const initializePage = async (pageKey: string) => {
@@ -1763,6 +1862,47 @@ export function LegacyBindings({ pageKey }: LegacyBindingsProps) {
         console.error(`Failed to initialize legacy bindings for ${pageKey}`, error);
       });
     }, 120);
+  }, [pageKey]);
+
+  useEffect(() => {
+    if (!pageKey.startsWith("dashboard")) {
+      return;
+    }
+
+    const handleDataChanged = () => queueDashboardRefresh(700);
+    const handleFocus = () => queueDashboardRefresh(350);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        queueDashboardRefresh(350);
+      }
+    };
+
+    window.addEventListener(DATA_CHANGED_EVENT, handleDataChanged as EventListener);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    if (!dashboardAutoRefreshTimer) {
+      dashboardAutoRefreshTimer = window.setInterval(() => {
+        if (document.visibilityState === "visible") {
+          queueDashboardRefresh(250);
+        }
+      }, 20000);
+    }
+
+    return () => {
+      window.removeEventListener(DATA_CHANGED_EVENT, handleDataChanged as EventListener);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      if (dashboardAutoRefreshTimer) {
+        window.clearInterval(dashboardAutoRefreshTimer);
+        dashboardAutoRefreshTimer = null;
+      }
+      if (dashboardRefreshTimer) {
+        window.clearTimeout(dashboardRefreshTimer);
+        dashboardRefreshTimer = null;
+      }
+    };
   }, [pageKey]);
 
   return null;

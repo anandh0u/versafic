@@ -1,7 +1,15 @@
 import { Request, Response } from "express";
 import { pool } from "../config/database";
 import { logger } from "../utils/logger";
-import { isValidEmail, isValidPhone, hasSQLInjectionPatterns, hasXSSPatterns } from "../utils/validators";
+import {
+  getPhoneValidationError,
+  getRegistrableEmailError,
+  hasSQLInjectionPatterns,
+  hasXSSPatterns,
+  isValidEmail,
+  normalizePhoneNumber,
+  sanitizeEmail,
+} from "../utils/validators";
 
 export interface OnboardingData {
   business_name: string;
@@ -12,6 +20,8 @@ export interface OnboardingData {
 }
 
 export class BusinessController {
+  private static tableInitializationPromise: Promise<void> | null = null;
+
   /**
    * Onboard a business
    * POST /business/onboard
@@ -63,25 +73,28 @@ export class BusinessController {
       }
 
       // Validate email and phone
-      if (!isValidEmail(email)) {
+      const normalizedEmail = sanitizeEmail(email);
+      const emailValidationError = await getRegistrableEmailError(normalizedEmail);
+      if (emailValidationError) {
         res.status(400).json({
           status: "error",
           statusCode: 400,
-          message: "Invalid email address"
+          message: emailValidationError
         });
         return;
       }
 
-      if (!isValidPhone(phone)) {
+      const phoneValidationError = getPhoneValidationError(phone);
+      if (phoneValidationError) {
         res.status(400).json({
           status: "error",
           statusCode: 400,
-          message: "Invalid phone number"
+          message: phoneValidationError
         });
         return;
       }
 
-      logger.info("Processing business onboarding", { business_name, email });
+      logger.info("Processing business onboarding", { business_name, email: normalizedEmail });
 
       // Create table if not exists
       await this.initializeTable();
@@ -102,8 +115,8 @@ export class BusinessController {
         business_name,
         business_type,
         owner_name,
-        phone,
-        email
+        normalizePhoneNumber(phone),
+        normalizedEmail
       ]);
 
       if (!result.rows || result.rows.length === 0) {
@@ -130,7 +143,7 @@ export class BusinessController {
         data: {
           id: businessId,
           business_name,
-          email,
+          email: normalizedEmail,
           created_at: createdAt
         }
       });
@@ -172,7 +185,8 @@ export class BusinessController {
         return;
       }
 
-      if (!isValidEmail(email)) {
+      const normalizedEmail = sanitizeEmail(email);
+      if (!isValidEmail(normalizedEmail)) {
         res.status(400).json({
           status: "error",
           statusCode: 400,
@@ -181,7 +195,7 @@ export class BusinessController {
         return;
       }
 
-      logger.info("Retrieving business", { email });
+      logger.info("Retrieving business", { email: normalizedEmail });
 
       const query = `
         SELECT * FROM businesses
@@ -189,7 +203,7 @@ export class BusinessController {
         LIMIT 1;
       `;
 
-      const result = await pool.query(query, [email]);
+      const result = await pool.query(query, [normalizedEmail]);
 
       if (result.rows.length === 0) {
         res.status(404).json({
@@ -295,20 +309,26 @@ export class BusinessController {
         return;
       }
 
-      if (email && !isValidEmail(email)) {
-        res.status(400).json({
-          status: "error",
-          statusCode: 400,
-          message: "Invalid email address"
-        });
-        return;
+      const normalizedEmail = typeof email === "string" ? sanitizeEmail(email) : "";
+      if (normalizedEmail) {
+        const emailValidationError = await getRegistrableEmailError(normalizedEmail);
+        if (emailValidationError) {
+          res.status(400).json({
+            status: "error",
+            statusCode: 400,
+            message: emailValidationError
+          });
+          return;
+        }
       }
 
-      if (phone && !isValidPhone(phone)) {
+      const phoneValidationError =
+        typeof phone === "string" && phone.trim() ? getPhoneValidationError(phone) : null;
+      if (phoneValidationError) {
         res.status(400).json({
           status: "error",
           statusCode: 400,
-          message: "Invalid phone number"
+          message: phoneValidationError
         });
         return;
       }
@@ -333,8 +353,8 @@ export class BusinessController {
         business_name || null,
         business_type || null,
         owner_name || null,
-        phone || null,
-        email || null
+        phone ? normalizePhoneNumber(phone) : null,
+        normalizedEmail || null
       ]);
 
       if (result.rows.length === 0) {
@@ -367,36 +387,42 @@ export class BusinessController {
    * Initialize businesses table
    */
   private static async initializeTable(): Promise<void> {
-    try {
-      const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS businesses (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          business_name VARCHAR(255) NOT NULL,
-          business_type VARCHAR(100) NOT NULL,
-          owner_name VARCHAR(255) NOT NULL,
-          phone VARCHAR(20) NOT NULL,
-          email VARCHAR(255) NOT NULL UNIQUE,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+    if (!this.tableInitializationPromise) {
+      this.tableInitializationPromise = (async () => {
+        try {
+          const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS businesses (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              business_name VARCHAR(255) NOT NULL,
+              business_type VARCHAR(100) NOT NULL,
+              owner_name VARCHAR(255) NOT NULL,
+              phone VARCHAR(20) NOT NULL,
+              email VARCHAR(255) NOT NULL UNIQUE,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_businesses_email ON businesses(email);
-        CREATE INDEX IF NOT EXISTS idx_businesses_created_at ON businesses(created_at);
-      `;
+            CREATE INDEX IF NOT EXISTS idx_businesses_email ON businesses(email);
+            CREATE INDEX IF NOT EXISTS idx_businesses_created_at ON businesses(created_at);
+          `;
 
-      const statements = createTableQuery
-        .split(";")
-        .filter((stmt) => stmt.trim());
+          const statements = createTableQuery
+            .split(";")
+            .filter((stmt) => stmt.trim());
 
-      for (const statement of statements) {
-        await pool.query(statement);
-      }
+          for (const statement of statements) {
+            await pool.query(statement);
+          }
 
-      logger.debug("Businesses table initialized");
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      logger.warn("Failed to initialize businesses table", { error: errorMsg });
-      // Don't throw, table might already exist
+          logger.debug("Businesses table initialized");
+        } catch (error) {
+          this.tableInitializationPromise = null;
+          const errorMsg = error instanceof Error ? error.message : "Unknown error";
+          logger.warn("Failed to initialize businesses table", { error: errorMsg });
+        }
+      })();
     }
+
+    await this.tableInitializationPromise;
   }
 }

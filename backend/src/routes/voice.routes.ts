@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { VoiceController } from "../controllers/voice.controller";
+import { verifyToken } from "../middleware/jwt-auth";
 import { logger } from "../utils/logger";
 
 const router = Router();
@@ -70,6 +71,23 @@ router.get("/conversations/phone/:phone", async (req: Request, res: Response) =>
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error("Voice conversations route error", err);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error"
+    });
+  }
+});
+
+/**
+ * GET /voice/conversations/recent
+ * Get recent voice conversations for the authenticated workspace
+ */
+router.get("/conversations/recent", verifyToken, async (req: Request, res: Response) => {
+  try {
+    await VoiceController.getRecentConversations(req, res);
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error("Voice recent conversations route error", err);
     res.status(500).json({
       success: false,
       error: "Internal server error"

@@ -3,8 +3,43 @@ import { Request, Response, NextFunction } from "express";
 import * as AuthService from "../services/auth.service";
 import { AppError } from "../middleware/error-handler";
 import { ErrorCode } from "../types";
-import { isStrongPassword, isValidEmail, sanitizeEmail } from "../utils/validators";
+import { exchangeGitHubCodeForProfile } from "../utils/github-auth";
+import { normalizeEnvValue } from "../utils/env";
+import { exchangeGoogleCodeForProfile } from "../utils/google-auth";
+import {
+  buildFrontendAuthErrorUrl,
+  buildFrontendAuthSuccessUrl,
+  clearOAuthState,
+  createOAuthState,
+  readOAuthState,
+  resolveFrontendReturnUrl,
+  storeOAuthState,
+} from "../utils/oauth-flow";
+import { getRegistrableEmailError, isStrongPassword, isValidEmail, sanitizeEmail } from "../utils/validators";
 import { AuthRequest } from "../middleware/jwt-auth";
+
+type OAuthProvider = "google" | "github";
+
+const getProviderDisplayName = (provider: OAuthProvider) => (provider === "google" ? "Google" : "GitHub");
+
+const getPublicBaseUrl = () => {
+  const publicBaseUrl = normalizeEnvValue(process.env.PUBLIC_BASE_URL);
+  if (!publicBaseUrl) {
+    throw new AppError(500, ErrorCode.AUTH_ERROR, "PUBLIC_BASE_URL is not configured");
+  }
+
+  return publicBaseUrl.replace(/\/+$/, "");
+};
+
+const getGoogleCallbackUrl = () =>
+  normalizeEnvValue(process.env.GOOGLE_CALLBACK_URL) || `${getPublicBaseUrl()}/auth/google/callback`;
+
+const getGitHubCallbackUrl = () =>
+  normalizeEnvValue(process.env.GITHUB_CALLBACK_URL) || `${getPublicBaseUrl()}/auth/github/callback`;
+
+const redirectWithOAuthError = (res: Response, returnTo: string, message: string) => {
+  res.redirect(302, buildFrontendAuthErrorUrl(returnTo, message));
+};
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -16,8 +51,9 @@ export const register = async (req: Request, res: Response, next: NextFunction):
 
     // Validate and sanitize email
     const normalizedEmail = sanitizeEmail(email);
-    if (!isValidEmail(normalizedEmail)) {
-      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, "Invalid email format"));
+    const emailValidationError = await getRegistrableEmailError(normalizedEmail);
+    if (emailValidationError) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, emailValidationError));
     }
 
     // Validate password strength
@@ -74,6 +110,32 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
   }
 };
 
+export const validateEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (typeof email !== "string" || !email.trim()) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, "Email is required"));
+    }
+
+    const normalizedEmail = sanitizeEmail(email);
+    const emailValidationError = await getRegistrableEmailError(normalizedEmail);
+
+    res.status(200).json({
+      status: "success",
+      message: emailValidationError ? emailValidationError : "Email is valid",
+      data: {
+        email: normalizedEmail,
+        valid: !emailValidationError,
+        error: emailValidationError,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const refreshToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { refreshToken } = req.body;
@@ -97,6 +159,131 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     next(error);
   }
 };
+
+const startOAuthFlow = (
+  provider: OAuthProvider,
+  buildAuthorizationUrl: (state: string) => string
+) => async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  let returnTo = "";
+
+  try {
+    returnTo = resolveFrontendReturnUrl(req.query.return_to as string | undefined);
+    const oauthState = createOAuthState(provider, returnTo);
+
+    storeOAuthState(res, oauthState);
+    res.redirect(302, buildAuthorizationUrl(oauthState.state));
+  } catch (error) {
+    if (returnTo) {
+      redirectWithOAuthError(
+        res,
+        returnTo,
+        error instanceof Error ? error.message : `Unable to start ${getProviderDisplayName(provider)} login.`
+      );
+      return;
+    }
+
+    next(
+      error instanceof AppError
+        ? error
+        : new AppError(400, ErrorCode.AUTH_ERROR, error instanceof Error ? error.message : "Unable to start OAuth flow")
+    );
+  }
+};
+
+const handleOAuthCallback = (
+  provider: OAuthProvider,
+  exchangeCodeForProfile: (code: string) => Promise<{ email: string; name?: string; picture?: string; googleId?: string; githubId?: string }>
+) => async (req: Request, res: Response): Promise<void> => {
+  const storedState = readOAuthState(req, provider);
+  const returnTo = storedState?.returnTo || resolveFrontendReturnUrl(undefined);
+
+  try {
+    clearOAuthState(res, provider);
+
+    const providerError = typeof req.query.error === "string" ? req.query.error : "";
+    const providerErrorDescription =
+      typeof req.query.error_description === "string" ? req.query.error_description : "";
+    if (providerError) {
+      redirectWithOAuthError(res, returnTo, providerErrorDescription || `${getProviderDisplayName(provider)} login was cancelled.`);
+      return;
+    }
+
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+
+    if (!storedState || !state || storedState.state !== state) {
+      redirectWithOAuthError(res, returnTo, `${getProviderDisplayName(provider)} login session expired. Please try again.`);
+      return;
+    }
+
+    if (!code) {
+      redirectWithOAuthError(res, returnTo, `${getProviderDisplayName(provider)} did not return an authorization code.`);
+      return;
+    }
+
+    const profile = await exchangeCodeForProfile(code);
+    const providerId = provider === "google" ? profile.googleId : profile.githubId;
+    if (!providerId) {
+      redirectWithOAuthError(res, returnTo, `${getProviderDisplayName(provider)} did not return a valid account identifier.`);
+      return;
+    }
+
+    const result = await AuthService.handleOAuthProviderAuth(provider, profile.email, providerId, profile.name);
+    res.redirect(
+      302,
+      buildFrontendAuthSuccessUrl(returnTo, {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        provider,
+        isNewUser: result.isNewUser,
+      })
+    );
+  } catch (error) {
+    redirectWithOAuthError(
+      res,
+      returnTo,
+      error instanceof Error ? error.message : `Unable to finish ${getProviderDisplayName(provider)} login.`
+    );
+  }
+};
+
+export const startGoogleOAuth = startOAuthFlow("google", (state) => {
+  const clientId = normalizeEnvValue(process.env.GOOGLE_CLIENT_ID);
+  if (!clientId || clientId.includes("your_google_client_id")) {
+    throw new AppError(503, ErrorCode.AUTH_ERROR, "Google login is not configured yet.");
+  }
+
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", getGoogleCallbackUrl());
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", "openid email profile");
+  url.searchParams.set("prompt", "select_account");
+  url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("state", state);
+
+  return url.toString();
+});
+
+export const googleOAuthCallback = handleOAuthCallback("google", exchangeGoogleCodeForProfile);
+
+export const startGitHubOAuth = startOAuthFlow("github", (state) => {
+  const clientId = normalizeEnvValue(process.env.GITHUB_CLIENT_ID);
+  if (!clientId || clientId.includes("your_github_client_id")) {
+    throw new AppError(503, ErrorCode.AUTH_ERROR, "GitHub login is not configured yet.");
+  }
+
+  const url = new URL("https://github.com/login/oauth/authorize");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", getGitHubCallbackUrl());
+  url.searchParams.set("scope", "read:user user:email");
+  url.searchParams.set("allow_signup", "true");
+  url.searchParams.set("state", state);
+
+  return url.toString();
+});
+
+export const githubOAuthCallback = handleOAuthCallback("github", exchangeGitHubCodeForProfile);
 
 export const googleAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {

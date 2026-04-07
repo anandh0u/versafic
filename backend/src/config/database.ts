@@ -2,11 +2,22 @@
 import { Pool } from "pg";
 import dotenv from "dotenv";
 import { logger } from "../utils/logger";
+import { normalizeEnvValue } from "../utils/env";
 
 dotenv.config();
 
+const databaseUrl = normalizeEnvValue(process.env.DATABASE_URL);
+const parsedDatabaseUrl = databaseUrl ? new URL(databaseUrl) : null;
+const resolvedDbHost = normalizeEnvValue(process.env.DB_HOST) || parsedDatabaseUrl?.hostname || "";
+const resolvedDbPort = normalizeEnvValue(process.env.DB_PORT) || parsedDatabaseUrl?.port || "";
+const resolvedDbUser = normalizeEnvValue(process.env.DB_USER) || decodeURIComponent(parsedDatabaseUrl?.username || "");
+const resolvedDbPassword =
+  normalizeEnvValue(process.env.DB_PASSWORD) || decodeURIComponent(parsedDatabaseUrl?.password || "");
+const resolvedDbName =
+  normalizeEnvValue(process.env.DB_NAME) || parsedDatabaseUrl?.pathname.replace(/^\//, "") || "";
+
 // Validate required database environment variables
-const requiredDbVars = ["DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME"];
+const requiredDbVars = databaseUrl ? [] : ["DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME"];
 const missingVars = requiredDbVars.filter((envVar) => !process.env[envVar]);
 
 if (missingVars.length > 0) {
@@ -16,13 +27,14 @@ if (missingVars.length > 0) {
 
 // SSL configuration for Aiven cloud database
 const getSslConfig = (): { rejectUnauthorized: boolean; ca?: string } | false => {
-  const dbHost = process.env.DB_HOST || "";
+  const dbHost = resolvedDbHost;
   const isAiven = dbHost.includes("aivencloud.com");
+  const isRenderManagedPostgres = dbHost.includes("render.com");
   const isProduction = process.env.NODE_ENV === "production";
   const sslRejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false";
 
   // Aiven always requires SSL
-  if (isAiven || isProduction) {
+  if (isAiven || isRenderManagedPostgres || isProduction) {
     const config: { rejectUnauthorized: boolean; ca?: string } = {
       rejectUnauthorized: isProduction && sslRejectUnauthorized
     };
@@ -38,31 +50,39 @@ const getSslConfig = (): { rejectUnauthorized: boolean; ca?: string } | false =>
   return false;
 };
 
-// Create single database pool instance (reused throughout app)
-export const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  
+const poolConfig = {
+  ...(databaseUrl
+    ? {
+        connectionString: databaseUrl,
+      }
+    : {
+        host: resolvedDbHost,
+        port: Number(resolvedDbPort),
+        user: resolvedDbUser,
+        password: resolvedDbPassword,
+        database: resolvedDbName,
+      }),
+
   // Connection pooling configuration
   max: 20, // Maximum number of connections in the pool
   min: 2, // Minimum number of idle connections kept alive
   idleTimeoutMillis: 30000, // How long a client is allowed to remain idle
   connectionTimeoutMillis: 15000, // How long to wait when connecting a new client
   maxUses: 7500, // Max number of requests a connection can have
-  
+
   // Keep alive settings
   keepAlive: true,
   keepAliveInitialDelayMillis: 30000, // Delay before sending TCP keep-alive probe
-  
+
   // Statement timeout for queries
   statement_timeout: 30000, // Cancel query if it takes longer than 30s
-  
+
   // SSL configuration for Aiven
-  ssl: getSslConfig()
-});
+  ssl: getSslConfig(),
+};
+
+// Create single database pool instance (reused throughout app)
+export const pool = new Pool(poolConfig);
 
 // Connection pool error handler
 pool.on("error", (err: Error) => {
@@ -82,15 +102,16 @@ pool.on("remove", () => {
 export const initializeDatabase = async (): Promise<void> => {
   const maxRetries = 5;
   const retryDelay = 2000; // 2 seconds
-  const dbHost = process.env.DB_HOST || "unknown";
+  const dbHost = resolvedDbHost || "unknown";
   const isAiven = dbHost.includes("aivencloud.com");
+  const isRenderManagedPostgres = dbHost.includes("render.com");
 
   logger.info("Connecting to database", {
     host: dbHost,
-    port: process.env.DB_PORT,
-    database: process.env.DB_NAME,
-    cloud: isAiven ? "Aiven" : "local",
-    ssl: isAiven ? "enabled" : "disabled"
+    port: resolvedDbPort || "default",
+    database: resolvedDbName || "default",
+    cloud: isAiven ? "Aiven" : isRenderManagedPostgres ? "Render" : "custom",
+    ssl: isAiven || isRenderManagedPostgres || process.env.NODE_ENV === "production" ? "enabled" : "disabled"
   });
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -109,9 +130,14 @@ export const initializeDatabase = async (): Promise<void> => {
         attempt
       });
 
-      // Run migrations to create required tables
-      const { runMigrations } = await import("../utils/migrate");
-      await runMigrations();
+      const shouldRunStartupMigrations =
+        process.env.RUN_DB_MIGRATIONS_ON_STARTUP === "true" || process.env.NODE_ENV !== "production";
+      if (shouldRunStartupMigrations) {
+        const { runMigrations } = await import("../utils/migrate");
+        await runMigrations();
+      } else {
+        logger.info("Skipping startup migrations in production runtime");
+      }
       
       return;
     } catch (error) {
@@ -144,7 +170,7 @@ export const createRequiredTables = async (): Promise<void> => {
       CREATE TABLE IF NOT EXISTS customer_interactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         session_id VARCHAR(255) NOT NULL,
-        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
         customer_message TEXT NOT NULL,
         ai_response TEXT NOT NULL,
         sentiment VARCHAR(20) CHECK (sentiment IN ('positive', 'negative', 'neutral')) DEFAULT 'neutral',

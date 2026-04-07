@@ -23,43 +23,52 @@ export interface CreateConversationInput {
 }
 
 class ConversationService {
+  private initializationPromise: Promise<void> | null = null;
+
   /**
    * Initialize conversations table
    */
   async initializeTable(): Promise<void> {
-    try {
-      const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS conversations (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          customer_name VARCHAR(255),
-          phone VARCHAR(20),
-          email VARCHAR(255),
-          request TEXT,
-          ai_response TEXT NOT NULL,
-          transcript TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+    if (!this.initializationPromise) {
+      this.initializationPromise = (async () => {
+        try {
+          const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS conversations (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              customer_name VARCHAR(255),
+              phone VARCHAR(20),
+              email VARCHAR(255),
+              request TEXT,
+              ai_response TEXT NOT NULL,
+              transcript TEXT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_conversations_phone ON conversations(phone);
-        CREATE INDEX IF NOT EXISTS idx_conversations_email ON conversations(email);
-        CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations(created_at);
-      `;
+            CREATE INDEX IF NOT EXISTS idx_conversations_phone ON conversations(phone);
+            CREATE INDEX IF NOT EXISTS idx_conversations_email ON conversations(email);
+            CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations(created_at);
+          `;
 
-      const statements = createTableQuery
-        .split(";")
-        .filter((stmt) => stmt.trim());
+          const statements = createTableQuery
+            .split(";")
+            .filter((stmt) => stmt.trim());
 
-      for (const statement of statements) {
-        await pool.query(statement);
-      }
+          for (const statement of statements) {
+            await pool.query(statement);
+          }
 
-      logger.info("Conversations table initialized");
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      logger.error("Failed to initialize conversations table", err);
-      throw error;
+          logger.info("Conversations table initialized");
+        } catch (error) {
+          this.initializationPromise = null;
+          const err = error instanceof Error ? error : new Error(String(error));
+          logger.error("Failed to initialize conversations table", err);
+          throw error;
+        }
+      })();
     }
+
+    await this.initializationPromise;
   }
 
   /**
@@ -69,6 +78,8 @@ class ConversationService {
     data: CreateConversationInput
   ): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
+      await this.initializeTable();
+
       const query = `
         INSERT INTO conversations (
           customer_name,
@@ -121,6 +132,8 @@ class ConversationService {
     error?: string;
   }> {
     try {
+      await this.initializeTable();
+
       const query = `
         SELECT * FROM conversations
         WHERE phone = $1
@@ -158,6 +171,8 @@ class ConversationService {
     error?: string;
   }> {
     try {
+      await this.initializeTable();
+
       const query = `
         SELECT * FROM conversations
         WHERE email = $1
@@ -195,6 +210,8 @@ class ConversationService {
     error?: string;
   }> {
     try {
+      await this.initializeTable();
+
       const query = `
         SELECT * FROM conversations
         WHERE id = $1;
@@ -232,6 +249,8 @@ class ConversationService {
     error?: string;
   }> {
     try {
+      await this.initializeTable();
+
       const query = `
         SELECT * FROM conversations
         ORDER BY created_at DESC
@@ -269,6 +288,8 @@ class ConversationService {
     error?: string;
   }> {
     try {
+      await this.initializeTable();
+
       const query = `
         SELECT
           COUNT(*) as total,

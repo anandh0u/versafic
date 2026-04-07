@@ -29,6 +29,21 @@ const routeReplacements: Array<[RegExp, string]> = [
 const applyRouteReplacements = (input: string) =>
   routeReplacements.reduce((result, [pattern, replacement]) => result.replace(pattern, replacement), input);
 
+const sanitizeLegacyScript = (name: "index" | "dashboard" | "onboarding" | "search" | "profile", input: string) => {
+  if (name === "search" || name === "profile") {
+    return "";
+  }
+
+  if (name === "dashboard") {
+    return input.replace(
+      /\s*\/\/ ===== DATE FILTER & MOCK DATA SWAPPING ENGINE =====[\s\S]*?function setBookingFilter\(btn\) \{[\s\S]*?\n\s*\}\n/,
+      "\n"
+    );
+  }
+
+  return input;
+};
+
 const extractSection = (source: string, tag: string) => {
   const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi");
   const matches = [...source.matchAll(regex)];
@@ -51,7 +66,7 @@ export const loadLegacyTemplate = (
   const rawBody = bodyMatch ? bodyMatch[1] : html;
   const bodyWithoutScripts = rawBody.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
 
-  let script = applyRouteReplacements(pageScript);
+  let script = applyRouteReplacements(sanitizeLegacyScript(name, pageScript));
   let markup = applyRouteReplacements(bodyWithoutScripts);
 
   if (name === "profile" && options?.profileId) {

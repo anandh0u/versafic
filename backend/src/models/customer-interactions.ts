@@ -20,6 +20,22 @@ export interface CustomerInteraction {
   created_at: Date;
 }
 
+let customerInteractionsTableReady: Promise<void> | null = null;
+
+const ensureCustomerInteractionsTable = async (): Promise<void> => {
+  if (!customerInteractionsTableReady) {
+    customerInteractionsTableReady = pool
+      .query(customerInteractionsTableSQL)
+      .then(() => undefined)
+      .catch((error) => {
+        customerInteractionsTableReady = null;
+        throw error;
+      });
+  }
+
+  await customerInteractionsTableReady;
+};
+
 /**
  * Create customer interaction record
  */
@@ -35,6 +51,7 @@ export const createInteraction = async (
     email?: string;
   }
 ): Promise<CustomerInteraction> => {
+  await ensureCustomerInteractionsTable();
   const client = await pool.connect();
 
   try {
@@ -69,6 +86,7 @@ export const createInteraction = async (
  * Get session interactions
  */
 export const getSessionInteractions = async (sessionId: string): Promise<CustomerInteraction[]> => {
+  await ensureCustomerInteractionsTable();
   const client = await pool.connect();
 
   try {
@@ -92,6 +110,7 @@ export const getSessionInteractions = async (sessionId: string): Promise<Custome
  * Get interactions by phone number
  */
 export const getInteractionsByPhone = async (phone: string): Promise<CustomerInteraction[]> => {
+  await ensureCustomerInteractionsTable();
   const client = await pool.connect();
 
   try {
@@ -115,6 +134,7 @@ export const getInteractionsByPhone = async (phone: string): Promise<CustomerInt
  * Get interactions by email
  */
 export const getInteractionsByEmail = async (email: string): Promise<CustomerInteraction[]> => {
+  await ensureCustomerInteractionsTable();
   const client = await pool.connect();
 
   try {
@@ -138,6 +158,7 @@ export const getInteractionsByEmail = async (email: string): Promise<CustomerInt
  * Get resolved interactions
  */
 export const getResolvedInteractions = async (limit: number = 100): Promise<CustomerInteraction[]> => {
+  await ensureCustomerInteractionsTable();
   const client = await pool.connect();
 
   try {
@@ -162,6 +183,7 @@ export const getResolvedInteractions = async (limit: number = 100): Promise<Cust
  * Get unresolved interactions
  */
 export const getUnresolvedInteractions = async (limit: number = 100): Promise<CustomerInteraction[]> => {
+  await ensureCustomerInteractionsTable();
   const client = await pool.connect();
 
   try {
@@ -190,6 +212,7 @@ export const getSentimentStats = async (): Promise<{
   negative: number;
   neutral: number;
 }> => {
+  await ensureCustomerInteractionsTable();
   const client = await pool.connect();
 
   try {
@@ -222,6 +245,7 @@ export const getResolutionRate = async (): Promise<{
   unresolved: number;
   rate: number;
 }> => {
+  await ensureCustomerInteractionsTable();
   const client = await pool.connect();
 
   try {
@@ -261,7 +285,7 @@ export const customerInteractionsTableSQL = `
 CREATE TABLE IF NOT EXISTS customer_interactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id VARCHAR(255) NOT NULL,
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   customer_message TEXT NOT NULL,
   ai_response TEXT NOT NULL,
   sentiment VARCHAR(20) CHECK (sentiment IN ('positive', 'negative', 'neutral')) DEFAULT 'neutral',
@@ -270,8 +294,7 @@ CREATE TABLE IF NOT EXISTS customer_interactions (
   customer_email VARCHAR(255),
   is_resolved BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT unique_session_id UNIQUE(session_id)
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_id ON customer_interactions(session_id);

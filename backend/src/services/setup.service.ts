@@ -4,6 +4,7 @@ import { ErrorCode } from "../types";
 import * as OnboardingModel from "../models/onboarding.model";
 import * as UserModel from "../models/user.model";
 import { logger } from "../utils/logger";
+import { normalizePhoneNumber } from "../utils/validators";
 
 export interface SetupBusinessProfileInput {
   businessName: string;
@@ -29,6 +30,7 @@ export const setupBusinessProfile = async (
     const existingProfile = await OnboardingModel.findBusinessByUserId(userId);
 
     let profile;
+    const normalizedPhone = profileData.phone?.trim() ? normalizePhoneNumber(profileData.phone) : undefined;
     if (existingProfile) {
       // Update existing profile
       profile = await OnboardingModel.updateBusinessProfile(
@@ -38,7 +40,7 @@ export const setupBusinessProfile = async (
         profileData.industry,
         profileData.website,
         profileData.country,
-        profileData.phone
+        normalizedPhone
       );
       logger.info("Business profile updated", { userId, businessName: profileData.businessName });
     } else {
@@ -50,7 +52,7 @@ export const setupBusinessProfile = async (
         profileData.industry,
         profileData.website,
         profileData.country,
-        profileData.phone
+        normalizedPhone
       );
       logger.info("Business profile created", { userId, businessName: profileData.businessName });
     }

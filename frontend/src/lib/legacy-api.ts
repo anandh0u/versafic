@@ -39,6 +39,7 @@ export type AuthUser = {
   phone_number?: string | null;
   call_consent?: boolean;
   call_opt_out?: boolean;
+  isOnboarded?: boolean;
 };
 
 export type BillingPlan = {
@@ -139,6 +140,51 @@ export type ChatStats = {
 
 export type VoiceStats = Record<string, number | string | null>;
 
+export type VoiceStatistics = {
+  total: number;
+  with_name: number;
+  with_phone: number;
+  with_email: number;
+  today: number;
+};
+
+export type VoiceConversation = {
+  id: string;
+  customer_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  request?: string | null;
+  ai_response: string;
+  transcript?: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type CustomerSentimentStats = {
+  positive: number;
+  negative: number;
+  neutral: number;
+};
+
+export type CustomerResolutionStats = {
+  resolved: number;
+  unresolved: number;
+  rate: number;
+};
+
+export type CustomerServiceInteraction = {
+  id: string;
+  session_id: string;
+  customer_message: string;
+  ai_response: string;
+  sentiment: "positive" | "negative" | "neutral";
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_email?: string | null;
+  is_resolved: boolean;
+  created_at: string;
+};
+
 export type CustomerServiceSession = {
   sessionId: string;
   message?: string;
@@ -231,6 +277,10 @@ export const clearSession = () => {
 
   window.localStorage.removeItem(SESSION_KEY);
   document.cookie = "versafic_session=; path=/; max-age=0; SameSite=Lax";
+};
+
+export const storeSession = (session: SessionShape) => {
+  writeSession(session);
 };
 
 export const getStoredSession = () => readSession();
@@ -350,6 +400,58 @@ export const login = async (email: string, password: string) => {
   return data.user;
 };
 
+export const getOAuthStartUrl = (provider: "google" | "github") => {
+  if (typeof window === "undefined") {
+    return `${API_BASE_URL}/auth/${provider}/start`;
+  }
+
+  const callbackUrl = `${window.location.origin}/auth/callback`;
+  const url = new URL(`${API_BASE_URL}/auth/${provider}/start`);
+  url.searchParams.set("return_to", callbackUrl);
+  return url.toString();
+};
+
+export const completeOAuthCallback = async (currentUrl: string) => {
+  const url = new URL(currentUrl);
+  const hashParams = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+  const errorMessage = url.searchParams.get("error") || hashParams.get("error");
+
+  if (errorMessage) {
+    return {
+      success: false as const,
+      message: errorMessage,
+    };
+  }
+
+  const accessToken = hashParams.get("accessToken");
+  const refreshToken = hashParams.get("refreshToken");
+  if (!accessToken || !refreshToken) {
+    return {
+      success: false as const,
+      message: "OAuth login did not return a valid session.",
+    };
+  }
+
+  writeSession({
+    accessToken,
+    refreshToken,
+    user: null,
+  });
+
+  try {
+    const user = await getCurrentUser();
+    return {
+      success: true as const,
+      user,
+    };
+  } catch {
+    return {
+      success: true as const,
+      user: null,
+    };
+  }
+};
+
 export const register = async (payload: { email: string; password: string; name: string }) => {
   const data = await request<{
     user: AuthUser;
@@ -368,6 +470,16 @@ export const register = async (payload: { email: string; password: string; name:
 
   return data.user;
 };
+
+export const validateRegistrableEmail = async (email: string) =>
+  request<{
+    email: string;
+    valid: boolean;
+    error?: string | null;
+  }>("/auth/validate-email", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
 
 export const getCurrentUser = async () => {
   const user = await request<AuthUser>("/auth/me", undefined, { auth: true });
@@ -445,8 +557,8 @@ export const getCallConfig = async () =>
 export const getPublicCallConfig = async () =>
   request<CallConfig>("/call/public-config");
 
-export const getCallSessions = async () =>
-  request<{ sessions: CallSession[]; credit_cost: number }>("/call/sessions?limit=25", undefined, { auth: true });
+export const getCallSessions = async (limit = 12) =>
+  request<{ sessions: CallSession[]; credit_cost: number }>(`/call/sessions?limit=${limit}`, undefined, { auth: true });
 
 export const initiateOutboundCall = async (payload: { phone_number: string; purpose: string }) =>
   request<Record<string, unknown>>(
@@ -461,8 +573,8 @@ export const initiateOutboundCall = async (payload: { phone_number: string; purp
     return result;
   });
 
-export const getChatHistory = async () =>
-  request<{ messages: ChatHistoryItem[]; count: number }>("/ai/chat/history?limit=25", undefined, { auth: true });
+export const getChatHistory = async (limit = 12) =>
+  request<{ messages: ChatHistoryItem[]; count: number }>(`/ai/chat/history?limit=${limit}`, undefined, { auth: true });
 
 export const getChatStats = async () =>
   request<ChatStats>("/ai/chat/stats", undefined, { auth: true });
@@ -495,7 +607,40 @@ export const sendCustomerServiceChat = async (payload: { sessionId: string; text
   );
 
 export const getVoiceStats = async () =>
-  request<VoiceStats>("/voice/statistics");
+  request<{ success: boolean; stats?: VoiceStatistics }>("/voice/statistics").then((result) => result.stats ?? {
+    total: 0,
+    with_name: 0,
+    with_phone: 0,
+    with_email: 0,
+    today: 0,
+  });
+
+export const getRecentVoiceConversations = async (limit = 25) =>
+  request<{ success: boolean; conversations?: VoiceConversation[] }>(`/voice/conversations/recent?limit=${limit}`, undefined, {
+    auth: true,
+  }).then((result) => result.conversations ?? []);
+
+export const getCustomerSentimentStats = async () =>
+  request<{ sentiment?: CustomerSentimentStats }>("/customer-service/stats/sentiment").then((result) => result.sentiment ?? {
+    positive: 0,
+    negative: 0,
+    neutral: 0,
+  });
+
+export const getCustomerResolutionStats = async () =>
+  request<{ resolution?: CustomerResolutionStats }>("/customer-service/stats/resolution").then((result) => result.resolution ?? {
+    resolved: 0,
+    unresolved: 0,
+    rate: 0,
+  });
+
+export const getResolvedInteractions = async (limit = 50) =>
+  request<{ interactions?: CustomerServiceInteraction[] }>(`/customer-service/interactions/resolved?limit=${limit}`).then(
+    (result) => result.interactions ?? []
+  );
+
+export const getCustomerServiceActiveSessions = async () =>
+  request<{ sessionIds?: string[] }>("/customer-service/active-sessions").then((result) => result.sessionIds ?? []);
 
 export const getBusinessList = async (limit = 50) =>
   request<BusinessRecord[]>(`/business?limit=${limit}&offset=0`);
@@ -530,8 +675,17 @@ export const createBusinessRecord = async (payload: {
     return result;
   });
 
-export const getSetupBusiness = async () =>
-  request<SetupProfile>("/setup/business", undefined, { auth: true });
+export const getSetupBusiness = async () => {
+  try {
+    return await request<SetupProfile>("/setup/business", undefined, { auth: true });
+  } catch (error) {
+    if (error instanceof LegacyApiError && error.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+};
 
 export const saveSetupBusiness = async (payload: SetupProfile) =>
   request<SetupProfile>(

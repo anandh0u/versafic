@@ -1,5 +1,6 @@
 import { logger } from "./logger";
 import axios from "axios";
+import { normalizeEnvValue } from "./env";
 
 export interface GoogleTokenPayload {
   email: string;
@@ -13,6 +14,20 @@ export interface GoogleTokenPayload {
 }
 
 const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
+
+const getGoogleCallbackUrl = () => {
+  const configuredCallback = normalizeEnvValue(process.env.GOOGLE_CALLBACK_URL);
+  if (configuredCallback) {
+    return configuredCallback;
+  }
+
+  const publicBaseUrl = normalizeEnvValue(process.env.PUBLIC_BASE_URL);
+  if (!publicBaseUrl) {
+    throw new Error("Google callback URL is not configured");
+  }
+
+  return `${publicBaseUrl.replace(/\/+$/, "")}/auth/google/callback`;
+};
 
 const parseEpochSeconds = (value: unknown): number | undefined => {
   const parsed = Number(value);
@@ -71,7 +86,7 @@ export const verifyGoogleToken = async (idToken: string): Promise<GoogleTokenPay
       throw new Error("Invalid Google token: expired");
     }
 
-    const configuredClientId = process.env.GOOGLE_CLIENT_ID;
+    const configuredClientId = normalizeEnvValue(process.env.GOOGLE_CLIENT_ID);
     if (configuredClientId) {
       const allowedClientIds = configuredClientId
         .split(",")
@@ -137,6 +152,58 @@ export const verifyGoogleToken = async (idToken: string): Promise<GoogleTokenPay
 
     logger.error("Error verifying Google token", error instanceof Error ? error : new Error(String(error)));
     throw new Error("Failed to verify Google token");
+  }
+};
+
+export const exchangeGoogleCodeForProfile = async (code: string): Promise<GoogleTokenPayload> => {
+  const clientId = normalizeEnvValue(process.env.GOOGLE_CLIENT_ID);
+  const clientSecret = normalizeEnvValue(process.env.GOOGLE_CLIENT_SECRET);
+  if (!clientId || !clientSecret) {
+    throw new Error("Google login is not configured");
+  }
+
+  try {
+    const tokenResponse = await axios.post<{
+      id_token?: string;
+      error?: string;
+      error_description?: string;
+    }>(
+      "https://oauth2.googleapis.com/token",
+      new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: getGoogleCallbackUrl(),
+        grant_type: "authorization_code",
+      }).toString(),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        timeout: 8000,
+      }
+    );
+
+    if (!tokenResponse.data?.id_token) {
+      throw new Error(tokenResponse.data?.error_description || tokenResponse.data?.error || "Google did not return an ID token");
+    }
+
+    return verifyGoogleToken(tokenResponse.data.id_token);
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      logger.error("Google OAuth exchange failed", error instanceof Error ? error : new Error(String(error)), {
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+    } else {
+      logger.error("Google OAuth exchange failed", error instanceof Error ? error : new Error(String(error)));
+    }
+
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    throw new Error("Failed to authenticate with Google");
   }
 };
 

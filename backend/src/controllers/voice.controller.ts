@@ -161,6 +161,29 @@ export class VoiceController {
   }
 
   /**
+   * Get recent voice conversations
+   * GET /voice/conversations/recent
+   */
+  static async getRecentConversations(req: Request, res: Response): Promise<void> {
+    try {
+      const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+      const limit = Math.min(Math.max(parseInt(String(rawLimit || "25"), 10) || 25, 1), 100);
+
+      logger.info("Retrieving recent conversations", { limit });
+
+      const result = await conversationService.getRecentConversations(limit);
+      res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error("Error retrieving recent conversations", err);
+      res.status(500).json({
+        success: false,
+        error: "Failed to retrieve recent conversations"
+      });
+    }
+  }
+
+  /**
    * Get voice statistics
    * GET /voice/statistics
    */

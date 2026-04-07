@@ -4,6 +4,7 @@ import { AuthRequest } from "../middleware/jwt-auth";
 import * as SetupService from "../services/setup.service";
 import { AppError } from "../middleware/error-handler";
 import { ErrorCode } from "../types";
+import { getPhoneValidationError } from "../utils/validators";
 
 export const setupBusiness = async (
   req: AuthRequest,
@@ -19,6 +20,12 @@ export const setupBusiness = async (
 
     if (!businessName) {
       return next(new AppError(400, ErrorCode.VALIDATION_ERROR, "Business name is required"));
+    }
+
+    const phoneValidationError =
+      typeof phone === "string" && phone.trim() ? getPhoneValidationError(phone) : null;
+    if (phoneValidationError) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, phoneValidationError));
     }
 
     const profile = await SetupService.setupBusinessProfile(req.user.id, {

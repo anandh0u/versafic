@@ -405,9 +405,9 @@
                 </div>
             </div>
 
-            <div class="form-group" style="margin-top:24px;">
-                <label class="input-label">Custom Description (Optional)</label>
-                <input type="text" class="input-field" placeholder="Type what describes you if not listed above...">
+            <div class="form-group" id="customDescriptionGroup" style="margin-top:24px; display:none;">
+                <label class="input-label">Custom Description</label>
+                <input type="text" id="customDescriptionInput" class="input-field" placeholder="Type what describes you if not listed above...">
             </div>
 
             <div class="form-group" id="dynamic-name-fields">
@@ -432,7 +432,7 @@
             <p class="step-desc">Create your unique Versafic profile link. This will be public.</p>
 
             <div class="form-group">
-                <label class="input-label">Business / Personal Name</label>
+                <label class="input-label" id="profileNameLabel">Business Name</label>
                 <input type="text" id="profileNameInput" class="input-field" placeholder="e.g. Grand Horizon Hotel"
                     oninput="cleanBusinessName()">
             </div>
@@ -533,7 +533,7 @@
                         <div class="card-text" style="font-size:1.1rem;">Starter</div>
                         <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">1,000 AI Credits</div>
                     </div>
-                    <div style="font-size:1.4rem; font-weight:800;">$9<span
+                    <div style="font-size:1.4rem; font-weight:800;">₹9<span
                             style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/mo</span></div>
                 </div>
 
@@ -546,7 +546,7 @@
                         <div class="card-text" style="font-size:1.1rem;">Pro</div>
                         <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">5,000 AI Credits</div>
                     </div>
-                    <div style="font-size:1.4rem; font-weight:800;">$39<span
+                    <div style="font-size:1.4rem; font-weight:800;">₹39<span
                             style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/mo</span></div>
                 </div>
 
@@ -556,7 +556,7 @@
                         <div class="card-text" style="font-size:1.1rem;">Max</div>
                         <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">10,000 AI Credits</div>
                     </div>
-                    <div style="font-size:1.4rem; font-weight:800;">$99<span
+                    <div style="font-size:1.4rem; font-weight:800;">₹99<span
                             style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/mo</span></div>
                 </div>
             </div>
@@ -694,19 +694,33 @@
 
             const nameLabel = document.getElementById('dynamic-name-label');
             const nameInput = document.getElementById('dynamic-name-input');
+            const nameFields = document.getElementById('dynamic-name-fields');
             const busSub = document.getElementById('bus-sub-categories');
             const perSub = document.getElementById('per-sub-categories');
+            const customDescriptionGroup = document.getElementById('customDescriptionGroup');
+            const profileNameLabel = document.getElementById('profileNameLabel');
+            const profileNameInput = document.getElementById('profileNameInput');
 
             if (type === 'Business') {
                 if (nameLabel) nameLabel.innerText = 'Account Owner Full Name';
                 if (nameInput) nameInput.placeholder = 'Owner Name';
+                if (nameFields) nameFields.style.display = 'block';
                 if (busSub) busSub.style.display = 'block';
                 if (perSub) perSub.style.display = 'none';
+                if (profileNameLabel) profileNameLabel.innerText = 'Business Name';
+                if (profileNameInput) profileNameInput.placeholder = 'e.g. Grand Horizon Hotel';
             } else {
                 if (nameLabel) nameLabel.innerText = 'Your Full Name';
                 if (nameInput) nameInput.placeholder = 'e.g. Alex Johnson';
+                if (nameFields) nameFields.style.display = 'none';
                 if (busSub) busSub.style.display = 'none';
                 if (perSub) perSub.style.display = 'block';
+                if (profileNameLabel) profileNameLabel.innerText = 'Personal Name';
+                if (profileNameInput) profileNameInput.placeholder = 'e.g. Alex Johnson';
+            }
+
+            if (customDescriptionGroup) {
+                customDescriptionGroup.style.display = 'none';
             }
         }
 
@@ -716,6 +730,11 @@
                 parent.querySelectorAll('.tag-pill').forEach(el => el.classList.remove('active'));
             }
             element.classList.add('active');
+
+            const customDescriptionGroup = document.getElementById('customDescriptionGroup');
+            if (customDescriptionGroup) {
+                customDescriptionGroup.style.display = element.textContent.trim().toLowerCase() === 'other' ? 'block' : 'none';
+            }
         }
 
         // --- Step 4: Handle Auto-Generation, Validation ---

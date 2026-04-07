@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: versafic-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RUN_DB_MIGRATIONS_ON_STARTUP
+        value: "false"
+      - key: RUN_RUNTIME_TABLE_BOOTSTRAP
+        value: "false"

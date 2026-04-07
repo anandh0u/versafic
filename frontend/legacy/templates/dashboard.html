@@ -1851,11 +1851,12 @@
                 </div>
                 <div style="margin-top:16px;display:flex;align-items:center;gap:10px">
                     <div
+                        class="sidebar-user-initials"
                         style="width:36px;height:36px;border-radius:12px;background:var(--grad-primary);display:flex;align-items:center;justify-content:center;font-size:0.95rem;color:white;font-weight:700">
-                        AJ</div>
+                        U</div>
                     <div>
-                        <div style="font-size:0.86rem;font-weight:600;color:#e0e7ff">Alex Johnson</div>
-                        <div style="font-size:0.73rem;color:rgba(255,255,255,0.4)">Business · Pro Plan</div>
+                        <div class="sidebar-user-name" style="font-size:0.86rem;font-weight:600;color:#e0e7ff">Your account</div>
+                        <div class="sidebar-user-subtitle" style="font-size:0.73rem;color:rgba(255,255,255,0.4)">Business account</div>
                     </div>
                 </div>
             </div>
@@ -1873,12 +1874,12 @@
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <path
                                     d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013 12.21a19.79 19.79 0 01-3.07-8.63A2 2 0 011.92 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
-                            </svg>Calls<span class="badge badge-blue" style="margin-left:auto">12</span></a></li>
+                            </svg>Calls<span class="badge badge-blue sidebar-live-badge" data-badge-for="calls" style="margin-left:auto;display:none"></span></a></li>
                     <li class="nav-item" onclick="showPage('chats',this)"><a href="#"><svg class="sidebar-icon"
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <path
                                     d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
-                            </svg>Chats<span class="badge badge-purple" style="margin-left:auto">5</span></a></li>
+                            </svg>Chats<span class="badge badge-purple sidebar-live-badge" data-badge-for="chats" style="margin-left:auto;display:none"></span></a></li>
                     <li class="nav-item" onclick="showPage('bookings',this)"><a href="#"><svg class="sidebar-icon"
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -1942,37 +1943,37 @@
                 <div class="stat-cards stat-cards-6">
                     <div class="stat-card">
                         <div class="stat-card-icon">💬</div>
-                        <div class="stat-card-value gradient-text">4,267</div>
+                        <div class="stat-card-value gradient-text">0</div>
                         <div class="stat-card-label">Total Conversations</div>
                         <div class="stat-card-change up">↑ 18% this week</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-icon">👤</div>
-                        <div class="stat-card-value gradient-text">1,842</div>
+                        <div class="stat-card-value gradient-text">0</div>
                         <div class="stat-card-label">Unique Users</div>
                         <div class="stat-card-change up">↑ 12% this week</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-icon">📞</div>
-                        <div class="stat-card-value gradient-text">2,847</div>
+                        <div class="stat-card-value gradient-text">0</div>
                         <div class="stat-card-label">AI Calls</div>
                         <div class="stat-card-change up">↑ 15% this week</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-icon">💭</div>
-                        <div class="stat-card-value gradient-text">1,420</div>
+                        <div class="stat-card-value gradient-text">0</div>
                         <div class="stat-card-label">Chats</div>
                         <div class="stat-card-change up">↑ 22% this week</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-icon">📅</div>
-                        <div class="stat-card-value gradient-text">384</div>
+                        <div class="stat-card-value gradient-text">0</div>
                         <div class="stat-card-label">Bookings</div>
                         <div class="stat-card-change up">↑ 12% this week</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-icon">🚨</div>
-                        <div class="stat-card-value gradient-text">67</div>
+                        <div class="stat-card-value gradient-text">0</div>
                         <div class="stat-card-label">Escalated</div>
                         <div class="stat-card-change down">↓ 8% this week</div>
                     </div>
@@ -2471,44 +2472,8 @@
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td style="font-weight:600;color:var(--text-primary)">03:00 PM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Maria Rodriguez</td>
-                                            <td>Consultation</td>
-                                            <td><span style="display:flex;align-items:center;gap:6px"><span
-                                                        class="chat-avatar ai"
-                                                        style="width:20px;height:20px;font-size:0.6rem">🤖</span> AI
-                                                    Agent</span></td>
-                                            <td><span class="badge badge-green">● In Progress</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td style="font-weight:600;color:var(--text-primary)">03:45 PM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">James Liu</td>
-                                            <td>Full Service</td>
-                                            <td><span style="display:flex;align-items:center;gap:6px"><span
-                                                        class="chat-avatar user"
-                                                        style="width:20px;height:20px;font-size:0.6rem">👤</span> Alex
-                                                    J.</span></td>
-                                            <td><span class="badge badge-blue">Up Next</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td style="font-weight:600;color:var(--text-primary)">04:15 PM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Sarah Connor</td>
-                                            <td>Premium Package</td>
-                                            <td><span style="display:flex;align-items:center;gap:6px"><span
-                                                        class="chat-avatar user"
-                                                        style="width:20px;height:20px;font-size:0.6rem">👤</span> Alex
-                                                    J.</span></td>
-                                            <td><span class="badge badge-purple">Waiting</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td style="font-weight:600;color:var(--text-primary)">05:00 PM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Devon Clarke</td>
-                                            <td>Consultation</td>
-                                            <td><span style="display:flex;align-items:center;gap:6px"><span
-                                                        class="chat-avatar ai"
-                                                        style="width:20px;height:20px;font-size:0.6rem">🤖</span> AI
-                                                    Agent</span></td>
-                                            <td><span class="badge badge-purple">Waiting</span></td>
+                                            <td colspan="5" style="text-align:center;color:var(--text-muted)">Loading
+                                                live workflow queue...</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -2557,44 +2522,8 @@
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td style="color:var(--text-primary);font-weight:600">Maria Rodriguez</td>
-                                            <td>Consultation</td>
-                                            <td>Today</td>
-                                            <td>3:00 PM</td>
-                                            <td><span class="badge badge-green">Confirmed</span></td>
-                                            <td>First visit</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="color:var(--text-primary);font-weight:600">James Liu</td>
-                                            <td>Full Service</td>
-                                            <td>Today</td>
-                                            <td>4:30 PM</td>
-                                            <td><span class="badge badge-blue">Pending</span></td>
-                                            <td>—</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="color:var(--text-primary);font-weight:600">Sophie Turner</td>
-                                            <td>Premium Package</td>
-                                            <td>Tomorrow</td>
-                                            <td>10:00 AM</td>
-                                            <td><span class="badge badge-green">Confirmed</span></td>
-                                            <td>Referred by Mike</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="color:var(--text-primary);font-weight:600">Devon Clarke</td>
-                                            <td>Consultation</td>
-                                            <td>Tomorrow</td>
-                                            <td>2:00 PM</td>
-                                            <td><span class="badge badge-green">Confirmed</span></td>
-                                            <td>Follow-up</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="color:var(--text-primary);font-weight:600">Priya Sharma</td>
-                                            <td>Standard Package</td>
-                                            <td>Mar 26</td>
-                                            <td>11:00 AM</td>
-                                            <td><span class="badge badge-purple">Rescheduled</span></td>
-                                            <td>3rd time</td>
+                                            <td colspan="6" style="text-align:center;color:var(--text-muted)">Loading
+                                                live workflow records...</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -2625,88 +2554,8 @@
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td>Mar 20, 2026</td>
-                                            <td>10:00 AM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">John Park</td>
-                                            <td>Consultation</td>
-                                            <td>45m</td>
-                                            <td><span class="badge badge-green">Completed</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mar 19, 2026</td>
-                                            <td>2:30 PM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Emily Davis</td>
-                                            <td>Premium Package</td>
-                                            <td>1h 30m</td>
-                                            <td><span class="badge badge-green">Completed</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mar 18, 2026</td>
-                                            <td>11:00 AM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Marcus Johnson</td>
-                                            <td>Standard Package</td>
-                                            <td>--</td>
-                                            <td><span class="badge badge-red">No-Show</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mar 18, 2026</td>
-                                            <td>04:15 PM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Sarah Wilson</td>
-                                            <td>Consultation</td>
-                                            <td>--</td>
-                                            <td><span class="badge"
-                                                    style="background:#f3f4f6;color:#4b5563;border:1px solid #d1d5db">Cancelled</span>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mar 17, 2026</td>
-                                            <td>09:00 AM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">David Kim</td>
-                                            <td>Full Service</td>
-                                            <td>1h 15m</td>
-                                            <td><span class="badge badge-green">Completed</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mar 16, 2026</td>
-                                            <td>01:00 PM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Jessica Alba</td>
-                                            <td>Premium Package</td>
-                                            <td>--</td>
-                                            <td><span class="badge"
-                                                    style="background:#fef3c7;color:#d97706;border:1px solid #fde68a">Rescheduled</span>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mar 15, 2026</td>
-                                            <td>10:30 AM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Robert Lee</td>
-                                            <td>Consultation</td>
-                                            <td>50m</td>
-                                            <td><span class="badge badge-green">Completed</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mar 14, 2026</td>
-                                            <td>03:00 PM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Anna Martinez</td>
-                                            <td>Standard Package</td>
-                                            <td>1h 0m</td>
-                                            <td><span class="badge badge-green">Completed</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mar 12, 2026</td>
-                                            <td>11:45 AM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Unknown Client</td>
-                                            <td>Consultation</td>
-                                            <td>--</td>
-                                            <td><span class="badge badge-red">No-Show</span></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Mar 10, 2026</td>
-                                            <td>02:15 PM</td>
-                                            <td style="color:var(--text-primary);font-weight:600">Michael Chang</td>
-                                            <td>Premium Package</td>
-                                            <td>1h 25m</td>
-                                            <td><span class="badge badge-green">Completed</span></td>
+                                            <td colspan="6" style="text-align:center;color:var(--text-muted)">Loading
+                                                archived workflow records...</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -3015,7 +2864,7 @@
                                             <div class="chat-avatar user"
                                                 style="width:36px;height:36px;font-size:1rem;">👩</div>
                                             <div style="flex:1">
-                                                <div class="booking-name" style="font-size:0.95rem;">Sophie Turner</div>
+                                                <div class="booking-name" style="font-size:0.95rem;">Live workflow item</div>
                                                 <div style="font-size:0.8rem;color:var(--text-muted);">Premium Package
                                                 </div>
                                             </div>
@@ -3070,7 +2919,7 @@
                                             <div class="chat-avatar user"
                                                 style="width:36px;height:36px;font-size:1rem;">👨‍🦰</div>
                                             <div style="flex:1">
-                                                <div class="booking-name" style="font-size:0.95rem;">Devon Clarke</div>
+                                                <div class="booking-name" style="font-size:0.95rem;">Live workflow item</div>
                                                 <div style="font-size:0.8rem;color:var(--text-muted);">Follow-up</div>
                                             </div>
                                             <div style="text-align:right">
@@ -3091,7 +2940,7 @@
                                                 👩‍🦱</div>
                                             <div style="flex:1">
                                                 <div class="booking-name" style="font-size:0.95rem;color:var(--green)">
-                                                    Maria Rodriguez</div>
+                                                    Live workflow item</div>
                                                 <div style="font-size:0.8rem;color:var(--text-muted);">Check-in</div>
                                             </div>
                                             <div style="text-align:right">
@@ -3385,84 +3234,8 @@
                             </thead>
                             <tbody id="customersTableBody">
                                 <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">Maria Rodriguez</td>
-                                    <td>maria@example.com</td>
-                                    <td>+1 (555) 234-1234</td>
-                                    <td>8</td>
-                                    <td>5</td>
-                                    <td><span class="badge badge-green">Active</span></td>
-                                    <td>$1,240</td>
-                                    <td>2 min ago</td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">James Liu</td>
-                                    <td>james@example.com</td>
-                                    <td>+1 (555) 876-5432</td>
-                                    <td>3</td>
-                                    <td>2</td>
-                                    <td><span class="badge badge-green">Active</span></td>
-                                    <td>$680</td>
-                                    <td>1h ago</td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">Sophie Turner</td>
-                                    <td>sophie@example.com</td>
-                                    <td>+1 (555) 901-2345</td>
-                                    <td>12</td>
-                                    <td>8</td>
-                                    <td><span class="badge badge-purple">VIP</span></td>
-                                    <td>$3,450</td>
-                                    <td>Yesterday</td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">Devon Clarke</td>
-                                    <td>devon@example.com</td>
-                                    <td>+1 (555) 678-3456</td>
-                                    <td>2</td>
-                                    <td>1</td>
-                                    <td><span class="badge badge-blue">New</span></td>
-                                    <td>$120</td>
-                                    <td>2 days ago</td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">Priya Sharma</td>
-                                    <td>priya@example.com</td>
-                                    <td>+1 (555) 445-6789</td>
-                                    <td>6</td>
-                                    <td>3</td>
-                                    <td><span class="badge badge-green">Active</span></td>
-                                    <td>$890</td>
-                                    <td>3 days ago</td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">Alex Chen</td>
-                                    <td>alex.c@example.com</td>
-                                    <td>+1 (555) 321-7890</td>
-                                    <td>15</td>
-                                    <td>10</td>
-                                    <td><span class="badge badge-purple">VIP</span></td>
-                                    <td>$5,200</td>
-                                    <td>4 days ago</td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">Rachel Kim</td>
-                                    <td>rachel@example.com</td>
-                                    <td>+1 (555) 654-0987</td>
-                                    <td>4</td>
-                                    <td>2</td>
-                                    <td><span class="badge badge-amber">Inactive</span></td>
-                                    <td>$340</td>
-                                    <td>2 weeks ago</td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">Marcus Johnson</td>
-                                    <td>marcus@example.com</td>
-                                    <td>+1 (555) 789-1234</td>
-                                    <td>1</td>
-                                    <td>0</td>
-                                    <td><span class="badge badge-blue">New</span></td>
-                                    <td>$0</td>
-                                    <td>1 week ago</td>
+                                    <td colspan="8" style="text-align:center;color:var(--text-muted)">Loading live
+                                        customer records...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -3605,32 +3378,8 @@
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td style="font-weight:600;color:var(--text-primary)">🇺🇸 North America</td>
-                                        <td>1,245</td>
-                                        <td>840</td>
-                                        <td>2,085</td>
-                                        <td><span class="badge badge-green">48.9%</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:600;color:var(--text-primary)">🇪🇺 Europe</td>
-                                        <td>890</td>
-                                        <td>420</td>
-                                        <td>1,310</td>
-                                        <td><span class="badge badge-blue">30.7%</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:600;color:var(--text-primary)">🌏 Asia Pacific</td>
-                                        <td>612</td>
-                                        <td>145</td>
-                                        <td>757</td>
-                                        <td><span class="badge badge-purple">17.7%</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:600;color:var(--text-primary)">🌍 Others</td>
-                                        <td>100</td>
-                                        <td>15</td>
-                                        <td>115</td>
-                                        <td><span class="badge badge-amber">2.7%</span></td>
+                                        <td colspan="5" style="text-align:center;color:var(--text-muted)">Loading live
+                                            regional activity...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -3711,19 +3460,19 @@
                 <div class="credits-hero">
                     <div>
                         <div style="font-size:0.85rem;color:#9ca3af;margin-bottom:8px">Credits Remaining</div>
-                        <div class="credits-value">3,248</div>
-                        <div style="font-size:0.82rem;color:var(--text-muted);margin-top:8px">~54 hours of call time
+                        <div class="credits-value">0</div>
+                        <div style="font-size:0.82rem;color:var(--text-muted);margin-top:8px">~0 minutes of AI call time
                             remaining</div>
                     </div>
                     <div style="text-align:right">
                         <div style="font-size:0.82rem;color:#9ca3af;margin-bottom:4px">This Month's Usage</div>
-                        <div style="font-size:1.8rem;font-weight:800;color:#e5e7eb">1,752</div>
+                        <div style="font-size:1.8rem;font-weight:800;color:#e5e7eb">0</div>
                         <div class="usage-meter" style="width:200px;margin-top:8px">
                             <div class="usage-bar">
-                                <div class="usage-fill" style="width:35%"></div>
+                                <div class="usage-fill" style="width:0%"></div>
                             </div>
                         </div>
-                        <div style="font-size:0.75rem;color:var(--text-muted)">35% of 5,000 credits used</div>
+                        <div style="font-size:0.75rem;color:var(--text-muted)">0% of the current wallet has been used</div>
                     </div>
                 </div>
 
@@ -3734,22 +3483,22 @@
                     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
                         <div
                             style="text-align:center;padding:16px;background:rgba(255,255,255,0.06);border-radius:var(--radius-sm)">
-                            <div style="font-size:1.4rem;font-weight:800;color:var(--indigo)">1,248</div>
+                            <div style="font-size:1.4rem;font-weight:800;color:var(--indigo)">0</div>
                             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">📞 AI Calls</div>
                         </div>
                         <div
                             style="text-align:center;padding:16px;background:rgba(255,255,255,0.06);border-radius:var(--radius-sm)">
-                            <div style="font-size:1.4rem;font-weight:800;color:var(--green)">312</div>
+                            <div style="font-size:1.4rem;font-weight:800;color:var(--green)">0</div>
                             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">💬 Chat Sessions</div>
                         </div>
                         <div
                             style="text-align:center;padding:16px;background:rgba(255,255,255,0.06);border-radius:var(--radius-sm)">
-                            <div style="font-size:1.4rem;font-weight:800;color:var(--amber)">142</div>
+                            <div style="font-size:1.4rem;font-weight:800;color:var(--amber)">0</div>
                             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">📱 SMS Follow-ups</div>
                         </div>
                         <div
                             style="text-align:center;padding:16px;background:rgba(255,255,255,0.06);border-radius:var(--radius-sm)">
-                            <div style="font-size:1.4rem;font-weight:800;color:var(--pink)">50</div>
+                            <div style="font-size:1.4rem;font-weight:800;color:var(--pink)">0</div>
                             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">📄 Transcriptions</div>
                         </div>
                     </div>
@@ -3762,22 +3511,22 @@
                     <div class="credit-package">
                         <div class="pkg-amount">1,000</div>
                         <div class="pkg-credits">AI Interaction Credits</div>
-                        <div class="pkg-price">$29.00</div>
-                        <div class="pkg-per">$0.029 / credit</div><button class="btn btn-outline btn-block"
+                        <div class="pkg-price">₹29.00</div>
+                        <div class="pkg-per">₹0.029 / credit</div><button class="btn btn-outline btn-block"
                             style="margin-top:16px">Select Plan</button>
                     </div>
                     <div class="credit-package popular">
                         <div class="pkg-amount">5,000</div>
                         <div class="pkg-credits">AI Interaction Credits</div>
-                        <div class="pkg-price">$119.00</div>
-                        <div class="pkg-per">$0.024 / credit · Save 17%</div><button class="btn btn-primary btn-block"
+                        <div class="pkg-price">₹119.00</div>
+                        <div class="pkg-per">₹0.024 / credit · Save 17%</div><button class="btn btn-primary btn-block"
                             style="margin-top:16px">Select Plan</button>
                     </div>
                     <div class="credit-package">
                         <div class="pkg-amount">15,000</div>
                         <div class="pkg-credits">AI Interaction Credits</div>
-                        <div class="pkg-price">$299.00</div>
-                        <div class="pkg-per">$0.020 / credit · Save 31%</div><button class="btn btn-outline btn-block"
+                        <div class="pkg-price">₹299.00</div>
+                        <div class="pkg-per">₹0.020 / credit · Save 31%</div><button class="btn btn-outline btn-block"
                             style="margin-top:16px">Select Plan</button>
                     </div>
                 </div>
@@ -3789,10 +3538,10 @@
                     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
                         <div style="flex:1;min-width:200px"><label class="input-label">Amount</label>
                             <select class="input-field">
-                                <option>100 Credits - $5.00</option>
-                                <option>250 Credits - $10.00</option>
-                                <option>500 Credits - $18.00</option>
-                                <option>1,000 Credits - $29.00</option>
+                                <option>100 Credits - ₹5.00</option>
+                                <option>250 Credits - ₹10.00</option>
+                                <option>500 Credits - ₹18.00</option>
+                                <option>1,000 Credits - ₹29.00</option>
                             </select>
                         </div>
                         <button class="btn btn-primary">Top Up Now</button>
@@ -3818,40 +3567,8 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">#INV-2026-0328</td>
-                                    <td>Mar 28, 2026</td>
-                                    <td>Pro Plan</td>
-                                    <td>$119.00</td>
-                                    <td>5,000</td>
-                                    <td><span class="badge badge-green">Paid</span></td>
-                                    <td><button class="btn btn-outline btn-sm">Download</button></td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">#INV-2026-0301</td>
-                                    <td>Mar 01, 2026</td>
-                                    <td>Pro Plan</td>
-                                    <td>$119.00</td>
-                                    <td>5,000</td>
-                                    <td><span class="badge badge-green">Paid</span></td>
-                                    <td><button class="btn btn-outline btn-sm">Download</button></td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">#INV-2026-0201</td>
-                                    <td>Feb 01, 2026</td>
-                                    <td>Top-Up</td>
-                                    <td>$29.00</td>
-                                    <td>1,000</td>
-                                    <td><span class="badge badge-green">Paid</span></td>
-                                    <td><button class="btn btn-outline btn-sm">Download</button></td>
-                                </tr>
-                                <tr>
-                                    <td style="color:var(--text-primary);font-weight:600">#INV-2026-0115</td>
-                                    <td>Jan 15, 2026</td>
-                                    <td>Pro Plan</td>
-                                    <td>$119.00</td>
-                                    <td>5,000</td>
-                                    <td><span class="badge badge-green">Paid</span></td>
-                                    <td><button class="btn btn-outline btn-sm">Download</button></td>
+                                    <td colspan="7" style="text-align:center;color:var(--text-muted)">Loading live
+                                        billing transactions...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -3940,7 +3657,7 @@
                 <div class="settings-section">
                     <h3>🏷️ Identity & Greeting</h3>
                     <div class="form-group"><label class="input-label">Display Name</label>
-                        <select class="input-field">
+                        <select class="input-field" id="aiDisplayName">
                             <option>Advisor</option>
                             <option>Agent</option>
                             <option selected>Assistant</option>
@@ -3953,11 +3670,38 @@
                         </select>
                     </div>
                     <div class="form-group"><label class="input-label">Greeting Message</label>
-                        <textarea class="input-field" rows="3"
-                            style="resize:none">Hi! You've reached Grand Horizon Hotel. I'm your AI concierge, available 24/7. I can help you book a room, check availability, answer questions, or connect you with our team. How can I help?</textarea>
+                        <textarea class="input-field" id="aiGreetingMessage" rows="3"
+                            style="resize:none">Hi! You've reached our AI assistant. I can help with bookings, support questions, and general enquiries. How can I help today?</textarea>
                     </div>
                     <div class="form-group"><label class="input-label">Business Name (spoken by AI)</label>
-                        <input class="input-field" type="text" value="Grand Horizon Hotel">
+                        <input class="input-field" id="aiBusinessName" type="text" value="">
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>📞 AI Number & Consent</h3>
+                    <div class="form-group"><label class="input-label">AI Number</label>
+                        <input class="input-field" id="aiNumberDisplay" type="text" value="" readonly>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Allow AI outbound calls</div>
+                            <div class="setting-desc">Use the saved consent flag for AI follow-ups and support callbacks.</div>
+                        </div>
+                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="aiCallConsentToggle">
+                                <div class="toggle-track"></div>
+                            </label></div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <div class="setting-label">Opt out of AI calls</div>
+                            <div class="setting-desc">Immediately stop future AI-initiated outbound calls to this account.</div>
+                        </div>
+                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="aiCallOptOutToggle">
+                                <div class="toggle-track"></div>
+                            </label></div>
+                    </div>
+                    <div id="aiConsentHint" style="font-size:0.8rem;color:var(--text-muted);margin-top:12px;">The saved consent state is enforced by the backend before any outbound AI call is placed.</div>
                     </div>
                 </div>
 
@@ -3965,7 +3709,7 @@
                     <h3>🎙️ Voice & Response</h3>
                     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
                         <div class="form-group"><label class="input-label">AI Voice Tone</label>
-                            <select class="input-field">
+                            <select class="input-field" id="aiVoiceTone">
                                 <option>Professional</option>
                                 <option selected>Friendly</option>
                                 <option>Formal</option>
@@ -3974,7 +3718,7 @@
                             </select>
                         </div>
                         <div class="form-group"><label class="input-label">Language</label>
-                            <select class="input-field">
+                            <select class="input-field" id="aiLanguage">
                                 <option selected>English (US)</option>
                                 <option>English (UK)</option>
                                 <option>Hindi</option>
@@ -3986,7 +3730,7 @@
                             </select>
                         </div>
                         <div class="form-group"><label class="input-label">Response Style</label>
-                            <select class="input-field">
+                            <select class="input-field" id="aiResponseStyle">
                                 <option selected>Balanced</option>
                                 <option>Concise</option>
                                 <option>Detailed</option>
@@ -4003,7 +3747,7 @@
                             <div class="setting-label">Escalation Threshold</div>
                             <div class="setting-desc">Number of failed attempts before escalating to human agent.</div>
                         </div>
-                        <div class="setting-control"><select class="input-field" style="width:80px">
+                        <div class="setting-control"><select class="input-field" id="aiEscalationThreshold" style="width:80px">
                                 <option>2</option>
                                 <option selected>3</option>
                                 <option>4</option>
@@ -4016,7 +3760,7 @@
                             <div class="setting-desc">Allow AI to automatically create bookings when a customer requests
                                 one.</div>
                         </div>
-                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" checked>
+                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="aiAutoBooking" checked>
                                 <div class="toggle-track"></div>
                             </label></div>
                     </div>
@@ -4025,7 +3769,7 @@
                             <div class="setting-label">Spam Detection</div>
                             <div class="setting-desc">Automatically detect and block spam calls and messages.</div>
                         </div>
-                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" checked>
+                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="aiSpamDetection" checked>
                                 <div class="toggle-track"></div>
                             </label></div>
                     </div>
@@ -4035,7 +3779,7 @@
                             <div class="setting-desc">Record all incoming and outgoing AI-handled calls for quality
                                 assurance.</div>
                         </div>
-                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" checked>
+                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="aiCallRecording" checked>
                                 <div class="toggle-track"></div>
                             </label></div>
                     </div>
@@ -4045,7 +3789,7 @@
                             <div class="setting-desc">Generate text transcripts of all AI-handled calls automatically.
                             </div>
                         </div>
-                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" checked>
+                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="aiCallTranscripts" checked>
                                 <div class="toggle-track"></div>
                             </label></div>
                     </div>
@@ -4054,7 +3798,7 @@
                             <div class="setting-label">Forward to Human Agent</div>
                             <div class="setting-desc">Route complex or escalated queries to a live representative.</div>
                         </div>
-                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" checked>
+                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="aiHumanForward" checked>
                                 <div class="toggle-track"></div>
                             </label></div>
                     </div>
@@ -4064,7 +3808,7 @@
                             <div class="setting-desc">Send booking links and connect profiles via SMS during live calls.
                             </div>
                         </div>
-                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox">
+                        <div class="setting-control"><label class="toggle-switch"><input type="checkbox" id="aiSmsFollowUp">
                                 <div class="toggle-track"></div>
                             </label></div>
                     </div>
@@ -4103,8 +3847,8 @@
                             <div id="chatMessages">
                                 <div class="chat-bubble">
                                     <div class="chat-avatar ai">🤖</div>
-                                    <div class="chat-msg">Hi! You've reached Grand Horizon Hotel. I'm your AI concierge,
-                                        available 24/7. How can I help you today?</div>
+                                    <div class="chat-msg">Hi! You've reached our AI assistant. I'm here to help with
+                                        support and enquiries, available 24/7. How can I help you today?</div>
                                 </div>
                             </div>
                             <div class="chat-input-row"><input class="chat-input" type="text" id="chatInput"
@@ -4268,10 +4012,10 @@
         }
 
         const mockBookingsData = {
-            'Active': { cards: ['384', '28', '98%', '12'] },
-            'Today': { cards: ['32', '14', '100%', '2'] },
-            'This Week': { cards: ['156', '42', '96%', '8'] },
-            'This Month': { cards: ['645', '28', '94%', '24'] }
+            'Active': { cards: ['0', '0', '0%', '0'] },
+            'Today': { cards: ['0', '0', '0%', '0'] },
+            'This Week': { cards: ['0', '0', '0%', '0'] },
+            'This Month': { cards: ['0', '0', '0%', '0'] }
         };
 
         function setDateFilter(btn) {
@@ -4325,14 +4069,14 @@
                 const upcomingTbody = activeView.querySelectorAll('tbody')[1];
                 if (upcomingTbody) {
                     if (filterKey === 'Today') {
-                        upcomingTbody.innerHTML = `<tr><td style="color:var(--text-primary);font-weight:600">James Allen</td><td>Consultation</td><td>Today</td><td>1:00 PM</td><td><span class="badge badge-blue">Pending</span></td><td>-</td></tr><tr><td style="color:var(--text-primary);font-weight:600">Sarah Connor</td><td>Setup</td><td>Today</td><td>3:00 PM</td><td><span class="badge badge-green">Confirmed</span></td><td>VIP</td></tr>`;
+                        upcomingTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Loading live workflow records...</td></tr>`;
                     } else if (filterKey === 'This Week') {
-                        upcomingTbody.innerHTML = `<tr><td style="color:var(--text-primary);font-weight:600">Mark Z.</td><td>Package</td><td>Tue</td><td>2:00 PM</td><td><span class="badge badge-green">Confirmed</span></td><td>-</td></tr><tr><td style="color:var(--text-primary);font-weight:600">Elena R.</td><td>Consultation</td><td>Wed</td><td>9:00 AM</td><td><span class="badge badge-purple">Rescheduled</span></td><td>-</td></tr><tr><td style="color:var(--text-primary);font-weight:600">Chris T.</td><td>Setup</td><td>Fri</td><td>1:30 PM</td><td><span class="badge badge-blue">Pending</span></td><td>-</td></tr>`;
+                        upcomingTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Loading live workflow records...</td></tr>`;
                     } else if (filterKey === 'This Month') {
-                        upcomingTbody.innerHTML = `<tr><td style="color:var(--text-primary);font-weight:600">Anna L.</td><td>Consultation</td><td>Apr 02</td><td>10:00 AM</td><td><span class="badge badge-green">Confirmed</span></td><td>-</td></tr><tr><td style="color:var(--text-primary);font-weight:600">David M.</td><td>Package</td><td>Apr 05</td><td>2:00 PM</td><td><span class="badge badge-purple">Waitlist</span></td><td>-</td></tr><tr><td style="color:var(--text-primary);font-weight:600">Rachel K.</td><td>Setup</td><td>Apr 12</td><td>11:00 AM</td><td><span class="badge badge-blue">Pending</span></td><td>-</td></tr><tr><td style="color:var(--text-primary);font-weight:600">Tom H.</td><td>Package</td><td>Apr 18</td><td>3:00 PM</td><td><span class="badge badge-green">Confirmed</span></td><td>-</td></tr><tr><td style="color:var(--text-primary);font-weight:600">Linda S.</td><td>Consultation</td><td>Apr 22</td><td>9:30 AM</td><td><span class="badge badge-green">Confirmed</span></td><td>-</td></tr>`;
+                        upcomingTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Loading live workflow records...</td></tr>`;
                     } else {
                         // "Active" default
-                        upcomingTbody.innerHTML = `<tr><td style="color:var(--text-primary);font-weight:600">Maria Rodriguez</td><td>Consultation</td><td>Today</td><td>3:00 PM</td><td><span class="badge badge-green">Confirmed</span></td><td>First visit</td></tr><tr><td style="color:var(--text-primary);font-weight:600">James Liu</td><td>Full Service</td><td>Today</td><td>4:30 PM</td><td><span class="badge badge-blue">Pending</span></td><td>—</td></tr><tr><td style="color:var(--text-primary);font-weight:600">Sophie Turner</td><td>Premium Package</td><td>Tomorrow</td><td>10:00 AM</td><td><span class="badge badge-green">Confirmed</span></td><td>Referred by Mike</td></tr><tr><td style="color:var(--text-primary);font-weight:600">Devon Clarke</td><td>Consultation</td><td>Tomorrow</td><td>2:00 PM</td><td><span class="badge badge-green">Confirmed</span></td><td>Follow-up</td></tr><tr><td style="color:var(--text-primary);font-weight:600">Priya Sharma</td><td>Standard Package</td><td>Mar 26</td><td>11:00 AM</td><td><span class="badge badge-purple">Rescheduled</span></td><td>3rd time</td></tr>`;
+                        upcomingTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Loading live workflow records...</td></tr>`;
                     }
                 }
                 // Fade back in
@@ -4389,10 +4133,7 @@
         let weekOffset = 0;
         const baseWeekStart = new Date(2026, 2, 22);
         let dayAvailability = {};
-        let bookingsList = [
-            { date: '2026-03-23', time: '09:30', name: 'Maria Rodriguez' }, { date: '2026-03-23', time: '14:00', name: 'James Liu' },
-            { date: '2026-03-25', time: '11:00', name: 'Sophie Turner' }, { date: '2026-03-26', time: '15:30', name: 'Devon Clarke' }
-        ];
+        let bookingsList = [];
         function getWeekDates() {
             const dates = [];
             const start = new Date(baseWeekStart);
@@ -4466,18 +4207,7 @@
         }
 
         // ===== CALLS TABLE DATA =====
-        const callsData = [
-            { name: 'Sarah Wilson', intent: 'Bookings', outcome: 'Resolved', status: 'Completed', date: 'Mar 28, 2026', duration: '2m 14s', credits: '2' },
-            { name: 'Mike Thompson', intent: 'Customer Support', outcome: 'Resolved', status: 'Completed', date: 'Mar 28, 2026', duration: '3m 52s', credits: '4' },
-            { name: 'Unknown Caller', intent: 'Spam Call', outcome: 'Blocked', status: 'Blocked', date: 'Mar 28, 2026', duration: '0m 04s', credits: '0' },
-            { name: 'Emily Davis', intent: 'Inquiry Resolution', outcome: 'Resolved', status: 'Completed', date: 'Mar 28, 2026', duration: '1m 38s', credits: '2' },
-            { name: 'John Park', intent: 'Appointments', outcome: 'Resolved', status: 'Completed', date: 'Mar 27, 2026', duration: '2m 50s', credits: '3' },
-            { name: 'Lisa Chen', intent: 'Bookings', outcome: 'Resolved', status: 'Completed', date: 'Mar 27, 2026', duration: '1m 20s', credits: '1' },
-            { name: 'Robert Lee', intent: 'Information Retrieval', outcome: 'Escalated', status: 'Transferred', date: 'Mar 27, 2026', duration: '4m 12s', credits: '4' },
-            { name: 'Anna Martinez', intent: 'Recommendation', outcome: 'Resolved', status: 'Completed', date: 'Mar 26, 2026', duration: '2m 05s', credits: '2' },
-            { name: 'David Kim', intent: 'Lead Generation', outcome: 'Resolved', status: 'Completed', date: 'Mar 26, 2026', duration: '3m 30s', credits: '3' },
-            { name: 'Unknown', intent: 'Spam Call', outcome: 'Blocked', status: 'Blocked', date: 'Mar 26, 2026', duration: '0m 02s', credits: '0' }
-        ];
+        const callsData = [];
         function renderCallsTable(data) {
             const tb = document.getElementById('callsTableBody'); if (!tb) return;
             const intentBadge = i => ({ Bookings: 'badge-green', Appointments: 'badge-blue', 'Customer Support': 'badge-purple', 'Inquiry Resolution': 'badge-blue', 'Information Retrieval': 'badge-amber', Recommendation: 'badge-green', 'Lead Generation': 'badge-purple', 'Spam Call': 'badge-red' })[i] || 'badge-blue';
@@ -4491,16 +4221,7 @@
         }
 
         // ===== CHATS TABLE DATA =====
-        const chatsData = [
-            { name: 'Website Visitor 492', intent: 'Bookings', outcome: 'Resolved', status: 'Completed', date: 'Mar 28, 2026', messages: '24', credits: '2' },
-            { name: '+1 (555) 876-5432', intent: 'Inquiry Resolution', outcome: 'Resolved', status: 'Completed', date: 'Mar 28, 2026', messages: '8', credits: '1' },
-            { name: '+1 (555) 901-2345', intent: 'Customer Support', outcome: 'Resolved', status: 'Completed', date: 'Mar 28, 2026', messages: '12', credits: '4' },
-            { name: 'WhatsApp User', intent: 'Appointments', outcome: 'Resolved', status: 'Completed', date: 'Mar 27, 2026', messages: '6', credits: '1' },
-            { name: 'SMS +1 (555) 445-6789', intent: 'Information Retrieval', outcome: 'Escalated', status: 'Transferred', date: 'Mar 27, 2026', messages: '18', credits: '2' },
-            { name: 'Website Visitor 501', intent: 'Recommendation', outcome: 'Resolved', status: 'Completed', date: 'Mar 27, 2026', messages: '10', credits: '1' },
-            { name: 'Chat User 88', intent: 'Lead Generation', outcome: 'Resolved', status: 'Completed', date: 'Mar 26, 2026', messages: '14', credits: '2' },
-            { name: 'Spam Bot', intent: 'Spam Call', outcome: 'Blocked', status: 'Blocked', date: 'Mar 26, 2026', messages: '2', credits: '0' }
-        ];
+        const chatsData = [];
         function renderChatsTable(data) {
             const tb = document.getElementById('chatsTableBody'); if (!tb) return;
             const intentBadge = i => ({ Bookings: 'badge-green', Appointments: 'badge-blue', 'Customer Support': 'badge-purple', 'Inquiry Resolution': 'badge-blue', 'Information Retrieval': 'badge-amber', Recommendation: 'badge-green', 'Lead Generation': 'badge-purple', 'Spam Call': 'badge-red' })[i] || 'badge-blue';
@@ -4520,7 +4241,7 @@
         }
 
         // ===== AI TEST CHAT =====
-        const aiReplies = ["Of course! I'd be happy to help you book a room. What dates are you looking at?", "Our premium suite is available at $299/night. Shall I reserve it?", "Perfect! I've confirmed your reservation. You'll receive a confirmation email shortly.", "Is there anything else I can help you with today?", "Our checkout time is 11 AM, and check-in is at 3 PM. Would you like a late checkout?"];
+        const aiReplies = ["Of course! I'd be happy to help you book a room. What dates are you looking at?", "Our premium suite is available at ₹299/night. Shall I reserve it?", "Perfect! I've confirmed your reservation. You'll receive a confirmation email shortly.", "Is there anything else I can help you with today?", "Our checkout time is 11 AM, and check-in is at 3 PM. Would you like a late checkout?"];
         let replyIdx = 0;
         function sendChat() {
             const input = document.getElementById('chatInput'); const msg = input.value.trim(); if (!msg) return;

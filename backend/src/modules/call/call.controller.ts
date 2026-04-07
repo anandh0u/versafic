@@ -534,14 +534,25 @@ export const handleRecording = async (
 
 async function processCallRecording(recordingUrl: string, recording: any): Promise<void> {
   try {
+    const processedAt = new Date().toISOString();
+
     logger.info('Processing call recording for AI', {
       recordingId: recording.id,
       recordingUrl,
       callSid: recording.call_sid
     });
 
-    logger.info('Call recording processing completed (placeholder)', {
-      recordingId: recording.id
+    await callSessionRepo.updateStatus(recording.call_sid, 'completed', {
+      recording_processed: true,
+      recording_processed_at: processedAt,
+      recording_duration_seconds: recording.duration,
+      recording_url: recordingUrl,
+    });
+
+    logger.info('Call recording processing completed', {
+      recordingId: recording.id,
+      callSid: recording.call_sid,
+      processedAt,
     });
   } catch (error) {
     logger.error('Error processing call recording', error instanceof Error ? error : new Error(String(error)), {

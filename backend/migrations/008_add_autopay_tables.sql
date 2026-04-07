@@ -9,10 +9,13 @@ ALTER TABLE credit_transactions
         source IN (
             'razorpay',
             'autopay',
+            'demo_autopay',
             'ai_chat',
             'sarvam_stt',
             'voice_process',
             'voice_call',
+            'inbound_call',
+            'outbound_call',
             'premium_call',
             'recording_process',
             'onboarding_ai_setup',

@@ -6,7 +6,15 @@ import * as UserModel from "../models/user.model";
 import { logger } from "../utils/logger";
 import { ErrorCode } from "../types";
 import { verifyGoogleToken } from "../utils/google-auth";
-import { isValidEmail, isValidPhone, normalizePhoneNumber, sanitizeEmail } from "../utils/validators";
+import {
+  getPhoneValidationError,
+  getRegistrableEmailError,
+  isValidEmail,
+  normalizePhoneNumber,
+  sanitizeEmail,
+} from "../utils/validators";
+
+type OAuthProvider = "google" | "github";
 
 const serializeUser = (user: UserModel.User, overrides?: { name?: string }): {
   id: number;
@@ -52,9 +60,10 @@ export const registerUser = async (
 ): Promise<{ user: any; accessToken: string; refreshToken: string }> => {
   try {
     const normalizedEmail = sanitizeEmail(email);
-    if (!isValidEmail(normalizedEmail)) {
+    const emailValidationError = await getRegistrableEmailError(normalizedEmail);
+    if (emailValidationError) {
       logger.warn("User registration attempted with invalid email", { email });
-      throw new AppError(400, ErrorCode.VALIDATION_ERROR, "Invalid email format");
+      throw new AppError(400, ErrorCode.VALIDATION_ERROR, emailValidationError);
     }
 
     // Check if user exists
@@ -140,19 +149,27 @@ export const handleGoogleAuth = async (
   googleId: string,
   name?: string
 ): Promise<{ user: any; accessToken: string; refreshToken: string; isNewUser: boolean }> => {
+  return handleOAuthProviderAuth("google", email, googleId, name);
+};
+
+export const handleOAuthProviderAuth = async (
+  provider: OAuthProvider,
+  email: string,
+  providerId: string,
+  name?: string
+): Promise<{ user: any; accessToken: string; refreshToken: string; isNewUser: boolean }> => {
   try {
     const normalizedEmail = sanitizeEmail(email);
     if (!isValidEmail(normalizedEmail)) {
-      logger.warn("Google auth attempted with invalid email", { email });
+      logger.warn(`${provider} auth attempted with invalid email`, { email, provider });
       throw new AppError(400, ErrorCode.VALIDATION_ERROR, "Invalid email format");
     }
 
     let user = await UserModel.findUserByEmail(normalizedEmail);
 
     if (!user) {
-      // Create new user with Google OAuth
-      user = await UserModel.createUser(normalizedEmail, undefined, "google", googleId, name?.trim() || undefined);
-      logger.info("New user created via Google OAuth", { userId: user.id, email: normalizedEmail });
+      user = await UserModel.createUser(normalizedEmail, undefined, provider, providerId, name?.trim() || undefined);
+      logger.info(`New user created via ${provider} OAuth`, { userId: user.id, email: normalizedEmail, provider });
 
       const accessToken = generateAccessToken(user.id, user.email);
       const refreshToken = generateRefreshToken(user.id);
@@ -164,8 +181,7 @@ export const handleGoogleAuth = async (
         isNewUser: true
       };
     } else {
-      // Existing user - login
-      logger.info("User logged in via Google OAuth", { userId: user.id, email: normalizedEmail });
+      logger.info(`User logged in via ${provider} OAuth`, { userId: user.id, email: normalizedEmail, provider });
 
       const accessToken = generateAccessToken(user.id, user.email);
       const refreshToken = generateRefreshToken(user.id);
@@ -178,8 +194,8 @@ export const handleGoogleAuth = async (
     }
   } catch (error) {
     if (error instanceof AppError) throw error;
-    logger.error("Error during Google authentication", error instanceof Error ? error : new Error(String(error)));
-    throw new AppError(500, ErrorCode.INTERNAL_ERROR, "Failed to authenticate with Google");
+    logger.error(`Error during ${provider} authentication`, error instanceof Error ? error : new Error(String(error)));
+    throw new AppError(500, ErrorCode.INTERNAL_ERROR, `Failed to authenticate with ${provider === "google" ? "Google" : "GitHub"}`);
   }
 };
 
@@ -201,46 +217,16 @@ export const handleGoogleIdTokenAuth = async (
       googleId: tokenData.googleId
     });
 
-    const normalizedEmail = sanitizeEmail(tokenData.email);
     const { googleId, name, picture } = tokenData;
+    const result = await handleOAuthProviderAuth("google", tokenData.email, googleId, name);
 
-    // Check if user exists
-    let user = await UserModel.findUserByEmail(normalizedEmail);
-
-    if (!user) {
-      // Create new user with Google OAuth
-      logger.info("Creating new user from Google authentication", { email: normalizedEmail, googleId });
-      user = await UserModel.createUser(normalizedEmail, undefined, "google", googleId, name?.trim() || undefined);
-      logger.info("New user created via Google OAuth", { userId: user.id, email: normalizedEmail });
-
-      const accessToken = generateAccessToken(user.id, user.email);
-      const refreshToken = generateRefreshToken(user.id);
-
-      return {
-        user: {
-          ...serializeUser(user, name ? { name } : undefined),
-          picture: picture || undefined,
-        },
-        accessToken,
-        refreshToken,
-        isNewUser: true
-      };
-    } else {
-      // Existing user - login
-      logger.info("User logged in via Google OAuth", { userId: user.id, email: normalizedEmail });
-
-      const accessToken = generateAccessToken(user.id, user.email);
-      const refreshToken = generateRefreshToken(user.id);
-      return {
-        user: {
-          ...serializeUser(user, name ? { name } : undefined),
-          picture: picture || undefined,
-        },
-        accessToken,
-        refreshToken,
-        isNewUser: false
-      };
-    }
+    return {
+      ...result,
+      user: {
+        ...result.user,
+        picture: picture || undefined,
+      },
+    };
   } catch (error) {
     if (error instanceof AppError) throw error;
 
@@ -297,8 +283,10 @@ export const updateCurrentUserContactPreferences = async (params: {
   callConsent?: boolean;
   callOptOut?: boolean;
 }): Promise<any> => {
-  if (params.phoneNumber && !isValidPhone(params.phoneNumber)) {
-    throw new AppError(400, ErrorCode.VALIDATION_ERROR, "Phone number must be a valid international number");
+  const phoneValidationError =
+    params.phoneNumber && params.phoneNumber.trim() ? getPhoneValidationError(params.phoneNumber) : null;
+  if (phoneValidationError) {
+    throw new AppError(400, ErrorCode.VALIDATION_ERROR, phoneValidationError);
   }
 
   const existingUser = await UserModel.findUserById(params.userId);

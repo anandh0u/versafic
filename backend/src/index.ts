@@ -96,7 +96,7 @@ const isAllowedDevOrigin = (origin: string): boolean => {
 const isAllowedHostedOrigin = (origin: string): boolean => {
   try {
     const { hostname, protocol } = new URL(origin);
-    return protocol === "https:" && hostname.endsWith(".vercel.app");
+    return protocol === "https:" && (hostname.endsWith(".vercel.app") || hostname.endsWith(".onrender.com"));
   } catch {
     return false;
   }
@@ -208,13 +208,20 @@ export const initializeApp = async (): Promise<void> => {
       await initializeDatabase();
       logger.info("Database initialized successfully");
 
-      try {
-        const { conversationService } = await import("./services/conversation.service");
-        await conversationService.initializeTable();
-      } catch (convError) {
-        logger.warn("Conversation table init failed (non-critical)", {
-          error: convError instanceof Error ? convError.message : String(convError)
-        });
+      const shouldBootstrapRuntimeTables =
+        process.env.RUN_RUNTIME_TABLE_BOOTSTRAP === "true" || process.env.NODE_ENV !== "production";
+
+      if (shouldBootstrapRuntimeTables) {
+        try {
+          const { conversationService } = await import("./services/conversation.service");
+          await conversationService.initializeTable();
+        } catch (convError) {
+          logger.warn("Conversation table init failed (non-critical)", {
+            error: convError instanceof Error ? convError.message : String(convError)
+          });
+        }
+      } else {
+        logger.info("Skipping runtime table bootstrap in production");
       }
 
       try {

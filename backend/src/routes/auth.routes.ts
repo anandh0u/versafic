@@ -20,11 +20,30 @@ router.post("/register", AuthController.register);
 router.post("/login", AuthController.login);
 
 /**
+ * @route POST /auth/validate-email
+ * @description Validate whether an email can be used for registration
+ * @body email
+ */
+router.post("/validate-email", AuthController.validateEmail);
+
+/**
  * @route POST /auth/refresh
  * @description Refresh access token using refresh token
  * @body refreshToken
  */
 router.post("/refresh", AuthController.refreshToken);
+
+/**
+ * @route GET /auth/google/start
+ * @description Start Google OAuth consent flow
+ */
+router.get("/google/start", AuthController.startGoogleOAuth);
+
+/**
+ * @route GET /auth/google/callback
+ * @description Google OAuth callback
+ */
+router.get("/google/callback", AuthController.googleOAuthCallback);
 
 /**
  * @route POST /auth/google
@@ -39,6 +58,18 @@ router.post("/google", AuthController.googleAuth);
  * @body idToken (Google ID token from frontend)
  */
 router.post("/google/idtoken", AuthController.googleAuthWithIdToken);
+
+/**
+ * @route GET /auth/github/start
+ * @description Start GitHub OAuth consent flow
+ */
+router.get("/github/start", AuthController.startGitHubOAuth);
+
+/**
+ * @route GET /auth/github/callback
+ * @description GitHub OAuth callback
+ */
+router.get("/github/callback", AuthController.githubOAuthCallback);
 
 /**
  * @route GET /auth/me

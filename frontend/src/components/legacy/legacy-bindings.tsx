@@ -864,9 +864,13 @@ const prepareOnboardingFieldReferences = () => {
 const getActiveOnboardingAccountType = () =>
   document.querySelector<HTMLElement>(".acc-type.active .card-text")?.textContent?.trim() || "Business";
 
-const getActiveOnboardingSubcategory = () =>
-  document.querySelector<HTMLElement>("#bus-sub-categories .tag-pill.active, #per-sub-categories .tag-pill.active")
-    ?.textContent?.trim() || "";
+const getActiveOnboardingSubcategory = () => {
+  const accountType = getActiveOnboardingAccountType().toLowerCase();
+  const selector =
+    accountType === "personal" ? "#per-sub-categories .tag-pill.active" : "#bus-sub-categories .tag-pill.active";
+
+  return document.querySelector<HTMLElement>(selector)?.textContent?.trim() || "";
+};
 
 const isOtherOnboardingCategory = () => getActiveOnboardingSubcategory().toLowerCase() === "other";
 

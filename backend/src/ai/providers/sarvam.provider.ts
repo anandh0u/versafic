@@ -1,5 +1,6 @@
 import axios from "axios";
 import { logger } from "../../utils/logger";
+import { isPlaceholderEnvValue } from "../../utils/env";
 
 interface SarvamResponse {
   success: boolean;
@@ -13,8 +14,9 @@ class SarvamProvider {
 
   constructor() {
     this.apiKey = process.env.SARVAM_API_KEY || "";
-    if (!this.apiKey) {
+    if (isPlaceholderEnvValue(this.apiKey)) {
       logger.warn("Sarvam API key not configured");
+      this.apiKey = "";
     }
   }
 
@@ -208,7 +210,7 @@ class SarvamProvider {
    * Check if provider is available
    */
   isAvailable(): boolean {
-    return !!this.apiKey;
+    return !isPlaceholderEnvValue(this.apiKey);
   }
 }
 

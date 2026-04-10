@@ -17,6 +17,15 @@ export const normalizeEnvValue = (value?: string | null): string => {
   return normalized.replace(/\\r\\n|\\n|\\r/g, "").trim();
 };
 
+export const isPlaceholderEnvValue = (value?: string | null): boolean => {
+  const normalized = normalizeEnvValue(value);
+  if (!normalized) {
+    return true;
+  }
+
+  return /^(your_|replace_|paste_)/i.test(normalized) || normalized.includes("_here");
+};
+
 export const validateEnv = (): void => {
   const hasDatabaseUrl = Boolean(normalizeEnvValue(process.env.DATABASE_URL));
   const requiredVars = [

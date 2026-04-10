@@ -20,24 +20,35 @@ const serializeUser = (user: UserModel.User, overrides?: { name?: string }): {
   id: number;
   email: string;
   name?: string;
+  phone_number?: string;
   phoneNumber?: string;
+  call_consent: boolean;
   callConsent: boolean;
+  call_opt_out: boolean;
   callOptOut: boolean;
+  is_onboarded: boolean;
   isOnboarded: boolean;
 } => {
   const serializedUser: {
     id: number;
     email: string;
     name?: string;
+    phone_number?: string;
     phoneNumber?: string;
+    call_consent: boolean;
     callConsent: boolean;
+    call_opt_out: boolean;
     callOptOut: boolean;
+    is_onboarded: boolean;
     isOnboarded: boolean;
   } = {
     id: user.id,
     email: user.email,
+    call_consent: user.call_consent,
     callConsent: user.call_consent,
+    call_opt_out: user.call_opt_out,
     callOptOut: user.call_opt_out,
+    is_onboarded: user.is_onboarded,
     isOnboarded: user.is_onboarded,
   };
 
@@ -47,6 +58,7 @@ const serializeUser = (user: UserModel.User, overrides?: { name?: string }): {
   }
 
   if (user.phone_number) {
+    serializedUser.phone_number = user.phone_number;
     serializedUser.phoneNumber = user.phone_number;
   }
 

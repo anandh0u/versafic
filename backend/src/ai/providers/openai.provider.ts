@@ -1,5 +1,6 @@
 import { OpenAI } from "openai";
 import { logger } from "../../utils/logger";
+import { isPlaceholderEnvValue } from "../../utils/env";
 
 interface ExtractedData {
   name?: string;
@@ -23,7 +24,7 @@ class OpenAIProvider {
 
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    if (isPlaceholderEnvValue(apiKey)) {
       logger.warn("OpenAI API key not configured");
     }
     this.client = new OpenAI({ apiKey });
@@ -256,7 +257,7 @@ Be strict - only extract information that is clearly mentioned.`
    * Check if provider is available
    */
   isAvailable(): boolean {
-    return !!process.env.OPENAI_API_KEY;
+    return !isPlaceholderEnvValue(process.env.OPENAI_API_KEY);
   }
 }
 

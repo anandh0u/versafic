@@ -5,6 +5,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 import { logger } from './logger';
+import { isPlaceholderEnvValue } from './env';
 
 export interface SarvamSTTRequest {
   audio: string; // Base64 encoded audio
@@ -39,8 +40,9 @@ export class SarvamAIClient {
   constructor(apiKey?: string) {
     this.apiKey = apiKey || process.env.SARVAM_API_KEY || '';
 
-    if (!this.apiKey) {
+    if (isPlaceholderEnvValue(this.apiKey)) {
       logger.warn('Sarvam AI API key not configured');
+      this.apiKey = '';
     }
 
     this.client = axios.create({

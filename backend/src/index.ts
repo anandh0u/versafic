@@ -67,6 +67,10 @@ app.use(helmet({
 // Enforce HTTPS in production
 if (process.env.NODE_ENV === "production") {
   app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === "/health" || req.path.startsWith("/ops/")) {
+      return next();
+    }
+
     const forwardedProto = req.get("x-forwarded-proto");
     if (!req.secure && forwardedProto !== "https") {
       return res.redirect(`https://${req.get("host")}${req.url}`);

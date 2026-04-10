@@ -15,13 +15,17 @@ import {
   getAutopayStatus,
   enableAutopay,
   disableAutopay,
-  triggerAutopay
+  triggerAutopay,
+  razorpayWebhook
 } from '../controllers/billing.controller';
 
 const router = Router();
 
 // Public route - get available plans
 router.get('/plans', getPlans);
+
+// Public webhook - Razorpay payments (signature verified in controller)
+router.post('/webhook/razorpay', razorpayWebhook);
 
 // Protected routes - require authentication
 router.post('/create-order', verifyToken, createOrder);

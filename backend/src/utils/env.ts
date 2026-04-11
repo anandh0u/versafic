@@ -52,7 +52,14 @@ export const validateEnv = (): void => {
     "PUBLIC_BASE_URL",
     "TWILIO_ACCOUNT_SID",
     "TWILIO_AUTH_TOKEN",
-    "TWILIO_PHONE_NUMBER"
+    "TWILIO_PHONE_NUMBER",
+    "EXOTEL_SID",
+    "EXOTEL_API_KEY",
+    "EXOTEL_API_TOKEN",
+    "EXOTEL_NUMBER",
+    "EXOTEL_API_BASE_URL",
+    "EXOTEL_CALL_FLOW_URL",
+    "EXOTEL_INTERNAL_API_KEY"
   ];
 
   const missingRequired = requiredVars.filter((variable) => !normalizeEnvValue(process.env[variable]));

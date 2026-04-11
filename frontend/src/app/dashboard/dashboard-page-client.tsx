@@ -4025,7 +4025,7 @@ const PAGE_BODY = `<div class="mobile-header">
                     <div class="setting-row">
                         <div class="setting-info">
                             <div class="setting-label">Outbound Call Consent</div>
-                            <div class="setting-desc">Enable this account to receive AI outbound calls from the configured AI number.</div>
+                            <div class="setting-desc">Enable this account to receive AI outbound calls from the configured Exotel number.</div>
                         </div>
                         <div class="setting-control"><label class="toggle-switch"><input id="aiCallConsentToggle" type="checkbox">
                                 <div class="toggle-track"></div>
@@ -4040,7 +4040,14 @@ const PAGE_BODY = `<div class="mobile-header">
                                 <div class="toggle-track"></div>
                             </label></div>
                     </div>
-                    <div id="aiConsentHint" style="font-size:0.82rem;color:var(--text-muted);margin-top:10px">Enable consent if you want this account to receive AI outbound calls.</div>
+                    <div id="aiConsentHint" style="font-size:0.82rem;color:var(--text-muted);margin-top:10px">Enable consent if you want this account to receive Exotel AI outbound calls.</div>
+                    <div class="form-group" style="margin-top:16px"><label class="input-label">Test Call Number</label>
+                        <input class="input-field" id="aiTestCallNumber" type="text" value="" placeholder="Enter the phone number to receive the Exotel test call">
+                    </div>
+                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                        <button class="btn btn-primary btn-sm" id="aiPlaceTestCallBtn" type="button">Place Test Call</button>
+                        <div id="aiCallActionHint" style="font-size:0.82rem;color:var(--text-muted)">Save consent, then place a test call to the number above.</div>
+                    </div>
                 </div>
 
                 <div class="settings-section">
@@ -4500,12 +4507,13 @@ const PAGE_BODY = `<div class="mobile-header">
                 const dt = new Date(ds + 'T00:00:00'), dn = dayNamesArr[dt.getDay()], dd = dt.getDate(), active = dayAvailability[ds];
                 const bks = bookingsList.filter(b => b.date === ds).sort((a, b) => a.time.localeCompare(b.time));
                 let cards = '';
-                if (bks.length > 0 && active) cards = bks.map(b => \`<div class="booking-card"><div class="booking-time">🕒 \${format12Hour(b.time)}</div><div class="booking-name">\${b.name}</div></div>\`).join('');
+                if (bks.length > 0 && active) cards = bks.map(b => \`<div class="booking-card"><div class="booking-time"><i data-lucide="clock-3" style="width:0.95em;height:0.95em;vertical-align:middle;margin-right:6px;"></i>\${format12Hour(b.time)}</div><div class="booking-name">\${b.name}</div></div>\`).join('');
                 else if (active) cards = '<div class="empty-slot">No appointments</div>';
                 const col = document.createElement('div'); col.className = \`day-column \${active ? '' : 'disabled-day'}\`;
                 col.innerHTML = \`<div class="day-header"><div><div class="day-name">\${dn}</div><div class="day-date">\${dd}</div></div><label class="toggle-switch small-toggle"><input type="checkbox" \${active ? 'checked' : ''} onchange="toggleDayStatus('\${ds}')"><div class="toggle-track"></div></label></div><div class="day-body">\${active ? cards : '<div class="empty-slot">Not accepting</div>'}</div>\`;
                 grid.appendChild(col);
             });
+            if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
         }
         function toggleDayStatus(ds) { dayAvailability[ds] = !dayAvailability[ds]; renderWeeklyCalendar() }
         function navigateWeek(dir) { weekOffset += dir; renderWeeklyCalendar() }
@@ -4523,7 +4531,7 @@ const PAGE_BODY = `<div class="mobile-header">
             let name, date, time;
             if (e.target.closest('dialog')) { name = document.getElementById('bookName').value; date = document.getElementById('bookDate').value; time = document.getElementById('bookTime').value; closeModal() }
             else { const inp = e.target.querySelectorAll('.input-field'); name = inp[0].value || 'New Customer'; date = inp[2]?.value || '2026-03-24'; time = inp[3]?.value || '10:00' }
-            if (name) { bookingsList.push({ name, date, time }); e.target.reset(); renderWeeklyCalendar(); showToast('✅ Booking created for ' + name, 'success') }
+            if (name) { bookingsList.push({ name, date, time }); e.target.reset(); renderWeeklyCalendar(); showToast('Booking created for ' + name, 'success') }
         }
 
         // ===== FAQ =====
@@ -4703,7 +4711,7 @@ const PAGE_BODY = `<div class="mobile-header">
             }).join('');
         }
         function saveSchedule() {
-            showToast('✅ Weekly schedule saved successfully!', 'success');
+            showToast('Weekly schedule saved successfully!', 'success');
         }
 
         // ===== BLOCKED TIME SLOTS =====
@@ -4724,7 +4732,7 @@ const PAGE_BODY = `<div class="mobile-header">
                     <td style="font-weight:600;color:var(--text-primary);">\${s.day}</td>
                     <td>\${fmt(s.from)} – \${fmt(s.to)}</td>
                     <td>\${s.reason}</td>
-                    <td><button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="blockedSlots.splice(\${i},1);renderBlockedSlots();showToast('🗑️ Blocked slot removed','info')">Remove</button></td>
+                    <td><button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="blockedSlots.splice(\${i},1);renderBlockedSlots();showToast('Blocked slot removed','info')">Remove</button></td>
                 </tr>\`;
             }).join('');
         }
@@ -4733,12 +4741,12 @@ const PAGE_BODY = `<div class="mobile-header">
             const from = document.getElementById('blockFrom').value;
             const to = document.getElementById('blockTo').value;
             const reason = document.getElementById('blockReason').value.trim();
-            if (!from || !to || !reason) { showToast('⚠️ Please fill all fields.', 'error'); return; }
-            if (from >= to) { showToast('⚠️ "From" time must be before "To" time.', 'error'); return; }
+            if (!from || !to || !reason) { showToast('Please fill all fields.', 'error'); return; }
+            if (from >= to) { showToast('"From" time must be before "To" time.', 'error'); return; }
             blockedSlots.push({ day, from, to, reason });
             renderBlockedSlots();
             document.getElementById('blockReason').value = '';
-            showToast('🚫 ' + day + ' ' + from + '-' + to + ' blocked: ' + reason, 'success');
+            showToast(day + ' ' + from + '-' + to + ' blocked: ' + reason, 'success');
         }
 
         // ===== HOLIDAYS DATA & RENDER =====
@@ -4786,25 +4794,25 @@ const PAGE_BODY = `<div class="mobile-header">
             const reasonEl = document.getElementById('holidayReason');
             const date = dateEl.value;
             const reason = reasonEl.value.trim();
-            if (!date || !reason) { showToast('⚠️ Please provide both a date and a reason.', 'error'); return; }
+            if (!date || !reason) { showToast('Please provide both a date and a reason.', 'error'); return; }
             const d = new Date(date + 'T00:00:00');
             const formatted = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
             holidaysData.push({ dateISO: date, display: formatted, name: reason, by: 'You' });
             holidaysData.sort((a, b) => a.dateISO.localeCompare(b.dateISO));
             renderHolidays();
             reasonEl.value = '';
-            showToast('🎉 ' + reason + ' on ' + formatted + ' has been blocked!', 'success');
+            showToast(reason + ' on ' + formatted + ' has been blocked!', 'success');
         }
         function deleteHoliday(idx) {
             const name = holidaysData[idx].name;
             holidaysData.splice(idx, 1);
             renderHolidays();
-            showToast('🗑️ "' + name + '" removed.', 'info');
+            showToast('"' + name + '" removed.', 'info');
         }
         function saveHolidayEdit(idx) {
             const newDate = document.getElementById('editHolidayDate').value;
             const newName = document.getElementById('editHolidayName').value.trim();
-            if (!newDate || !newName) { showToast('⚠️ Please fill both fields.', 'error'); return; }
+            if (!newDate || !newName) { showToast('Please fill both fields.', 'error'); return; }
             const d = new Date(newDate + 'T00:00:00');
             const formatted = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
             holidaysData[idx].dateISO = newDate;
@@ -4813,7 +4821,7 @@ const PAGE_BODY = `<div class="mobile-header">
             editingHolidayIdx = -1;
             holidaysData.sort((a, b) => a.dateISO.localeCompare(b.dateISO));
             renderHolidays();
-            showToast('✅ Holiday updated!', 'success');
+            showToast('Holiday updated!', 'success');
         }
 
         // ===== OPEN DAY DETAIL (Calendar click) =====
@@ -5006,8 +5014,8 @@ const PAGE_BODY = `<div class="mobile-header">
                         const totalPrice = (credits * pricePerCredit).toFixed(2);
 
                         // In a real app, this would initiate Razorpay payment
-                        alert(`Initiating payment for ${credits} credits (₹${totalPrice}). This would open Razorpay checkout in a real app.`);
-                        showToast(`✅ Payment initiated for ${credits} credits (₹${totalPrice})`, 'success');
+                        alert('Initiating payment for ' + credits + ' credits (₹' + totalPrice + '). This would open Razorpay checkout in a real app.');
+                        showToast('✅ Payment initiated for ' + credits + ' credits (₹' + totalPrice + ')', 'success');
                     });
                 }
                 // Download invoice
@@ -5050,8 +5058,8 @@ const PAGE_BODY = `<div class="mobile-header">
               const updateSliderDisplay = () => {
                 const credits = parseInt(billingSlider.value);
                 const totalPrice = (credits * pricePerCredit).toFixed(2);
-                billingCredits.textContent = `${credits.toLocaleString()} credits`;
-                billingPrice.textContent = `₹${totalPrice}`;
+                billingCredits.textContent = credits.toLocaleString() + ' credits';
+                billingPrice.textContent = '₹' + totalPrice;
               };
 
               billingSlider.addEventListener('input', updateSliderDisplay);
@@ -5367,12 +5375,13 @@ const PAGE_SCRIPT = `
                 const dt = new Date(ds + 'T00:00:00'), dn = dayNamesArr[dt.getDay()], dd = dt.getDate(), active = dayAvailability[ds];
                 const bks = bookingsList.filter(b => b.date === ds).sort((a, b) => a.time.localeCompare(b.time));
                 let cards = '';
-                if (bks.length > 0 && active) cards = bks.map(b => \`<div class="booking-card"><div class="booking-time">🕒 \${format12Hour(b.time)}</div><div class="booking-name">\${b.name}</div></div>\`).join('');
+                if (bks.length > 0 && active) cards = bks.map(b => \`<div class="booking-card"><div class="booking-time"><i data-lucide="clock-3" style="width:0.95em;height:0.95em;vertical-align:middle;margin-right:6px;"></i>\${format12Hour(b.time)}</div><div class="booking-name">\${b.name}</div></div>\`).join('');
                 else if (active) cards = '<div class="empty-slot">No appointments</div>';
                 const col = document.createElement('div'); col.className = \`day-column \${active ? '' : 'disabled-day'}\`;
                 col.innerHTML = \`<div class="day-header"><div><div class="day-name">\${dn}</div><div class="day-date">\${dd}</div></div><label class="toggle-switch small-toggle"><input type="checkbox" \${active ? 'checked' : ''} onchange="toggleDayStatus('\${ds}')"><div class="toggle-track"></div></label></div><div class="day-body">\${active ? cards : '<div class="empty-slot">Not accepting</div>'}</div>\`;
                 grid.appendChild(col);
             });
+            if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
         }
         function toggleDayStatus(ds) { dayAvailability[ds] = !dayAvailability[ds]; renderWeeklyCalendar() }
         function navigateWeek(dir) { weekOffset += dir; renderWeeklyCalendar() }
@@ -5390,7 +5399,7 @@ const PAGE_SCRIPT = `
             let name, date, time;
             if (e.target.closest('dialog')) { name = document.getElementById('bookName').value; date = document.getElementById('bookDate').value; time = document.getElementById('bookTime').value; closeModal() }
             else { const inp = e.target.querySelectorAll('.input-field'); name = inp[0].value || 'New Customer'; date = inp[2]?.value || '2026-03-24'; time = inp[3]?.value || '10:00' }
-            if (name) { bookingsList.push({ name, date, time }); e.target.reset(); renderWeeklyCalendar(); showToast('✅ Booking created for ' + name, 'success') }
+            if (name) { bookingsList.push({ name, date, time }); e.target.reset(); renderWeeklyCalendar(); showToast('Booking created for ' + name, 'success') }
         }
 
         // ===== FAQ =====
@@ -5570,7 +5579,7 @@ const PAGE_SCRIPT = `
             }).join('');
         }
         function saveSchedule() {
-            showToast('✅ Weekly schedule saved successfully!', 'success');
+            showToast('Weekly schedule saved successfully!', 'success');
         }
 
         // ===== BLOCKED TIME SLOTS =====
@@ -5591,7 +5600,7 @@ const PAGE_SCRIPT = `
                     <td style="font-weight:600;color:var(--text-primary);">\${s.day}</td>
                     <td>\${fmt(s.from)} – \${fmt(s.to)}</td>
                     <td>\${s.reason}</td>
-                    <td><button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="blockedSlots.splice(\${i},1);renderBlockedSlots();showToast('🗑️ Blocked slot removed','info')">Remove</button></td>
+                    <td><button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="blockedSlots.splice(\${i},1);renderBlockedSlots();showToast('Blocked slot removed','info')">Remove</button></td>
                 </tr>\`;
             }).join('');
         }
@@ -5600,12 +5609,12 @@ const PAGE_SCRIPT = `
             const from = document.getElementById('blockFrom').value;
             const to = document.getElementById('blockTo').value;
             const reason = document.getElementById('blockReason').value.trim();
-            if (!from || !to || !reason) { showToast('⚠️ Please fill all fields.', 'error'); return; }
-            if (from >= to) { showToast('⚠️ "From" time must be before "To" time.', 'error'); return; }
+            if (!from || !to || !reason) { showToast('Please fill all fields.', 'error'); return; }
+            if (from >= to) { showToast('"From" time must be before "To" time.', 'error'); return; }
             blockedSlots.push({ day, from, to, reason });
             renderBlockedSlots();
             document.getElementById('blockReason').value = '';
-            showToast('🚫 ' + day + ' ' + from + '-' + to + ' blocked: ' + reason, 'success');
+            showToast(day + ' ' + from + '-' + to + ' blocked: ' + reason, 'success');
         }
 
         // ===== HOLIDAYS DATA & RENDER =====
@@ -5653,25 +5662,25 @@ const PAGE_SCRIPT = `
             const reasonEl = document.getElementById('holidayReason');
             const date = dateEl.value;
             const reason = reasonEl.value.trim();
-            if (!date || !reason) { showToast('⚠️ Please provide both a date and a reason.', 'error'); return; }
+            if (!date || !reason) { showToast('Please provide both a date and a reason.', 'error'); return; }
             const d = new Date(date + 'T00:00:00');
             const formatted = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
             holidaysData.push({ dateISO: date, display: formatted, name: reason, by: 'You' });
             holidaysData.sort((a, b) => a.dateISO.localeCompare(b.dateISO));
             renderHolidays();
             reasonEl.value = '';
-            showToast('🎉 ' + reason + ' on ' + formatted + ' has been blocked!', 'success');
+            showToast(reason + ' on ' + formatted + ' has been blocked!', 'success');
         }
         function deleteHoliday(idx) {
             const name = holidaysData[idx].name;
             holidaysData.splice(idx, 1);
             renderHolidays();
-            showToast('🗑️ "' + name + '" removed.', 'info');
+            showToast('"' + name + '" removed.', 'info');
         }
         function saveHolidayEdit(idx) {
             const newDate = document.getElementById('editHolidayDate').value;
             const newName = document.getElementById('editHolidayName').value.trim();
-            if (!newDate || !newName) { showToast('⚠️ Please fill both fields.', 'error'); return; }
+            if (!newDate || !newName) { showToast('Please fill both fields.', 'error'); return; }
             const d = new Date(newDate + 'T00:00:00');
             const formatted = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
             holidaysData[idx].dateISO = newDate;
@@ -5680,7 +5689,7 @@ const PAGE_SCRIPT = `
             editingHolidayIdx = -1;
             holidaysData.sort((a, b) => a.dateISO.localeCompare(b.dateISO));
             renderHolidays();
-            showToast('✅ Holiday updated!', 'success');
+            showToast('Holiday updated!', 'success');
         }
 
         // ===== OPEN DAY DETAIL (Calendar click) =====
@@ -5873,8 +5882,8 @@ const PAGE_SCRIPT = `
                         const totalPrice = (credits * pricePerCredit).toFixed(2);
 
                         // In a real app, this would initiate Razorpay payment
-                        alert(`Initiating payment for ${credits} credits (₹${totalPrice}). This would open Razorpay checkout in a real app.`);
-                        showToast(`✅ Payment initiated for ${credits} credits (₹${totalPrice})`, 'success');
+                        alert('Initiating payment for ' + credits + ' credits (₹' + totalPrice + '). This would open Razorpay checkout in a real app.');
+                        showToast('✅ Payment initiated for ' + credits + ' credits (₹' + totalPrice + ')', 'success');
                     });
                 }
                 // Download invoice
@@ -5917,8 +5926,8 @@ const PAGE_SCRIPT = `
               const updateSliderDisplay = () => {
                 const credits = parseInt(billingSlider.value);
                 const totalPrice = (credits * pricePerCredit).toFixed(2);
-                billingCredits.textContent = `${credits.toLocaleString()} credits`;
-                billingPrice.textContent = `₹${totalPrice}`;
+                billingCredits.textContent = credits.toLocaleString() + ' credits';
+                billingPrice.textContent = '₹' + totalPrice;
               };
 
               billingSlider.addEventListener('input', updateSliderDisplay);

@@ -1,6 +1,6 @@
 // src/middleware/rate-limit.ts
 import { Request, Response, NextFunction, RequestHandler } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { ErrorCode } from '../types';
 
@@ -12,7 +12,9 @@ const getUserIdentifier = (req: any): string => {
   if (req.userId) {
     return `user-${req.userId}`;
   }
-  return req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown';
+  const forwardedIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim();
+  const requestIp = req.ip || forwardedIp || '127.0.0.1';
+  return ipKeyGenerator(requestIp);
 };
 
 /**
@@ -53,7 +55,8 @@ export const rateLimitAI = rateLimit({
   max: 10, // limit each user to 10 requests per minute
   keyGenerator: (req: any) => {
     if (!req.userId) {
-      return req.ip || 'unknown';
+      const forwardedIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim();
+      return ipKeyGenerator(req.ip || forwardedIp || '127.0.0.1');
     }
     return `ai-user-${req.userId}`;
   },
@@ -91,7 +94,8 @@ export const authLimiter = rateLimit({
     if (email) {
       return `auth-${email}`;
     }
-    return `auth-${req.ip}`;
+    const forwardedIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim();
+    return `auth-${ipKeyGenerator(req.ip || forwardedIp || '127.0.0.1')}`;
   },
   handler: (req: any, res: Response) => {
     const email = (req.body?.email || req.body?.email_address || 'unknown').toString();

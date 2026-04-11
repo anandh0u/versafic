@@ -12,9 +12,61 @@ import { walletService } from '../../services/wallet.service';
 import { outboundCallService } from '../../services/outbound-call.service';
 import { normalizePhoneNumber } from '../../utils/validators';
 import { getPublicUrl } from '../../config/database';
+import { getOptionalEnv } from '../../utils/env';
 
 const CALL_CREDIT_COST = 20;
 const APP_NAME = process.env.APP_NAME || 'Versafic';
+const EXOTEL_NUMBER = getOptionalEnv('EXOTEL_NUMBER');
+const EXOTEL_API_BASE_URL = getOptionalEnv('EXOTEL_API_BASE_URL');
+
+const getPrimaryProviderConfig = () => {
+  if (EXOTEL_NUMBER) {
+    return {
+      configured: true,
+      provider: 'exotel',
+      ai_number: EXOTEL_NUMBER,
+      call_credit_cost: CALL_CREDIT_COST,
+      account_mode: 'live',
+      demo_mode: false,
+      cooldown_enabled: false,
+      daily_limit_enabled: false,
+      app_name: APP_NAME,
+      intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
+      trial_guidance: 'The AI number is connected through Exotel.',
+      webhooks: {
+        incoming: getPublicUrl('/exotel/incoming'),
+        status: getPublicUrl('/exotel/status'),
+        recording: getPublicUrl('/exotel/recording'),
+      },
+      auto_sync_enabled: false,
+      provider_base_url: EXOTEL_API_BASE_URL || null,
+    };
+  }
+
+  const twilioConfig = getTwilioService().getConfigurationSummary();
+  const demoModeEnabled = outboundCallService.isDemoModeEnabled();
+
+  return {
+    configured: true,
+    provider: 'twilio',
+    ai_number: twilioConfig.phoneNumber,
+    call_credit_cost: CALL_CREDIT_COST,
+    account_mode: twilioConfig.accountMode,
+    demo_mode: demoModeEnabled,
+    cooldown_enabled: !demoModeEnabled,
+    daily_limit_enabled: !demoModeEnabled,
+    app_name: APP_NAME,
+    intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
+    trial_guidance:
+      twilioConfig.accountMode === 'trial'
+        ? demoModeEnabled
+          ? 'Use verified customer numbers while the account is on trial. Demo mode removes the repeat-call cooldown and daily outbound cap.'
+          : 'Use verified customer numbers while the account is on trial.'
+        : 'The calling system is configured for live usage.',
+    webhooks: twilioConfig.webhooks,
+    auto_sync_enabled: twilioConfig.autoSyncEnabled,
+  };
+};
 
 const buildSimpleTwiml = (message: string): string => {
   const twiml = new twilio.twiml.VoiceResponse();
@@ -123,31 +175,10 @@ export const getCallConfig = async (
     }
 
     try {
-      const twilioConfig = getTwilioService().getConfigurationSummary();
-      const demoModeEnabled = outboundCallService.isDemoModeEnabled();
-
       res.status(200).json({
         status: 'success',
         message: 'Call configuration retrieved',
-        data: {
-          configured: true,
-          ai_number: twilioConfig.phoneNumber,
-          call_credit_cost: CALL_CREDIT_COST,
-          account_mode: twilioConfig.accountMode,
-          demo_mode: demoModeEnabled,
-          cooldown_enabled: !demoModeEnabled,
-          daily_limit_enabled: !demoModeEnabled,
-          app_name: APP_NAME,
-          intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
-          trial_guidance:
-            twilioConfig.accountMode === 'trial'
-              ? demoModeEnabled
-                ? 'Use verified customer numbers while the Twilio account is on trial. Demo mode removes both the repeat-call cooldown and the daily outbound cap for presentations.'
-                : 'Use verified customer numbers while the Twilio account is on trial.'
-              : 'The calling system is configured for live Twilio usage.',
-          webhooks: twilioConfig.webhooks,
-          auto_sync_enabled: twilioConfig.autoSyncEnabled,
-        },
+        data: getPrimaryProviderConfig(),
         timestamp: new Date().toISOString(),
       });
     } catch {
@@ -156,6 +187,7 @@ export const getCallConfig = async (
         message: 'Call configuration retrieved',
         data: {
           configured: false,
+          provider: EXOTEL_NUMBER ? 'exotel' : 'twilio',
           ai_number: null,
           call_credit_cost: CALL_CREDIT_COST,
           account_mode: 'trial',
@@ -164,11 +196,11 @@ export const getCallConfig = async (
           daily_limit_enabled: false,
           app_name: APP_NAME,
           intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
-          trial_guidance: 'Set the Twilio environment variables to enable live calling.',
+          trial_guidance: 'Set the provider environment variables to enable live calling.',
           webhooks: {
-            incoming: getPublicUrl('/call/incoming'),
-            status: getPublicUrl('/call/status'),
-            recording: getPublicUrl('/call/recording'),
+            incoming: getPublicUrl(EXOTEL_NUMBER ? '/exotel/incoming' : '/call/incoming'),
+            status: getPublicUrl(EXOTEL_NUMBER ? '/exotel/status' : '/call/status'),
+            recording: getPublicUrl(EXOTEL_NUMBER ? '/exotel/recording' : '/call/recording'),
             outboundTwiml: getPublicUrl('/call/outbound/twiml'),
           },
           auto_sync_enabled: false,
@@ -188,25 +220,10 @@ export const getPublicCallConfig = async (
 ): Promise<void> => {
   try {
     try {
-      const twilioConfig = getTwilioService().getConfigurationSummary();
-      const demoModeEnabled = outboundCallService.isDemoModeEnabled();
-
       res.status(200).json({
         status: 'success',
         message: 'Public call configuration retrieved',
-        data: {
-          configured: true,
-          ai_number: twilioConfig.phoneNumber,
-          call_credit_cost: CALL_CREDIT_COST,
-          account_mode: twilioConfig.accountMode,
-          demo_mode: demoModeEnabled,
-          app_name: APP_NAME,
-          intro_message: `Hello, this is an AI assistant from ${APP_NAME}.`,
-          trial_guidance:
-            twilioConfig.accountMode === 'trial'
-              ? 'Calls on the trial account work with verified numbers while Twilio trial restrictions are active.'
-              : 'The AI number is ready for live calling.',
-        },
+        data: getPrimaryProviderConfig(),
         timestamp: new Date().toISOString(),
       });
     } catch {
@@ -215,6 +232,7 @@ export const getPublicCallConfig = async (
         message: 'Public call configuration retrieved',
         data: {
           configured: false,
+          provider: EXOTEL_NUMBER ? 'exotel' : 'twilio',
           ai_number: null,
           call_credit_cost: CALL_CREDIT_COST,
           account_mode: 'trial',

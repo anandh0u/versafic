@@ -41,6 +41,7 @@ import {
   register,
   saveSetupBusiness,
   sendCustomerServiceChat,
+  startExotelCall,
   setPreferredPlanId,
   startCustomerServiceSession,
   updateBusiness,
@@ -4136,19 +4137,19 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
   const identitySection = sections[0] || null;
   const voiceSection = sections[1] || null;
 
-  let displayNameSelect =
+  const displayNameSelect =
     settingsPage.querySelector<HTMLSelectElement>("#aiDisplayName") ||
     identitySection?.querySelector<HTMLSelectElement>("select") ||
     null;
-  let greetingTextarea =
+  const greetingTextarea =
     settingsPage.querySelector<HTMLTextAreaElement>("#aiGreetingMessage") ||
     identitySection?.querySelector<HTMLTextAreaElement>("textarea") ||
     null;
-  let businessNameInput =
+  const businessNameInput =
     settingsPage.querySelector<HTMLInputElement>("#aiBusinessName") ||
     identitySection?.querySelector<HTMLInputElement>("input[type='text']") ||
     null;
-  let languageSelect =
+  const languageSelect =
     settingsPage.querySelector<HTMLSelectElement>("#aiLanguage") ||
     (voiceSection?.querySelectorAll<HTMLSelectElement>("select")[1] ?? null);
 
@@ -4200,6 +4201,14 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
         </div>
       </div>
       <div id="aiConsentHint" style="font-size:0.82rem;color:var(--text-muted);margin-top:10px"></div>
+      <div class="form-group" style="margin-top:16px">
+        <label class="input-label">Test Call Number</label>
+        <input class="input-field" id="aiTestCallNumber" type="text" placeholder="Enter the phone number to receive the Exotel test call">
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" id="aiPlaceTestCallBtn" type="button">Place Test Call</button>
+        <div id="aiCallActionHint" style="font-size:0.82rem;color:var(--text-muted)">Save consent, then place a test call to the number above.</div>
+      </div>
     `;
 
     const insertionPoint = voiceSection || identitySection;
@@ -4211,10 +4220,37 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     refreshLegacyIcons();
   }
 
-  let aiNumberInput = settingsPage.querySelector<HTMLInputElement>("#aiNumberDisplay");
-  let consentToggle = settingsPage.querySelector<HTMLInputElement>("#aiCallConsentToggle");
-  let optOutToggle = settingsPage.querySelector<HTMLInputElement>("#aiCallOptOutToggle");
-  let consentHint = settingsPage.querySelector<HTMLElement>("#aiConsentHint");
+  if (!settingsPage.querySelector("#aiTestCallNumber")) {
+    const testCallWrap = document.createElement("div");
+    testCallWrap.id = "aiTestCallWrap";
+    testCallWrap.innerHTML = `
+      <div class="form-group" style="margin-top:16px">
+        <label class="input-label">Test Call Number</label>
+        <input class="input-field" id="aiTestCallNumber" type="text" placeholder="Enter the phone number to receive the Exotel test call">
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" id="aiPlaceTestCallBtn" type="button">Place Test Call</button>
+        <div id="aiCallActionHint" style="font-size:0.82rem;color:var(--text-muted)">Save consent, then place a test call to the number above.</div>
+      </div>
+    `;
+
+    const hintNode = settingsPage.querySelector("#aiConsentHint");
+    if (hintNode?.parentNode) {
+      hintNode.parentNode.insertBefore(testCallWrap, hintNode.nextSibling);
+    } else {
+      settingsPage.appendChild(testCallWrap);
+    }
+  }
+
+  const aiNumberInput = settingsPage.querySelector<HTMLInputElement>("#aiNumberDisplay");
+  const consentToggle = settingsPage.querySelector<HTMLInputElement>("#aiCallConsentToggle");
+  const optOutToggle = settingsPage.querySelector<HTMLInputElement>("#aiCallOptOutToggle");
+  const consentHint = settingsPage.querySelector<HTMLElement>("#aiConsentHint");
+  const testCallNumberInput = settingsPage.querySelector<HTMLInputElement>("#aiTestCallNumber");
+  const testCallButton = replaceInteractiveElement(
+    settingsPage.querySelector<HTMLButtonElement>("#aiPlaceTestCallBtn")
+  );
+  const testCallHint = settingsPage.querySelector<HTMLElement>("#aiCallActionHint");
 
   if (businessNameInput && state.setup?.businessName) {
     businessNameInput.value = state.setup.businessName;
@@ -4224,6 +4260,9 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
   }
   if (aiNumberInput) {
     aiNumberInput.value = state.callConfig?.ai_number || "Not configured yet";
+  }
+  if (testCallNumberInput) {
+    testCallNumberInput.value = state.user?.phone_number || state.setup?.phone || "";
   }
   if (consentToggle) {
     consentToggle.checked = Boolean(state.user?.call_consent);
@@ -4235,8 +4274,8 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     consentHint.textContent = state.user?.call_opt_out
       ? "This account is currently opted out of AI outbound calls."
       : state.user?.call_consent
-        ? "This account has saved consent for AI outbound calls."
-        : "Enable consent if you want this account to receive AI outbound calls.";
+        ? "This account has saved consent for Exotel AI outbound calls."
+        : "Enable consent if you want this account to receive Exotel AI outbound calls.";
   }
   const updateConsentHint = () => {
     if (!consentHint) {
@@ -4246,8 +4285,8 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     consentHint.textContent = optOutToggle?.checked
       ? "This account is currently opted out of AI outbound calls."
       : consentToggle?.checked
-        ? "This account has saved consent for AI outbound calls."
-        : "Enable consent if you want this account to receive AI outbound calls.";
+        ? "This account has saved consent for Exotel AI outbound calls."
+        : "Enable consent if you want this account to receive Exotel AI outbound calls.";
   };
   consentToggle?.addEventListener("change", updateConsentHint);
   optOutToggle?.addEventListener("change", updateConsentHint);
@@ -4297,9 +4336,90 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
         `${displayNameSelect?.value || "Assistant"} settings saved. AI number and call consent are now synced to your account.`,
         "success"
       );
+      if (testCallHint && state.callConfig?.ai_number) {
+        testCallHint.textContent = `Your account is now ready for Exotel calls from ${state.callConfig.ai_number}.`;
+      }
     } catch (error) {
       const message = error instanceof LegacyApiError ? error.message : "Unable to save settings right now.";
       showToast(message, "warn");
+    }
+  });
+
+  testCallButton?.addEventListener("click", async () => {
+    const user = state.user;
+    const phone = normalizeText(testCallNumberInput?.value) || normalizeText(user?.phone_number) || normalizeText(state.setup?.phone);
+    const phoneValidationMessage = getPhoneValidationMessage(phone);
+
+    if (!user?.email) {
+      showToast("Log in again before placing a test call.", "warn");
+      return;
+    }
+
+    if (!state.callConfig?.configured || !state.callConfig?.ai_number) {
+      showToast("The Exotel AI number is not configured yet.", "warn");
+      return;
+    }
+
+    if (phoneValidationMessage) {
+      if (testCallHint) {
+        testCallHint.textContent = phoneValidationMessage;
+      }
+      showToast(phoneValidationMessage, "warn");
+      testCallNumberInput?.focus();
+      return;
+    }
+
+    if (optOutToggle?.checked) {
+      const message = "Turn off call opt-out before placing an Exotel test call.";
+      if (testCallHint) {
+        testCallHint.textContent = message;
+      }
+      showToast(message, "warn");
+      return;
+    }
+
+    if (!consentToggle?.checked) {
+      const message = "Enable outbound call consent before placing an Exotel test call.";
+      if (testCallHint) {
+        testCallHint.textContent = message;
+      }
+      showToast(message, "warn");
+      consentToggle?.focus();
+      return;
+    }
+
+    const originalLabel = testCallButton.textContent;
+    testCallButton.textContent = "Calling...";
+    testCallButton.setAttribute("disabled", "true");
+
+    try {
+      await updateCurrentUser({
+        phone_number: phone,
+        call_consent: true,
+        call_opt_out: false,
+      });
+
+      const businesses = await getBusinessList(50);
+      const ownBusiness = businesses.find((business) => business.email === user.email);
+
+      await startExotelCall({
+        customer_number: phone,
+        business_id: ownBusiness?.id,
+      });
+
+      if (testCallHint) {
+        testCallHint.textContent = `Exotel call requested from ${state.callConfig.ai_number} to ${phone}.`;
+      }
+      showToast(`Exotel is calling ${phone} now.`, "success");
+    } catch (error) {
+      const message = error instanceof LegacyApiError ? error.message : "Unable to place the Exotel test call right now.";
+      if (testCallHint) {
+        testCallHint.textContent = message;
+      }
+      showToast(message, "warn");
+    } finally {
+      testCallButton.textContent = originalLabel || "Place Test Call";
+      testCallButton.removeAttribute("disabled");
     }
   });
 

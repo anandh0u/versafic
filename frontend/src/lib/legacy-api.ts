@@ -96,6 +96,7 @@ export type BusinessRecord = {
 
 export type CallConfig = {
   configured: boolean;
+  provider?: string;
   ai_number: string | null;
   call_credit_cost: number;
   account_mode?: string;
@@ -629,10 +630,12 @@ export const verifyPayment = async (payload: {
   });
 
 export const getCallConfig = async () =>
-  request<CallConfig>("/call/config", undefined, { auth: true });
+  request<CallConfig>("/exotel/config")
+    .catch(() => request<CallConfig>("/call/config", undefined, { auth: true }));
 
 export const getPublicCallConfig = async () =>
-  request<CallConfig>("/call/public-config");
+  request<CallConfig>("/exotel/config")
+    .catch(() => request<CallConfig>("/call/public-config"));
 
 export const getCallSessions = async (limit = 12) =>
   request<{ sessions: CallSession[]; credit_cost: number }>(`/call/sessions?limit=${limit}`, undefined, { auth: true });
@@ -647,6 +650,19 @@ export const initiateOutboundCall = async (payload: { phone_number: string; purp
     { auth: true }
   ).then((result) => {
     notifyDataChanged("outbound-call-started");
+    return result;
+  });
+
+export const startExotelCall = async (payload: { customer_number: string; business_id?: string }) =>
+  request<Record<string, unknown>>(
+    "/call/start",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  ).then((result) => {
+    notifyDataChanged("exotel-call-started");
     return result;
   });
 

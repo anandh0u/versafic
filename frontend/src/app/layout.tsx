@@ -1,22 +1,27 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import type { ReactNode } from "react";
-import "@/app/globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "Versafic",
-  description: "Versafic frontend",
+  title: 'Versafic — AI Call Automation & Business Discovery',
+  description:
+    'Versafic AI answers every business call instantly, understands customer intent, books appointments automatically, and blocks spam callers.',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body className={inter.variable}>{children}</body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }

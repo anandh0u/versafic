@@ -3,6 +3,22 @@ import { logger } from "./logger";
 import * as fs from "fs";
 import * as path from "path";
 
+const resolveMigrationsDir = (): string => {
+  const candidates = [
+    path.resolve(process.cwd(), "migrations"),
+    path.resolve(__dirname, "../../migrations"),
+    path.resolve(__dirname, "../migrations"),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[0] ?? path.resolve(process.cwd(), "migrations");
+};
+
 /**
  * Run database migrations in order
  * Uses a migrations tracking table to only run new migrations
@@ -24,7 +40,7 @@ export const runMigrations = async (): Promise<void> => {
     const executed = await client.query("SELECT name FROM _migrations ORDER BY id");
     const executedSet = new Set(executed.rows.map((r: any) => r.name));
 
-    const migrationsDir = path.join(__dirname, "../../migrations");
+    const migrationsDir = resolveMigrationsDir();
     const files = fs.readdirSync(migrationsDir).sort();
 
     let newMigrations = 0;

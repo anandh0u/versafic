@@ -10,6 +10,41 @@ export type LegacyTemplate = {
 const templatesDir = path.join(process.cwd(), "legacy", "templates");
 const sharedStylePath = path.join(templatesDir, "style.css");
 
+const iconMarkup = (name: string) => `<span class="vf-icon-wrap"><i data-lucide="${name}" class="vf-icon"></i></span>`;
+
+const markupIconReplacements: Array<[string, string]> = [
+  ["⚙️", iconMarkup("settings")],
+  ["🎙️", iconMarkup("mic")],
+  ["🏷️", iconMarkup("tag")],
+  ["📞", iconMarkup("phone")],
+  ["💬", iconMarkup("message-square")],
+  ["🤖", iconMarkup("bot")],
+  ["⭐", iconMarkup("star")],
+  ["💰", iconMarkup("indian-rupee")],
+  ["🏨", iconMarkup("hotel")],
+  ["🍽️", iconMarkup("utensils")],
+  ["🏥", iconMarkup("hospital")],
+  ["📸", iconMarkup("camera")],
+  ["💼", iconMarkup("briefcase")],
+  ["🎵", iconMarkup("music")],
+  ["💻", iconMarkup("monitor")],
+  ["🎯", iconMarkup("target")],
+  ["📋", iconMarkup("clipboard-list")],
+  ["📱", iconMarkup("smartphone")],
+  ["📅", iconMarkup("calendar")],
+  ["🛎️", iconMarkup("concierge-bell")],
+  ["🍷", iconMarkup("wine")],
+  ["💊", iconMarkup("pill")],
+  ["✂️", iconMarkup("scissors")],
+  ["🤝", iconMarkup("handshake")],
+  ["📝", iconMarkup("file-text")],
+  ["👤", iconMarkup("user")],
+  ["✉️", iconMarkup("mail")],
+  ["🏠", iconMarkup("house")],
+  ["🆕", iconMarkup("sparkles")],
+  ["📦", iconMarkup("package")],
+];
+
 const routeReplacements: Array<[RegExp, string]> = [
   [/href="index\.html"/g, 'href="/"'],
   [/href="index\.html#([^"]+)"/g, 'href="/#$1"'],
@@ -44,6 +79,9 @@ const sanitizeLegacyScript = (name: "index" | "dashboard" | "onboarding" | "sear
   return input;
 };
 
+const applyMarkupIconReplacements = (input: string) =>
+  markupIconReplacements.reduce((result, [pattern, replacement]) => result.split(pattern).join(replacement), input);
+
 const extractSection = (source: string, tag: string) => {
   const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi");
   const matches = [...source.matchAll(regex)];
@@ -67,7 +105,7 @@ export const loadLegacyTemplate = (
   const bodyWithoutScripts = rawBody.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
 
   let script = applyRouteReplacements(sanitizeLegacyScript(name, pageScript));
-  let markup = applyRouteReplacements(bodyWithoutScripts);
+  let markup = applyMarkupIconReplacements(applyRouteReplacements(bodyWithoutScripts));
 
   if (name === "profile" && options?.profileId) {
     script = script.replace(

@@ -36,3 +36,7 @@ coverage/
 
 # Local Codex artifacts
 .codex-artifacts/
+
+# Local tooling / exports
+.tools/
+backend-export/

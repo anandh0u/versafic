@@ -63,9 +63,9 @@ router.post("/tts", async (req: Request, res: Response) => {
 
 /**
  * GET /voice/conversations/phone/:phone
- * Get conversations by phone number
+ * Get conversations by phone number (requires JWT auth)
  */
-router.get("/conversations/phone/:phone", async (req: Request, res: Response) => {
+router.get("/conversations/phone/:phone", verifyToken, async (req: Request, res: Response) => {
   try {
     await VoiceController.getConversationsByPhone(req, res);
   } catch (error) {
@@ -97,9 +97,9 @@ router.get("/conversations/recent", verifyToken, async (req: Request, res: Respo
 
 /**
  * GET /voice/statistics
- * Get voice interaction statistics
+ * Get voice interaction statistics (requires JWT auth)
  */
-router.get("/statistics", async (req: Request, res: Response) => {
+router.get("/statistics", verifyToken, async (req: Request, res: Response) => {
   try {
     await VoiceController.getStatistics(req, res);
   } catch (error) {

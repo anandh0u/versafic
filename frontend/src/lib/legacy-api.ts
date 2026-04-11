@@ -36,9 +36,13 @@ export type AuthUser = {
   id: number | string;
   email: string;
   name?: string | null;
+  phoneNumber?: string | null;
   phone_number?: string | null;
+  callConsent?: boolean;
   call_consent?: boolean;
+  callOptOut?: boolean;
   call_opt_out?: boolean;
+  is_onboarded?: boolean;
   isOnboarded?: boolean;
 };
 
@@ -92,6 +96,7 @@ export type BusinessRecord = {
 
 export type CallConfig = {
   configured: boolean;
+  provider?: string;
   ai_number: string | null;
   call_credit_cost: number;
   account_mode?: string;
@@ -261,6 +266,52 @@ const readSession = (): SessionShape | null => {
   }
 };
 
+const normalizeAuthUser = (value: unknown): AuthUser | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const phone =
+    typeof raw.phone_number === "string"
+      ? raw.phone_number
+      : typeof raw.phoneNumber === "string"
+        ? raw.phoneNumber
+        : null;
+  const callConsent =
+    typeof raw.call_consent === "boolean"
+      ? raw.call_consent
+      : typeof raw.callConsent === "boolean"
+        ? raw.callConsent
+        : false;
+  const callOptOut =
+    typeof raw.call_opt_out === "boolean"
+      ? raw.call_opt_out
+      : typeof raw.callOptOut === "boolean"
+        ? raw.callOptOut
+        : false;
+  const isOnboarded =
+    typeof raw.is_onboarded === "boolean"
+      ? raw.is_onboarded
+      : typeof raw.isOnboarded === "boolean"
+        ? raw.isOnboarded
+        : false;
+
+  return {
+    id: raw.id as string | number,
+    email: String(raw.email || ""),
+    name: typeof raw.name === "string" ? raw.name : null,
+    phoneNumber: phone,
+    phone_number: phone,
+    callConsent,
+    call_consent: callConsent,
+    callOptOut: callOptOut,
+    call_opt_out: callOptOut,
+    is_onboarded: isOnboarded,
+    isOnboarded: isOnboarded,
+  };
+};
+
 const writeSession = (session: SessionShape) => {
   if (typeof window === "undefined") {
     return;
@@ -287,7 +338,7 @@ export const getStoredSession = () => readSession();
 
 export const getStoredUser = (): AuthUser | null => {
   const session = readSession();
-  return (session?.user as AuthUser | null) ?? null;
+  return normalizeAuthUser(session?.user ?? null);
 };
 
 export const getPreferredPlanId = (): string | null => {
@@ -391,13 +442,18 @@ export const login = async (email: string, password: string) => {
     body: JSON.stringify({ email, password }),
   });
 
+  const normalizedUser = normalizeAuthUser(data.user);
+  if (!normalizedUser) {
+    throw new LegacyApiError("Login succeeded but the user payload was invalid.", 500, data.user);
+  }
+
   writeSession({
     accessToken: data.accessToken,
     refreshToken: data.refreshToken,
-    user: data.user,
+    user: normalizedUser,
   });
 
-  return data.user;
+  return normalizedUser;
 };
 
 export const getOAuthStartUrl = (provider: "google" | "github") => {
@@ -462,13 +518,18 @@ export const register = async (payload: { email: string; password: string; name:
     body: JSON.stringify(payload),
   });
 
+  const normalizedUser = normalizeAuthUser(data.user);
+  if (!normalizedUser) {
+    throw new LegacyApiError("Registration succeeded but the user payload was invalid.", 500, data.user);
+  }
+
   writeSession({
     accessToken: data.accessToken,
     refreshToken: data.refreshToken,
-    user: data.user,
+    user: normalizedUser,
   });
 
-  return data.user;
+  return normalizedUser;
 };
 
 export const validateRegistrableEmail = async (email: string) =>
@@ -482,7 +543,11 @@ export const validateRegistrableEmail = async (email: string) =>
   });
 
 export const getCurrentUser = async () => {
-  const user = await request<AuthUser>("/auth/me", undefined, { auth: true });
+  const responseUser = await request<AuthUser>("/auth/me", undefined, { auth: true });
+  const user = normalizeAuthUser(responseUser);
+  if (!user) {
+    throw new LegacyApiError("Current user payload was invalid.", 500, responseUser);
+  }
   const session = readSession();
   if (session) {
     writeSession({
@@ -503,8 +568,21 @@ export const updateCurrentUser = async (payload: Record<string, unknown>) =>
     },
     { auth: true }
   ).then((result) => {
+    const normalizedUser = normalizeAuthUser(result);
+    if (!normalizedUser) {
+      throw new LegacyApiError("Updated user payload was invalid.", 500, result);
+    }
+    const session = readSession();
+    if (session) {
+      writeSession({
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        user: normalizedUser,
+      });
+    }
+
     notifyDataChanged("user-updated");
-    return result;
+    return normalizedUser;
   });
 
 export const getPlans = async () =>
@@ -552,10 +630,10 @@ export const verifyPayment = async (payload: {
   });
 
 export const getCallConfig = async () =>
-  request<CallConfig>("/call/config", undefined, { auth: true });
+  request<CallConfig>("/exotel/config");
 
 export const getPublicCallConfig = async () =>
-  request<CallConfig>("/call/public-config");
+  request<CallConfig>("/exotel/config");
 
 export const getCallSessions = async (limit = 12) =>
   request<{ sessions: CallSession[]; credit_cost: number }>(`/call/sessions?limit=${limit}`, undefined, { auth: true });
@@ -570,6 +648,19 @@ export const initiateOutboundCall = async (payload: { phone_number: string; purp
     { auth: true }
   ).then((result) => {
     notifyDataChanged("outbound-call-started");
+    return result;
+  });
+
+export const startExotelCall = async (payload: { customer_number: string; business_id?: string }) =>
+  request<Record<string, unknown>>(
+    "/call/start",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  ).then((result) => {
+    notifyDataChanged("exotel-call-started");
     return result;
   });
 
@@ -595,7 +686,7 @@ export const sendAiChat = async (message: string) =>
 export const startCustomerServiceSession = async () =>
   request<CustomerServiceSession>("/customer-service/start", {
     method: "POST",
-  });
+  }, { auth: true });
 
 export const sendCustomerServiceChat = async (payload: { sessionId: string; textMessage: string; languageCode?: string }) =>
   request<CustomerServiceReply>(
@@ -603,8 +694,12 @@ export const sendCustomerServiceChat = async (payload: { sessionId: string; text
     {
       method: "POST",
       body: JSON.stringify(payload),
-    }
-  );
+    },
+    { auth: true }
+  ).then((result) => {
+    notifyDataChanged("customer-service-chat");
+    return result;
+  });
 
 export const getVoiceStats = async () =>
   request<{ success: boolean; stats?: VoiceStatistics }>("/voice/statistics").then((result) => result.stats ?? {

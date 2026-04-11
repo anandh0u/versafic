@@ -1,20 +1,25 @@
-import { LegacyPage } from "@/components/legacy/legacy-page";
-import { loadLegacyTemplate } from "@/lib/legacy-template";
+'use client';
+
+import Script from 'next/script';
+import HomePage from '../page';
 
 export default function LoginPage() {
-  const template = loadLegacyTemplate("index");
-
   return (
-    <LegacyPage
-      pageKey="login"
-      {...template}
-      extraScript={`
+    <>
+      <HomePage />
+      <Script id="versafic-open-login-modal" strategy="afterInteractive">
+        {`
 window.setTimeout(() => {
-  if (typeof window.openLogin === 'function') {
-    window.openLogin();
+  try {
+    if (typeof window.openLogin === 'function') {
+      window.openLogin();
+    }
+  } catch (error) {
+    console.error('Failed to open login modal', error);
   }
-}, 80);
+}, 120);
 `}
-    />
+      </Script>
+    </>
   );
 }

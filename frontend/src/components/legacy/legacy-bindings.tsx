@@ -30,15 +30,18 @@ import {
   getResolvedInteractions,
   getSetupBusiness,
   getSetupStatus,
+  getPreferredPlanId,
   getStoredSession,
   getStoredUser,
   getVoiceStats,
   getWallet,
+  clearSession,
   LegacyApiError,
   login,
   register,
   saveSetupBusiness,
   sendCustomerServiceChat,
+  startExotelCall,
   setPreferredPlanId,
   startCustomerServiceSession,
   updateBusiness,
@@ -98,6 +101,7 @@ type DashboardState = {
 
 type RazorpayWindow = Window & {
   Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  lucide?: { createIcons: () => void };
   showToast?: (message: string, type?: string) => void;
   showPage?: (pageId: string, navItem?: HTMLElement | null) => void;
   openLogin?: () => void;
@@ -135,6 +139,7 @@ type RazorpayWindow = Window & {
   __versaficSelectedWorkflowFilter?: string;
   __versaficDashboardPopstateBound?: boolean;
   __versaficLoadedDashboardPages?: Record<string, boolean>;
+  __versaficRefreshIcons?: () => void;
 };
 
 const selectedPlanOutline = "2px solid #6366f1";
@@ -300,8 +305,18 @@ const getDashboardUrlForPage = (pageId: string) => {
       return "/dashboard";
     case "calls":
       return "/dashboard/calls";
+    case "chats":
+      return "/dashboard/chats";
+    case "bookings":
+      return "/dashboard/bookings";
+    case "customers":
+      return "/dashboard/customers";
+    case "analytics":
+      return "/dashboard/analytics";
     case "credits":
       return "/dashboard/billing";
+    case "agent":
+      return "/dashboard/agent";
     default:
       return `/dashboard?tab=${encodeURIComponent(pageId)}`;
   }
@@ -316,8 +331,23 @@ const getDashboardPageFromLocation = () => {
   if (pathname.endsWith("/calls")) {
     return "calls";
   }
+  if (pathname.endsWith("/chats")) {
+    return "chats";
+  }
+  if (pathname.endsWith("/bookings")) {
+    return "bookings";
+  }
+  if (pathname.endsWith("/customers")) {
+    return "customers";
+  }
+  if (pathname.endsWith("/analytics")) {
+    return "analytics";
+  }
   if (pathname.endsWith("/billing")) {
     return "credits";
+  }
+  if (pathname.endsWith("/agent")) {
+    return "agent";
   }
 
   const tab = new URLSearchParams(window.location.search).get("tab") || "";
@@ -354,7 +384,15 @@ const activateDashboardPage = (pageId: string, navItem?: HTMLElement | null) => 
 };
 
 const updateSidebarBadge = (pageId: "calls" | "chats", count: number) => {
-  const badge = document.querySelector<HTMLElement>(`.sidebar-live-badge[data-badge-for="${pageId}"]`);
+  let badge = document.querySelector<HTMLElement>(`.sidebar-live-badge[data-badge-for="${pageId}"]`);
+  if (!badge) {
+    const navIndex = pageId === "calls" ? 2 : 3;
+    badge = document.querySelector<HTMLElement>(`.sidebar-nav .nav-item:nth-child(${navIndex}) .badge`);
+    if (badge) {
+      badge.classList.add("sidebar-live-badge");
+      badge.dataset.badgeFor = pageId;
+    }
+  }
   if (!badge) {
     return;
   }
@@ -400,9 +438,23 @@ const getUserInitials = (name: string) => {
 };
 
 const updateSidebarIdentity = (state: DashboardState) => {
-  const nameNode = document.querySelector<HTMLElement>(".sidebar-user-name");
-  const subtitleNode = document.querySelector<HTMLElement>(".sidebar-user-subtitle");
-  const initialsNode = document.querySelector<HTMLElement>(".sidebar-user-initials");
+  const identityBlock =
+    document.querySelector(".sidebar-header [style*='margin-top:16px']") ||
+    document.querySelector(".sidebar-header > div:last-of-type");
+  const fallbackTextWrap = identityBlock?.querySelector("div:last-child");
+
+  const nameNode =
+    document.querySelector<HTMLElement>(".sidebar-user-name") ||
+    fallbackTextWrap?.querySelector<HTMLElement>("div:first-child") ||
+    null;
+  const subtitleNode =
+    document.querySelector<HTMLElement>(".sidebar-user-subtitle") ||
+    fallbackTextWrap?.querySelector<HTMLElement>("div:nth-child(2)") ||
+    null;
+  const initialsNode =
+    document.querySelector<HTMLElement>(".sidebar-user-initials") ||
+    identityBlock?.querySelector<HTMLElement>("div:first-child") ||
+    null;
 
   const displayName = getUserDisplayName(state);
   const subtitle =
@@ -511,6 +563,12 @@ const bindDashboardNavigation = () => {
     ) || null;
 
   activateDashboardPage(initialPageId, initialNavItem);
+
+  const currentUrl = `${window.location.pathname}${window.location.search}`;
+  const normalizedInitialUrl = getDashboardUrlForPage(initialPageId);
+  if (currentUrl !== normalizedInitialUrl) {
+    window.history.replaceState({ pageId: initialPageId }, "", normalizedInitialUrl);
+  }
 };
 
 const escapeHtml = (value?: string | number | null) =>
@@ -520,6 +578,26 @@ const escapeHtml = (value?: string | number | null) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+
+const iconHtml = (name: string, extraClass = "vf-icon") =>
+  `<span class="vf-icon-wrap"><i data-lucide="${escapeHtml(name)}" class="${escapeHtml(extraClass)}"></i></span>`;
+
+const iconLabelHtml = (name: string, text: string, extraClass = "vf-icon") =>
+  `${iconHtml(name, extraClass)} ${escapeHtml(text)}`;
+
+const refreshLegacyIcons = () => {
+  window.setTimeout(() => {
+    try {
+      getWindowRef().__versaficRefreshIcons?.();
+    } catch (error) {
+      console.error("Failed to refresh legacy icons", error);
+    }
+  }, 0);
+};
+
+const setDashboardReady = (ready: boolean) => {
+  document.querySelector<HTMLElement>(".app-layout")?.setAttribute("data-dashboard-ready", ready ? "true" : "false");
+};
 
 const normalizeText = (value?: string | null) => value?.trim() || "";
 
@@ -1335,53 +1413,53 @@ const buildDirectoryBusiness = (business: BusinessRecord): DirectoryBusiness => 
     }
   > = {
     hotel: {
-      emoji: "🏨",
+      emoji: iconHtml("hotel"),
       badgeClass: "badge-blue",
       badgeText: "✓ Listed",
       accentTint: "rgba(59,130,246,0.18)",
-      aiLabels: ["📅 Bookings", "🛎️ Support", "📞 Calls"],
+      aiLabels: [iconLabelHtml("calendar", "Bookings"), iconLabelHtml("concierge-bell", "Support"), iconLabelHtml("phone", "Calls")],
     },
     restaurant: {
-      emoji: "🍽️",
+      emoji: iconHtml("utensils"),
       badgeClass: "badge-green",
       badgeText: "✓ Listed",
       accentTint: "rgba(16,185,129,0.18)",
-      aiLabels: ["📅 Reservations", "🍷 Menus", "📞 Calls"],
+      aiLabels: [iconLabelHtml("calendar", "Reservations"), iconLabelHtml("wine", "Menus"), iconLabelHtml("phone", "Calls")],
     },
     clinic: {
-      emoji: "🏥",
+      emoji: iconHtml("hospital"),
       badgeClass: "badge-green",
       badgeText: "✓ Listed",
       accentTint: "rgba(16,185,129,0.18)",
-      aiLabels: ["📅 Appointments", "💊 Support", "📞 Calls"],
+      aiLabels: [iconLabelHtml("calendar", "Appointments"), iconLabelHtml("pill", "Support"), iconLabelHtml("phone", "Calls")],
     },
     barber: {
-      emoji: "✂️",
+      emoji: iconHtml("scissors"),
       badgeClass: "badge-blue",
       badgeText: "✓ Listed",
       accentTint: "rgba(59,130,246,0.18)",
-      aiLabels: ["📅 Appointments", "✂️ Services", "📞 Calls"],
+      aiLabels: [iconLabelHtml("calendar", "Appointments"), iconLabelHtml("scissors", "Services"), iconLabelHtml("phone", "Calls")],
     },
     creator: {
-      emoji: "📸",
+      emoji: iconHtml("camera"),
       badgeClass: "badge-purple",
       badgeText: "✓ Creator",
       accentTint: "rgba(139,92,246,0.18)",
-      aiLabels: ["🤝 Collaborations", "💬 Inquiries", "📞 Calls"],
+      aiLabels: [iconLabelHtml("handshake", "Collaborations"), iconLabelHtml("message-square", "Inquiries"), iconLabelHtml("phone", "Calls")],
     },
     consultant: {
-      emoji: "💼",
+      emoji: iconHtml("briefcase"),
       badgeClass: "badge-cyan",
       badgeText: "✓ Listed",
       accentTint: "rgba(6,182,212,0.18)",
-      aiLabels: ["📅 Consultations", "💼 Intake", "📞 Calls"],
+      aiLabels: [iconLabelHtml("calendar", "Consultations"), iconLabelHtml("briefcase", "Intake"), iconLabelHtml("phone", "Calls")],
     },
     agency: {
-      emoji: "🚀",
+      emoji: iconHtml("rocket"),
       badgeClass: "badge-cyan",
       badgeText: "✓ Listed",
       accentTint: "rgba(6,182,212,0.18)",
-      aiLabels: ["📋 Discovery", "🤝 Leads", "📞 Calls"],
+      aiLabels: [iconLabelHtml("clipboard-list", "Discovery"), iconLabelHtml("handshake", "Leads"), iconLabelHtml("phone", "Calls")],
     },
   };
 
@@ -1398,7 +1476,7 @@ const buildDirectoryBusiness = (business: BusinessRecord): DirectoryBusiness => 
     badgeText: preset.badgeText,
     accentTint: preset.accentTint,
     listingContext: listedOn === "--" ? "Live on Versafic" : `Listed ${listedOn}`,
-    primaryMeta: `👤 ${ownerName}`,
+    primaryMeta: iconLabelHtml("user", ownerName),
     statusValue: status.value,
     statusLabel: status.label,
     statusSubtext: status.subtext,
@@ -1489,6 +1567,8 @@ const updateHomeDirectoryPreview = (businesses: DirectoryBusiness[]) => {
       <div class="ml-auto"><button class="btn btn-ghost btn-sm" style="font-size:0.78rem">View profile →</button></div>
     `;
   });
+
+  refreshLegacyIcons();
 };
 
 const updateHomeStats = (businesses: DirectoryBusiness[], plans: BillingPlan[], publicCallConfig: Awaited<ReturnType<typeof getPublicCallConfig>> | null) => {
@@ -1697,8 +1777,84 @@ const computeUsageBreakdown = (wallet: WalletInfo) => {
   return totals;
 };
 
+const DEFAULT_RECHARGE_MIN_CREDITS = 100;
+const DEFAULT_RECHARGE_MAX_CREDITS = 5000;
+const DEFAULT_RECHARGE_STEP = 10;
+
+const getRechargeAmountPaise = (credits: number, plans: BillingPlan[]) => {
+  const exactPlan = plans.find((plan) => plan.credits === credits);
+  if (exactPlan) {
+    return exactPlan.amount_paise;
+  }
+
+  return Math.max(100, credits * 10);
+};
+
+const getRechargeLabel = (credits: number, plans: BillingPlan[]) => {
+  const exactPlan = plans.find((plan) => plan.credits === credits);
+  if (exactPlan) {
+    return `${exactPlan.name} pack · live Razorpay checkout`;
+  }
+
+  return "Custom recharge · live Razorpay checkout";
+};
+
 const collectPageInputs = (scope: ParentNode, selector: string) =>
   Array.from(scope.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(selector));
+
+const getHomeAccountLabel = () => {
+  const user = getStoredUser();
+  const name = normalizeText(user?.name);
+  if (name) {
+    return name.length > 18 ? `${name.slice(0, 17)}…` : name;
+  }
+
+  const email = normalizeText(user?.email);
+  if (email) {
+    const localPart = email.split("@")[0] || email;
+    return localPart.length > 18 ? `${localPart.slice(0, 17)}…` : localPart;
+  }
+
+  return "My Account";
+};
+
+const syncHomeSessionActions = () => {
+  const session = getStoredSession();
+  if (!session?.accessToken) {
+    return;
+  }
+
+  const accountButton = replaceInteractiveElement(document.getElementById("homeLoginButton"));
+  const logoutButton = replaceInteractiveElement(document.getElementById("homeSignupButton"));
+  const primaryCta = replaceInteractiveElement(document.getElementById("homePrimaryCta"));
+
+  if (accountButton) {
+    accountButton.textContent = getHomeAccountLabel();
+    accountButton.addEventListener("click", () => {
+      window.location.href = "/dashboard";
+    });
+  }
+
+  if (logoutButton) {
+    logoutButton.textContent = "Log out";
+    logoutButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      clearSession();
+      showToast("Logged out successfully.", "success");
+      window.location.href = "/";
+    });
+  }
+
+  if (primaryCta) {
+    primaryCta.textContent = "Open dashboard →";
+    primaryCta.addEventListener("click", (event) => {
+      event.preventDefault();
+      window.location.href = "/dashboard";
+    });
+  }
+
+  getWindowRef().closeLogin?.();
+};
 
 const bindHomePage = async () => {
   const session = getStoredSession();
@@ -1763,9 +1919,13 @@ const bindHomePage = async () => {
 
   const socialButtons = Array.from(modal?.querySelectorAll<HTMLElement>(".social-btn") || []);
   socialButtons.forEach((button) => {
-    button.style.display = "";
+    if (button.textContent?.toLowerCase().includes("github")) {
+      button.remove();
+      return;
+    }
 
-    const provider = button.textContent?.toLowerCase().includes("github") ? "github" : "google";
+    button.style.display = "";
+    const provider = "google";
     const interactiveButton = replaceInteractiveElement(button);
     interactiveButton?.addEventListener("click", () => {
       window.location.href = getOAuthStartUrl(provider);
@@ -1775,6 +1935,8 @@ const bindHomePage = async () => {
   if (dividerRow) {
     dividerRow.style.display = "";
   }
+
+  syncHomeSessionActions();
 
   const loadPublicHomepageData = async () => {
     const [planResponse, publicCallConfig] = await Promise.all([
@@ -2108,7 +2270,7 @@ const bindOnboardingPage = async () => {
         await updateCurrentUser({
           name: fullName || profileName,
           phone_number: phone || undefined,
-          call_consent: true,
+          call_consent: false,
           call_opt_out: false,
         });
 
@@ -2179,6 +2341,7 @@ const renderSearchResults = (items: DirectoryBusiness[]) => {
     `;
     resultsCount.innerHTML = "<span>0</span> verified results";
     searchMeta.textContent = "Showing 0 results";
+    refreshLegacyIcons();
     return;
   }
 
@@ -2195,7 +2358,7 @@ const renderSearchResults = (items: DirectoryBusiness[]) => {
             <div class="biz-category">${business.business_type} · ${business.listingContext}</div>
             <div class="biz-meta">
               <span>${business.primaryMeta}</span>
-              <span class="biz-phone">📞 ${business.phone}</span>
+              <span class="biz-phone">${iconLabelHtml("phone", business.phone)}</span>
               ${business.aiLabels.map((label) => `<span>${label}</span>`).join("")}
             </div>
             <div class="biz-desc">${business.description}</div>
@@ -2211,6 +2374,7 @@ const renderSearchResults = (items: DirectoryBusiness[]) => {
 
   resultsCount.innerHTML = `<span>${items.length}</span> verified results`;
   searchMeta.textContent = `Showing ${items.length} results`;
+  refreshLegacyIcons();
 };
 
 const updateSearchSidebar = (businesses: DirectoryBusiness[]) => {
@@ -2232,23 +2396,23 @@ const updateSearchSidebar = (businesses: DirectoryBusiness[]) => {
   sections[0].querySelector("h4")!.textContent = "Business Types";
   sections[0].innerHTML = `
     <h4>Business Types</h4>
-    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> 🏨 Hotels</label><span class="filter-count">${formatNumber(kindCounts.hotel || 0)}</span></div>
-    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> 🍽️ Restaurants</label><span class="filter-count">${formatNumber(kindCounts.restaurant || 0)}</span></div>
-    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> 🏥 Clinics</label><span class="filter-count">${formatNumber(kindCounts.clinic || 0)}</span></div>
-    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> 📸 Creators</label><span class="filter-count">${formatNumber(kindCounts.creator || 0)}</span></div>
+    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ${iconLabelHtml("hotel", "Hotels")}</label><span class="filter-count">${formatNumber(kindCounts.hotel || 0)}</span></div>
+    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ${iconLabelHtml("utensils", "Restaurants")}</label><span class="filter-count">${formatNumber(kindCounts.restaurant || 0)}</span></div>
+    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ${iconLabelHtml("hospital", "Clinics")}</label><span class="filter-count">${formatNumber(kindCounts.clinic || 0)}</span></div>
+    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ${iconLabelHtml("camera", "Creators")}</label><span class="filter-count">${formatNumber(kindCounts.creator || 0)}</span></div>
   `;
 
   sections[1].innerHTML = `
     <h4>Contact Coverage</h4>
-    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> 📞 Phone listed</label><span class="filter-count">${formatNumber(businesses.filter((item) => normalizeText(item.phone)).length)}</span></div>
-    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ✉️ Email listed</label><span class="filter-count">${formatNumber(businesses.filter((item) => normalizeText(item.email)).length)}</span></div>
-    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> 👤 Owner listed</label><span class="filter-count">${formatNumber(businesses.filter((item) => normalizeText(item.owner_name)).length)}</span></div>
+    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ${iconLabelHtml("phone", "Phone listed")}</label><span class="filter-count">${formatNumber(businesses.filter((item) => normalizeText(item.phone)).length)}</span></div>
+    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ${iconLabelHtml("mail", "Email listed")}</label><span class="filter-count">${formatNumber(businesses.filter((item) => normalizeText(item.email)).length)}</span></div>
+    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ${iconLabelHtml("user", "Owner listed")}</label><span class="filter-count">${formatNumber(businesses.filter((item) => normalizeText(item.owner_name)).length)}</span></div>
   `;
 
   sections[2].innerHTML = `
     <h4>Directory Status</h4>
     <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ✓ Live listings</label><span class="filter-count">${formatNumber(businesses.length)}</span></div>
-    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> 🆕 Added in 30 days</label><span class="filter-count">${formatNumber(recentCount)}</span></div>
+    <div class="filter-item"><label><input type="checkbox" class="filter-checkbox" checked disabled> ${iconLabelHtml("sparkles", "Added in 30 days")}</label><span class="filter-count">${formatNumber(recentCount)}</span></div>
   `;
 
   sections[3].querySelector("h4")!.textContent = "Search Directory";
@@ -2274,6 +2438,8 @@ const updateSearchSidebar = (businesses: DirectoryBusiness[]) => {
       getWindowRef().doSearch?.();
     });
   }
+
+  refreshLegacyIcons();
 };
 
 const bindSearchPage = async () => {
@@ -2398,39 +2564,39 @@ const bindSearchPage = async () => {
 const buildProfileActions = (business: DirectoryBusiness) => {
   const actionPresets: Record<BusinessKind, Array<{ icon: string; color: string; title: string; sub: string }>> = {
     hotel: [
-      { icon: "📅", color: "#7c3aed", title: "Bookings", sub: "Check availability and reserve" },
-      { icon: "🛎️", color: "#2563eb", title: "Guest Support", sub: "FAQs, stays, and concierge" },
-      { icon: "📞", color: "#0891b2", title: "AI Calls", sub: "Customer support through the AI number" },
+      { icon: iconHtml("calendar"), color: "#7c3aed", title: "Bookings", sub: "Check availability and reserve" },
+      { icon: iconHtml("concierge-bell"), color: "#2563eb", title: "Guest Support", sub: "FAQs, stays, and concierge" },
+      { icon: iconHtml("phone"), color: "#0891b2", title: "AI Calls", sub: "Customer support through the AI number" },
     ],
     restaurant: [
-      { icon: "🍽️", color: "#059669", title: "Reservations", sub: "Table requests and availability" },
-      { icon: "📋", color: "#2563eb", title: "Menu Questions", sub: "Menu and event details" },
-      { icon: "📞", color: "#0891b2", title: "AI Calls", sub: "Phone support through the AI number" },
+      { icon: iconHtml("utensils"), color: "#059669", title: "Reservations", sub: "Table requests and availability" },
+      { icon: iconHtml("clipboard-list"), color: "#2563eb", title: "Menu Questions", sub: "Menu and event details" },
+      { icon: iconHtml("phone"), color: "#0891b2", title: "AI Calls", sub: "Phone support through the AI number" },
     ],
     clinic: [
-      { icon: "📅", color: "#0284c7", title: "Appointments", sub: "Schedule visits and follow-ups" },
-      { icon: "💊", color: "#0891b2", title: "Patient Support", sub: "Prescription and service questions" },
-      { icon: "📞", color: "#0f766e", title: "AI Calls", sub: "Call the AI line for support" },
+      { icon: iconHtml("calendar"), color: "#0284c7", title: "Appointments", sub: "Schedule visits and follow-ups" },
+      { icon: iconHtml("pill"), color: "#0891b2", title: "Patient Support", sub: "Prescription and service questions" },
+      { icon: iconHtml("phone"), color: "#0f766e", title: "AI Calls", sub: "Call the AI line for support" },
     ],
     barber: [
-      { icon: "✂️", color: "#2563eb", title: "Book a Slot", sub: "Haircuts and grooming services" },
-      { icon: "💈", color: "#6366f1", title: "Service Questions", sub: "Hours, pricing, and availability" },
-      { icon: "📞", color: "#0891b2", title: "AI Calls", sub: "Phone support via the AI number" },
+      { icon: iconHtml("scissors"), color: "#2563eb", title: "Book a Slot", sub: "Haircuts and grooming services" },
+      { icon: iconHtml("circle-help"), color: "#6366f1", title: "Service Questions", sub: "Hours, pricing, and availability" },
+      { icon: iconHtml("phone"), color: "#0891b2", title: "AI Calls", sub: "Phone support via the AI number" },
     ],
     creator: [
-      { icon: "🤝", color: "#7c3aed", title: "Partnerships", sub: "Collaboration and campaign intake" },
-      { icon: "📦", color: "#2563eb", title: "Brand Requests", sub: "Deals, briefs, and packages" },
-      { icon: "📞", color: "#0891b2", title: "AI Calls", sub: "Talk to the creator AI assistant" },
+      { icon: iconHtml("handshake"), color: "#7c3aed", title: "Partnerships", sub: "Collaboration and campaign intake" },
+      { icon: iconHtml("package"), color: "#2563eb", title: "Brand Requests", sub: "Deals, briefs, and packages" },
+      { icon: iconHtml("phone"), color: "#0891b2", title: "AI Calls", sub: "Talk to the creator AI assistant" },
     ],
     consultant: [
-      { icon: "📅", color: "#0284c7", title: "Consultations", sub: "Discovery calls and bookings" },
-      { icon: "📝", color: "#0891b2", title: "Intake", sub: "Share details before the call" },
-      { icon: "📞", color: "#059669", title: "AI Calls", sub: "Phone support through the AI number" },
+      { icon: iconHtml("calendar"), color: "#0284c7", title: "Consultations", sub: "Discovery calls and bookings" },
+      { icon: iconHtml("file-text"), color: "#0891b2", title: "Intake", sub: "Share details before the call" },
+      { icon: iconHtml("phone"), color: "#059669", title: "AI Calls", sub: "Phone support through the AI number" },
     ],
     agency: [
-      { icon: "🎯", color: "#0284c7", title: "Lead Intake", sub: "Capture and qualify new inquiries" },
-      { icon: "📋", color: "#0891b2", title: "Discovery", sub: "Project scope and service details" },
-      { icon: "📞", color: "#6366f1", title: "AI Calls", sub: "Call the AI assistant directly" },
+      { icon: iconHtml("target"), color: "#0284c7", title: "Lead Intake", sub: "Capture and qualify new inquiries" },
+      { icon: iconHtml("clipboard-list"), color: "#0891b2", title: "Discovery", sub: "Project scope and service details" },
+      { icon: iconHtml("phone"), color: "#6366f1", title: "AI Calls", sub: "Call the AI assistant directly" },
     ],
   };
 
@@ -2464,13 +2630,13 @@ const renderProfilePage = async (pageKey: string) => {
     </div>
     <p class="profile-bio">${business.description}</p>
     <div class="profile-meta">
-      <div class="meta-item">👤 <span class="meta-value">${business.owner_name}</span></div>
-      <div class="meta-item">📅 <span class="meta-value">${formatDate(business.created_at || null)}</span></div>
-      <div class="meta-item">📞 <span class="meta-value">${business.phone}</span></div>
+      <div class="meta-item">${iconHtml("user")} <span class="meta-value">${business.owner_name}</span></div>
+      <div class="meta-item">${iconHtml("calendar")} <span class="meta-value">${formatDate(business.created_at || null)}</span></div>
+      <div class="meta-item">${iconHtml("phone")} <span class="meta-value">${business.phone}</span></div>
     </div>
 
     <button class="call-btn" onclick="openCallModal()">
-      📞&nbsp; Call AI Assistant
+      ${iconHtml("phone")}&nbsp; Call AI Assistant
     </button>
     <div class="call-btn-sub">Dial the live AI number used by ${business.business_name}</div>
 
@@ -2493,14 +2659,14 @@ const renderProfilePage = async (pageKey: string) => {
     <div class="link-section-title" style="margin-top:8px">Business details</div>
     <div class="social-platforms">
       <a href="mailto:${business.email}" class="social-platform-btn">
-        <div class="sp-icon sp-website">✉️</div>
+        <div class="sp-icon sp-website">${iconHtml("mail")}</div>
         <div style="flex:1">
           <div style="font-size:0.88rem;font-weight:600">Email</div>
           <div class="sp-handle">${business.email}</div>
         </div>
       </a>
       <a href="tel:${business.phone}" class="social-platform-btn">
-        <div class="sp-icon sp-whatsapp">📞</div>
+        <div class="sp-icon sp-whatsapp">${iconHtml("phone")}</div>
         <div style="flex:1">
           <div style="font-size:0.88rem;font-weight:600">Phone</div>
           <div class="sp-handle">${business.phone}</div>
@@ -2541,6 +2707,8 @@ const renderProfilePage = async (pageKey: string) => {
       </div>
     </div>
   `;
+
+  refreshLegacyIcons();
 
   getWindowRef().__versaficCurrentBusiness = business;
   const modalBusinessName = document.getElementById("modalBiz");
@@ -3019,10 +3187,10 @@ const updateBillingPage = (state: DashboardState) => {
 
   const usage = computeUsageBreakdown(state.wallet);
   const heroValue = creditsPage.querySelector(".credits-value");
-  const heroInfo = heroValue?.nextElementSibling as HTMLElement | null;
-  const usageValue = heroValue?.closest(".credits-hero")?.querySelector("div[style*='font-size:1.8rem']") as HTMLElement | null;
-  const usageFill = creditsPage.querySelector(".usage-fill") as HTMLElement | null;
-  const usageCaption = creditsPage.querySelector("div[style*='font-size:0.75rem;color:var(--text-muted)']") as HTMLElement | null;
+  const heroInfo = creditsPage.querySelector<HTMLElement>("#billingHeroInfo");
+  const usageValue = creditsPage.querySelector<HTMLElement>("#billingUsageValue");
+  const usageFill = creditsPage.querySelector<HTMLElement>("#billingUsageFill");
+  const usageCaption = creditsPage.querySelector<HTMLElement>("#billingUsageCaption");
 
   if (heroValue) {
     heroValue.textContent = formatNumber(state.wallet.balance_credits);
@@ -3043,12 +3211,16 @@ const updateBillingPage = (state: DashboardState) => {
     usageCaption.textContent = `${usagePercentage}% of the current wallet has been used`;
   }
 
-  const breakdownCards = Array.from(creditsPage.querySelectorAll(".chart-container")[0]?.querySelectorAll("div[style*='text-align:center']") || []);
-  const values = [usage.calls, usage.chats, usage.sms, usage.transcripts];
-  breakdownCards.forEach((card, index) => {
-    const valueNode = card.querySelector("div[style*='font-size:1.4rem']");
-    if (valueNode) {
-      valueNode.textContent = formatNumber(values[index] || 0);
+  const breakdownTargets: Array<[string, number]> = [
+    ["#billingBreakdownCalls", usage.calls],
+    ["#billingBreakdownChats", usage.chats],
+    ["#billingBreakdownSms", usage.sms],
+    ["#billingBreakdownTranscripts", usage.transcripts],
+  ];
+  breakdownTargets.forEach(([selector, value]) => {
+    const node = creditsPage.querySelector<HTMLElement>(selector);
+    if (node) {
+      node.textContent = formatNumber(value || 0);
     }
   });
 
@@ -3124,31 +3296,64 @@ const updateBillingPage = (state: DashboardState) => {
     });
   });
 
-  const topUpSelect = creditsPage.querySelector<HTMLSelectElement>(".chart-container select");
-  const topUpButton = replaceInteractiveElement(
-    Array.from(creditsPage.querySelectorAll<HTMLButtonElement>(".chart-container .btn.btn-primary")).find(
-      (button) => button.textContent?.trim() === "Top Up Now"
-    ) || null
-  );
+  const topUpSlider = replaceInteractiveElement(
+    creditsPage.querySelector<HTMLInputElement>("#billingTopUpSlider")
+  ) as HTMLInputElement | null;
+  const topUpCredits = creditsPage.querySelector<HTMLElement>("#billingTopUpCredits");
+  const topUpPrice = creditsPage.querySelector<HTMLElement>("#billingTopUpPrice");
+  const topUpHint = creditsPage.querySelector<HTMLElement>("#billingTopUpHint");
+  const topUpButton = replaceInteractiveElement(creditsPage.querySelector<HTMLButtonElement>("#billingTopUpButton"));
+  const sortedTopUpPlans = [...state.plans].sort((left, right) => left.credits - right.credits);
+  const preferredPlanId = getPreferredPlanId();
+  const preferredPlan = sortedTopUpPlans.find((plan) => plan.id === preferredPlanId)
+    || sortedTopUpPlans.find((plan) => plan.id === "growth")
+    || sortedTopUpPlans[0]
+    || null;
 
-  if (topUpSelect) {
-    const topUpPlans = state.plans.slice(0, 4);
-    topUpSelect.innerHTML = topUpPlans.length
-      ? topUpPlans
-          .map(
-            (plan) =>
-              `<option value="${escapeHtml(plan.id)}" data-credits="${plan.credits}" data-amount-paise="${plan.amount_paise}">${formatNumber(
-                plan.credits
-              )} Credits - ${formatCurrency(plan.amount_paise)}</option>`
-          )
-          .join("")
-      : `<option value="">No live top-up packs</option>`;
+  const updateTopUpPreview = () => {
+    const selectedCredits = Math.max(
+      DEFAULT_RECHARGE_MIN_CREDITS,
+      Number(topUpSlider?.value || preferredPlan?.credits || DEFAULT_RECHARGE_MIN_CREDITS)
+    );
+    const amountPaise = getRechargeAmountPaise(selectedCredits, sortedTopUpPlans);
+
+    if (topUpCredits) {
+      topUpCredits.textContent = `${formatNumber(selectedCredits)} credits`;
+    }
+    if (topUpPrice) {
+      topUpPrice.textContent = formatCurrency(amountPaise);
+    }
+    if (topUpHint) {
+      topUpHint.textContent = `${getRechargeLabel(selectedCredits, sortedTopUpPlans)} · ${formatCurrency(amountPaise)}`;
+    }
+
+    return {
+      credits: selectedCredits,
+      amountPaise,
+    };
+  };
+
+  if (topUpSlider) {
+    const sliderMin = DEFAULT_RECHARGE_MIN_CREDITS;
+    const sliderMax = Math.max(
+      DEFAULT_RECHARGE_MAX_CREDITS,
+      sortedTopUpPlans[sortedTopUpPlans.length - 1]?.credits || DEFAULT_RECHARGE_MAX_CREDITS
+    );
+    const sliderValue = preferredPlan?.credits || Number(topUpSlider.value || DEFAULT_RECHARGE_MIN_CREDITS);
+
+    topUpSlider.min = String(sliderMin);
+    topUpSlider.max = String(sliderMax);
+    topUpSlider.step = String(DEFAULT_RECHARGE_STEP);
+    topUpSlider.value = String(Math.min(sliderMax, Math.max(sliderMin, sliderValue)));
+    topUpSlider.addEventListener("input", () => {
+      updateTopUpPreview();
+    });
   }
 
+  updateTopUpPreview();
+
   topUpButton?.addEventListener("click", async () => {
-    const selectedOption = topUpSelect?.selectedOptions[0] || null;
-    const credits = Number(selectedOption?.getAttribute("data-credits") || 0);
-    const amountPaise = Number(selectedOption?.getAttribute("data-amount-paise") || 0);
+    const { credits, amountPaise } = updateTopUpPreview();
 
     if (!credits || !amountPaise) {
       showToast("Choose a valid top-up amount first.", "warn");
@@ -3160,6 +3365,9 @@ const updateBillingPage = (state: DashboardState) => {
         amountPaise,
         credits,
         onSuccess: async () => {
+          if (topUpHint) {
+            topUpHint.textContent = `Recharge successful · ${formatNumber(credits)} credits were added to your wallet.`;
+          }
           await bindDashboardPage();
         },
       });
@@ -3169,8 +3377,8 @@ const updateBillingPage = (state: DashboardState) => {
     }
   });
 
-  const invoiceTable = creditsPage.querySelectorAll<HTMLTableElement>("table")[0];
-  const invoiceBody = invoiceTable?.querySelector("tbody");
+  const invoiceBody = creditsPage.querySelector<HTMLTableSectionElement>("#billingInvoiceBody");
+  const invoiceTable = invoiceBody?.closest("table") as HTMLTableElement | null;
   if (invoiceBody) {
     const rows = state.wallet.transactions
       .filter((transaction) => transaction.type === "topup" || transaction.type === "refund")
@@ -3206,38 +3414,36 @@ const updateBillingPage = (state: DashboardState) => {
     });
   });
 
-  const paymentCards = Array.from(creditsPage.querySelectorAll(".payment-card"));
-  if (paymentCards[0]) {
-    const icon = paymentCards[0].querySelector(".payment-card-icon");
-    if (icon) {
-      icon.textContent = "RZP";
-    }
-    const textNodes = paymentCards[0].querySelectorAll("div");
-    if (textNodes[2]) {
-      textNodes[2].textContent = "Razorpay Checkout";
-    }
-    if (textNodes[3]) {
-      textNodes[3].textContent = "Secure hosted payment flow";
-    }
+  const primaryPaymentIcon = creditsPage.querySelector<HTMLElement>("#billingPrimaryPaymentIcon");
+  const primaryPaymentLabel = creditsPage.querySelector<HTMLElement>("#billingPrimaryPaymentLabel");
+  const primaryPaymentSubLabel = creditsPage.querySelector<HTMLElement>("#billingPrimaryPaymentSubLabel");
+  const secondaryPaymentIcon = creditsPage.querySelector<HTMLElement>("#billingSecondaryPaymentIcon");
+  const secondaryPaymentLabel = creditsPage.querySelector<HTMLElement>("#billingSecondaryPaymentLabel");
+  const secondaryPaymentSubLabel = creditsPage.querySelector<HTMLElement>("#billingSecondaryPaymentSubLabel");
+
+  if (primaryPaymentIcon) {
+    primaryPaymentIcon.textContent = "RZP";
   }
-  if (paymentCards[1]) {
-    const icon = paymentCards[1].querySelector(".payment-card-icon");
-    if (icon) {
-      icon.textContent = "AUTO";
-    }
-    const textNodes = paymentCards[1].querySelectorAll("div");
-    if (textNodes[2]) {
-      textNodes[2].textContent = state.autopay?.settings?.enabled ? "Autopay Enabled" : "Autopay Off";
-    }
-    if (textNodes[3]) {
-      textNodes[3].textContent = state.autopay?.settings
-        ? `Threshold ${formatNumber(state.autopay.settings.threshold_credits)} credits · ${state.autopay.settings.mode}`
-        : "No recharge rule saved yet";
-    }
+  if (primaryPaymentLabel) {
+    primaryPaymentLabel.textContent = "Razorpay Checkout";
+  }
+  if (primaryPaymentSubLabel) {
+    primaryPaymentSubLabel.textContent = "Secure hosted payment flow";
+  }
+  if (secondaryPaymentIcon) {
+    secondaryPaymentIcon.textContent = "AUTO";
+  }
+  if (secondaryPaymentLabel) {
+    secondaryPaymentLabel.textContent = state.autopay?.settings?.enabled ? "Autopay Enabled" : "Autopay Off";
+  }
+  if (secondaryPaymentSubLabel) {
+    secondaryPaymentSubLabel.textContent = state.autopay?.settings
+      ? `Threshold ${formatNumber(state.autopay.settings.threshold_credits)} credits · ${state.autopay.settings.mode}`
+      : "No recharge rule saved yet";
   }
 
   const addPaymentButton = replaceInteractiveElement(
-    creditsPage.querySelector<HTMLButtonElement>(".chart-container .btn.btn-outline[style*='margin-top:12px']")
+    creditsPage.querySelector<HTMLButtonElement>("#billingAddPaymentButton")
   );
   addPaymentButton?.addEventListener("click", () => {
     const autopay = state.autopay?.settings;
@@ -3534,7 +3740,7 @@ const updateBookingsPage = (state: DashboardState) => {
                 <td style="font-weight:600;color:var(--text-primary)">${escapeHtml(row.time)}</td>
                 <td style="color:var(--text-primary);font-weight:600">${escapeHtml(row.customer)}</td>
                 <td>${escapeHtml(row.service)}</td>
-                <td><span style="display:flex;align-items:center;gap:6px"><span class="chat-avatar ai" style="width:20px;height:20px;font-size:0.6rem">🤖</span>${escapeHtml(row.assignedTo)}</span></td>
+                <td><span style="display:flex;align-items:center;gap:6px"><span class="chat-avatar ai" style="width:20px;height:20px;font-size:0.6rem">${iconHtml("bot")}</span>${escapeHtml(row.assignedTo)}</span></td>
                 <td><span class="badge ${escapeHtml(row.statusBadge)}">${escapeHtml(row.statusLabel)}</span></td>
               </tr>
             `
@@ -3646,7 +3852,7 @@ const updateBookingsPage = (state: DashboardState) => {
                 <div style="width:96px;font-weight:600;color:var(--text-muted);font-size:0.85rem;">${escapeHtml(row.time)}</div>
                 <div style="flex:1;">
                   <div class="booking-card" style="margin:0;display:flex;align-items:center;gap:12px;">
-                    <div class="chat-avatar ai" style="width:36px;height:36px;font-size:1rem;">🤖</div>
+                    <div class="chat-avatar ai" style="width:36px;height:36px;font-size:1rem;">${iconHtml("bot")}</div>
                     <div style="flex:1">
                       <div class="booking-name" style="font-size:0.95rem;">${escapeHtml(row.customer)}</div>
                       <div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(row.service)}</div>
@@ -3927,14 +4133,124 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     return;
   }
 
-  const displayNameSelect = settingsPage.querySelector<HTMLSelectElement>("#aiDisplayName");
-  const greetingTextarea = settingsPage.querySelector<HTMLTextAreaElement>("#aiGreetingMessage");
-  const businessNameInput = settingsPage.querySelector<HTMLInputElement>("#aiBusinessName");
+  const sections = settingsPage.querySelectorAll<HTMLElement>(".settings-section");
+  const identitySection = sections[0] || null;
+  const voiceSection = sections[1] || null;
+
+  const displayNameSelect =
+    settingsPage.querySelector<HTMLSelectElement>("#aiDisplayName") ||
+    identitySection?.querySelector<HTMLSelectElement>("select") ||
+    null;
+  const greetingTextarea =
+    settingsPage.querySelector<HTMLTextAreaElement>("#aiGreetingMessage") ||
+    identitySection?.querySelector<HTMLTextAreaElement>("textarea") ||
+    null;
+  const businessNameInput =
+    settingsPage.querySelector<HTMLInputElement>("#aiBusinessName") ||
+    identitySection?.querySelector<HTMLInputElement>("input[type='text']") ||
+    null;
+  const languageSelect =
+    settingsPage.querySelector<HTMLSelectElement>("#aiLanguage") ||
+    (voiceSection?.querySelectorAll<HTMLSelectElement>("select")[1] ?? null);
+
+  if (displayNameSelect && !displayNameSelect.id) {
+    displayNameSelect.id = "aiDisplayName";
+  }
+  if (greetingTextarea && !greetingTextarea.id) {
+    greetingTextarea.id = "aiGreetingMessage";
+  }
+  if (businessNameInput && !businessNameInput.id) {
+    businessNameInput.id = "aiBusinessName";
+  }
+  if (languageSelect && !languageSelect.id) {
+    languageSelect.id = "aiLanguage";
+  }
+
+  if (!settingsPage.querySelector("#aiNumberDisplay")) {
+    const callSection = document.createElement("div");
+    callSection.className = "settings-section";
+    callSection.id = "aiCallControlsSection";
+    callSection.innerHTML = `
+      <h3><i data-lucide="phone" style="width:1em;height:1em;vertical-align:middle"></i> AI Calling Access</h3>
+      <div class="form-group">
+        <label class="input-label">AI Number</label>
+        <input class="input-field" id="aiNumberDisplay" type="text" readonly>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Outbound Call Consent</div>
+          <div class="setting-desc">Enable this account to receive AI outbound calls from the configured AI number.</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle-switch">
+            <input id="aiCallConsentToggle" type="checkbox">
+            <div class="toggle-track"></div>
+          </label>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Opt Out of AI Calls</div>
+          <div class="setting-desc">Turn this on to block future AI outbound calls for this account.</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle-switch">
+            <input id="aiCallOptOutToggle" type="checkbox">
+            <div class="toggle-track"></div>
+          </label>
+        </div>
+      </div>
+      <div id="aiConsentHint" style="font-size:0.82rem;color:var(--text-muted);margin-top:10px"></div>
+      <div class="form-group" style="margin-top:16px">
+        <label class="input-label">Test Call Number</label>
+        <input class="input-field" id="aiTestCallNumber" type="text" placeholder="Enter the phone number to receive the Exotel test call">
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" id="aiPlaceTestCallBtn" type="button">Place Test Call</button>
+        <div id="aiCallActionHint" style="font-size:0.82rem;color:var(--text-muted)">Save consent, then place a test call to the number above.</div>
+      </div>
+    `;
+
+    const insertionPoint = voiceSection || identitySection;
+    if (insertionPoint?.parentNode) {
+      insertionPoint.parentNode.insertBefore(callSection, insertionPoint.nextSibling);
+    } else {
+      settingsPage.appendChild(callSection);
+    }
+    refreshLegacyIcons();
+  }
+
+  if (!settingsPage.querySelector("#aiTestCallNumber")) {
+    const testCallWrap = document.createElement("div");
+    testCallWrap.id = "aiTestCallWrap";
+    testCallWrap.innerHTML = `
+      <div class="form-group" style="margin-top:16px">
+        <label class="input-label">Test Call Number</label>
+        <input class="input-field" id="aiTestCallNumber" type="text" placeholder="Enter the phone number to receive the Exotel test call">
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" id="aiPlaceTestCallBtn" type="button">Place Test Call</button>
+        <div id="aiCallActionHint" style="font-size:0.82rem;color:var(--text-muted)">Save consent, then place a test call to the number above.</div>
+      </div>
+    `;
+
+    const hintNode = settingsPage.querySelector("#aiConsentHint");
+    if (hintNode?.parentNode) {
+      hintNode.parentNode.insertBefore(testCallWrap, hintNode.nextSibling);
+    } else {
+      settingsPage.appendChild(testCallWrap);
+    }
+  }
+
   const aiNumberInput = settingsPage.querySelector<HTMLInputElement>("#aiNumberDisplay");
   const consentToggle = settingsPage.querySelector<HTMLInputElement>("#aiCallConsentToggle");
   const optOutToggle = settingsPage.querySelector<HTMLInputElement>("#aiCallOptOutToggle");
   const consentHint = settingsPage.querySelector<HTMLElement>("#aiConsentHint");
-  const languageSelect = settingsPage.querySelector<HTMLSelectElement>("#aiLanguage");
+  const testCallNumberInput = settingsPage.querySelector<HTMLInputElement>("#aiTestCallNumber");
+  const testCallButton = replaceInteractiveElement(
+    settingsPage.querySelector<HTMLButtonElement>("#aiPlaceTestCallBtn")
+  );
+  const testCallHint = settingsPage.querySelector<HTMLElement>("#aiCallActionHint");
 
   if (businessNameInput && state.setup?.businessName) {
     businessNameInput.value = state.setup.businessName;
@@ -3944,6 +4260,9 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
   }
   if (aiNumberInput) {
     aiNumberInput.value = state.callConfig?.ai_number || "Not configured yet";
+  }
+  if (testCallNumberInput) {
+    testCallNumberInput.value = state.user?.phone_number || state.setup?.phone || "";
   }
   if (consentToggle) {
     consentToggle.checked = Boolean(state.user?.call_consent);
@@ -3955,8 +4274,8 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     consentHint.textContent = state.user?.call_opt_out
       ? "This account is currently opted out of AI outbound calls."
       : state.user?.call_consent
-        ? "This account has saved consent for AI outbound calls."
-        : "Enable consent if you want this account to receive AI outbound calls.";
+        ? "This account has saved consent for Exotel AI outbound calls."
+        : "Enable consent if you want this account to receive Exotel AI outbound calls.";
   }
   const updateConsentHint = () => {
     if (!consentHint) {
@@ -3966,8 +4285,8 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     consentHint.textContent = optOutToggle?.checked
       ? "This account is currently opted out of AI outbound calls."
       : consentToggle?.checked
-        ? "This account has saved consent for AI outbound calls."
-        : "Enable consent if you want this account to receive AI outbound calls.";
+        ? "This account has saved consent for Exotel AI outbound calls."
+        : "Enable consent if you want this account to receive Exotel AI outbound calls.";
   };
   consentToggle?.addEventListener("change", updateConsentHint);
   optOutToggle?.addEventListener("change", updateConsentHint);
@@ -4017,9 +4336,90 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
         `${displayNameSelect?.value || "Assistant"} settings saved. AI number and call consent are now synced to your account.`,
         "success"
       );
+      if (testCallHint && state.callConfig?.ai_number) {
+        testCallHint.textContent = `Your account is now ready for Exotel calls from ${state.callConfig.ai_number}.`;
+      }
     } catch (error) {
       const message = error instanceof LegacyApiError ? error.message : "Unable to save settings right now.";
       showToast(message, "warn");
+    }
+  });
+
+  testCallButton?.addEventListener("click", async () => {
+    const user = state.user;
+    const phone = normalizeText(testCallNumberInput?.value) || normalizeText(user?.phone_number) || normalizeText(state.setup?.phone);
+    const phoneValidationMessage = getPhoneValidationMessage(phone);
+
+    if (!user?.email) {
+      showToast("Log in again before placing a test call.", "warn");
+      return;
+    }
+
+    if (!state.callConfig?.configured || !state.callConfig?.ai_number) {
+      showToast("The Exotel AI number is not configured yet.", "warn");
+      return;
+    }
+
+    if (phoneValidationMessage) {
+      if (testCallHint) {
+        testCallHint.textContent = phoneValidationMessage;
+      }
+      showToast(phoneValidationMessage, "warn");
+      testCallNumberInput?.focus();
+      return;
+    }
+
+    if (optOutToggle?.checked) {
+      const message = "Turn off call opt-out before placing an Exotel test call.";
+      if (testCallHint) {
+        testCallHint.textContent = message;
+      }
+      showToast(message, "warn");
+      return;
+    }
+
+    if (!consentToggle?.checked) {
+      const message = "Enable outbound call consent before placing an Exotel test call.";
+      if (testCallHint) {
+        testCallHint.textContent = message;
+      }
+      showToast(message, "warn");
+      consentToggle?.focus();
+      return;
+    }
+
+    const originalLabel = testCallButton.textContent;
+    testCallButton.textContent = "Calling...";
+    testCallButton.setAttribute("disabled", "true");
+
+    try {
+      await updateCurrentUser({
+        phone_number: phone,
+        call_consent: true,
+        call_opt_out: false,
+      });
+
+      const businesses = await getBusinessList(50);
+      const ownBusiness = businesses.find((business) => business.email === user.email);
+
+      await startExotelCall({
+        customer_number: phone,
+        business_id: ownBusiness?.id,
+      });
+
+      if (testCallHint) {
+        testCallHint.textContent = `Exotel call requested from ${state.callConfig.ai_number} to ${phone}.`;
+      }
+      showToast(`Exotel is calling ${phone} now.`, "success");
+    } catch (error) {
+      const message = error instanceof LegacyApiError ? error.message : "Unable to place the Exotel test call right now.";
+      if (testCallHint) {
+        testCallHint.textContent = message;
+      }
+      showToast(message, "warn");
+    } finally {
+      testCallButton.textContent = originalLabel || "Place Test Call";
+      testCallButton.removeAttribute("disabled");
     }
   });
 
@@ -4049,7 +4449,7 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
 
     chatMessages.insertAdjacentHTML(
       "beforeend",
-      `<div class="chat-bubble user"><div class="chat-avatar user">👤</div><div class="chat-msg">${message}</div></div>`
+      `<div class="chat-bubble user"><div class="chat-avatar user">${iconHtml("user")}</div><div class="chat-msg">${message}</div></div>`
     );
     chatInput.value = "";
     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -4070,7 +4470,7 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
 
       chatMessages.insertAdjacentHTML(
         "beforeend",
-        `<div class="chat-bubble"><div class="chat-avatar ai">🤖</div><div class="chat-msg">${reply.aiResponse}</div></div>`
+        `<div class="chat-bubble"><div class="chat-avatar ai">${iconHtml("bot")}</div><div class="chat-msg">${reply.aiResponse}</div></div>`
       );
       chatMessages.scrollTop = chatMessages.scrollHeight;
     } catch (error) {
@@ -4173,7 +4573,7 @@ const buildDashboardState = (
   activeCustomerSessions: overrides.activeCustomerSessions ?? existingState?.activeCustomerSessions ?? [],
 });
 
-const applyDashboardState = async (state: DashboardState) => {
+const applyDashboardState = async (state: DashboardState, options?: { markReady?: boolean }) => {
   getWindowRef().__versaficDashboardState = state;
   bindDashboardFilterControls(state);
   bindDashboardNavigation();
@@ -4191,6 +4591,10 @@ const applyDashboardState = async (state: DashboardState) => {
   updateBookingsPage(state);
   await bindAiSettingsPanel(state);
   primeRazorpayCheckout();
+  refreshLegacyIcons();
+  if (options?.markReady) {
+    setDashboardReady(true);
+  }
 };
 
 const markDashboardPagesLoaded = (...pageIds: string[]) => {
@@ -4321,6 +4725,7 @@ const bindDashboardPage = async () => {
   dashboardRefreshInFlight = true;
 
   try {
+  setDashboardReady(false);
   let user = getStoredUser();
 
   if (!user) {
@@ -4334,18 +4739,24 @@ const bindDashboardPage = async () => {
 
   const existingState = getWindowRef().__versaficDashboardState;
   const initialState = buildDashboardState(user, existingState);
-  await applyDashboardState(initialState);
+  await applyDashboardState(initialState, { markReady: false });
 
   const [
     walletResult,
     plansResult,
     callConfigResult,
     callSessionsResult,
+    chatStatsResult,
+    voiceStatsResult,
+    setupResult,
   ] = await Promise.allSettled([
     getWallet(),
     getPlans(),
     getCallConfig(),
     getCallSessions(12),
+    getChatStats(),
+    getVoiceStats(),
+    getSetupBusiness(),
   ]);
 
   const state = buildDashboardState(user, existingState, {
@@ -4354,11 +4765,17 @@ const bindDashboardPage = async () => {
     callConfig: callConfigResult.status === "fulfilled" ? callConfigResult.value : existingState?.callConfig,
     callSessions:
       callSessionsResult.status === "fulfilled" ? callSessionsResult.value.sessions : existingState?.callSessions,
+    chatStats: chatStatsResult.status === "fulfilled" ? chatStatsResult.value : existingState?.chatStats,
+    voiceStats: voiceStatsResult.status === "fulfilled" ? voiceStatsResult.value : existingState?.voiceStats,
+    setup: setupResult.status === "fulfilled" ? setupResult.value : existingState?.setup,
   });
 
-  await applyDashboardState(state);
+  await applyDashboardState(state, { markReady: true });
   markDashboardPagesLoaded("overview", "calls");
   void loadDashboardPageData(getDashboardPageFromLocation());
+  } catch (error) {
+    console.error("Failed to bind dashboard page", error);
+    setDashboardReady(true);
   } finally {
     dashboardRefreshInFlight = false;
   }
@@ -4405,17 +4822,22 @@ const initializePage = async (pageKey: string) => {
 export function LegacyBindings({ pageKey }: LegacyBindingsProps) {
   useEffect(() => {
     if (pageKey.startsWith("dashboard")) {
+      setDashboardReady(false);
       bindDashboardNavigation();
       bootstrapSidebarIdentityFromSession();
       const storedUser = getStoredUser();
       if (storedUser) {
-        void applyDashboardState(buildDashboardState(storedUser, getWindowRef().__versaficDashboardState));
+        void applyDashboardState(buildDashboardState(storedUser, getWindowRef().__versaficDashboardState), {
+          markReady: false,
+        });
       }
     }
 
     window.setTimeout(() => {
       void initializePage(pageKey).catch((error) => {
         console.error(`Failed to initialize legacy bindings for ${pageKey}`, error);
+      }).finally(() => {
+        refreshLegacyIcons();
       });
     }, 0);
   }, [pageKey]);

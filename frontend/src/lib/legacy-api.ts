@@ -630,12 +630,10 @@ export const verifyPayment = async (payload: {
   });
 
 export const getCallConfig = async () =>
-  request<CallConfig>("/exotel/config")
-    .catch(() => request<CallConfig>("/call/config", undefined, { auth: true }));
+  request<CallConfig>("/exotel/config");
 
 export const getPublicCallConfig = async () =>
-  request<CallConfig>("/exotel/config")
-    .catch(() => request<CallConfig>("/call/public-config"));
+  request<CallConfig>("/exotel/config");
 
 export const getCallSessions = async (limit = 12) =>
   request<{ sessions: CallSession[]; credit_cost: number }>(`/call/sessions?limit=${limit}`, undefined, { auth: true });

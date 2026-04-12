@@ -63,6 +63,7 @@ npm run build
 - Project root: `frontend/`
 - Required env:
   - `NEXT_PUBLIC_API_BASE_URL=https://backend-production-a176.up.railway.app`
+  - `NEXT_PUBLIC_API_URL=https://backend-production-a176.up.railway.app` if you are using the legacy env name
 
 ### Backend on Railway
 
@@ -97,10 +98,20 @@ Feature envs:
 - `RAZORPAY_WEBHOOK_SECRET`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_CALLBACK_URL`
+- `GOOGLE_CALLBACK_URL` (must match the backend public callback URL exactly)
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 - `GITHUB_CALLBACK_URL`
+
+OAuth callback values for the current Railway backend:
+
+- Google redirect URI: `https://backend-production-a176.up.railway.app/auth/google/callback`
+- GitHub callback URL: `https://backend-production-a176.up.railway.app/auth/github/callback`
+
+If Google shows `Error 400: redirect_uri_mismatch`, check both places:
+
+- Google Cloud Console -> OAuth client -> Authorized redirect URIs
+- Railway env `GOOGLE_CALLBACK_URL` (or leave it empty and rely on `PUBLIC_BASE_URL`)
 
 ## Operations Notes
 

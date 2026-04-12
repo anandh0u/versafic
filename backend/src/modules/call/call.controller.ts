@@ -10,6 +10,7 @@ import { ErrorCode } from '../../types';
 import { getTwilioService } from '../../services/twilioService';
 import { walletService } from '../../services/wallet.service';
 import { outboundCallService } from '../../services/outbound-call.service';
+import { emailService } from '../../services/email.service';
 import { normalizePhoneNumber } from '../../utils/validators';
 import { getPublicUrl } from '../../config/database';
 import { getOptionalEnv } from '../../utils/env';
@@ -560,12 +561,40 @@ async function processCallRecording(recordingUrl: string, recording: any): Promi
       callSid: recording.call_sid
     });
 
-    await callSessionRepo.updateStatus(recording.call_sid, 'completed', {
+    const updatedSession = await callSessionRepo.updateStatus(recording.call_sid, 'completed', {
       recording_processed: true,
       recording_processed_at: processedAt,
       recording_duration_seconds: recording.duration,
       recording_url: recordingUrl,
     });
+
+    if (updatedSession && !updatedSession.metadata?.call_summary_email_sent) {
+      const summaryResult = await emailService.sendCallSummaryToOwner({
+        userId: updatedSession.user_id ?? null,
+        businessName:
+          typeof updatedSession.metadata?.business_name === 'string'
+            ? updatedSession.metadata.business_name
+            : APP_NAME,
+        customerNumber:
+          updatedSession.phone_number
+          || normalizePhoneNumber(updatedSession.to_number)
+          || normalizePhoneNumber(updatedSession.from_number)
+          || 'Unknown',
+        recordingUrl,
+      });
+
+      if (summaryResult.success) {
+        await callSessionRepo.updateStatus(recording.call_sid, 'completed', {
+          call_summary_email_sent: true,
+          call_summary_email_sent_at: processedAt,
+        });
+      } else {
+        logger.warn('Call summary email failed after Twilio call completion', {
+          callSid: recording.call_sid,
+          reason: summaryResult.error,
+        });
+      }
+    }
 
     logger.info('Call recording processing completed', {
       recordingId: recording.id,

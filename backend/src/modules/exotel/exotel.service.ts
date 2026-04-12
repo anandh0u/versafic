@@ -2,10 +2,13 @@ import axios, { AxiosError } from "axios";
 import { randomUUID } from "crypto";
 import { getPublicUrl } from "../../config/database";
 import { AppError } from "../../middleware/error-handler";
+import * as UserModel from "../../models/user.model";
+import { callSessionRepo } from "../../repositories";
 import { ErrorCode } from "../../types";
 import { getOptionalEnv, isPlaceholderEnvValue } from "../../utils/env";
 import { logger } from "../../utils/logger";
 import { normalizePhoneNumber } from "../../utils/validators";
+import { emailService } from "../../services/email.service";
 import {
   exotelRepository,
   type ExotelBusiness,
@@ -47,7 +50,7 @@ type ResolvedCallRouting = {
   sessionId: string | null;
   session: ExotelCallSession | null;
   business: ExotelBusiness | null;
-  routeSource: "session" | "mapping" | "default";
+  routeSource: "session" | "mapping" | "owner_phone" | "default";
 };
 
 type StartCallResult = {
@@ -66,6 +69,8 @@ const DEFAULT_UNKNOWN_BUSINESS_MESSAGE =
   "Hello. We could not identify the correct business for this call right now. Please try again from your latest business interaction.";
 const EXOTEL_NUMBER_FALLBACK = "unknown-exotel-number";
 const APP_NAME = process.env.APP_NAME || "Versafic";
+const EXOTEL_OUTBOUND_DAILY_LIMIT = Number(getOptionalEnv("EXOTEL_OUTBOUND_DAILY_LIMIT", "2")) || 2;
+const EXOTEL_OUTBOUND_COOLDOWN_HOURS = Number(getOptionalEnv("EXOTEL_OUTBOUND_COOLDOWN_HOURS", "24")) || 24;
 
 const escapeXml = (value: string): string =>
   value
@@ -260,6 +265,40 @@ class ExotelService {
 </Response>`;
   }
 
+  private async maybeSendCallSummaryEmail(
+    session: ExotelCallSession,
+    businessName?: string | null,
+    recordingUrl?: string | null
+  ): Promise<void> {
+    if (!session.session_id || session.metadata?.call_summary_email_sent) {
+      return;
+    }
+
+    const summaryResult = await emailService.sendCallSummaryToOwner({
+      userId: session.user_id ?? null,
+      businessId: session.business_id,
+      businessName: businessName || (typeof session.metadata?.business_name === "string" ? session.metadata.business_name : APP_NAME),
+      customerNumber: session.customer_number || session.phone_number || session.to_number || session.from_number || "Unknown",
+      recordingUrl,
+    });
+
+    if (!summaryResult.success) {
+      logger.warn("Exotel call summary email failed", {
+        sessionId: session.session_id,
+        callId: session.call_sid,
+        reason: summaryResult.error,
+      });
+      return;
+    }
+
+    await exotelRepository.updateSessionBySessionId(session.session_id, {
+      metadata: {
+        call_summary_email_sent: true,
+        call_summary_email_sent_at: new Date().toISOString(),
+      },
+    });
+  }
+
   async startCall(input: StartCallInput): Promise<StartCallResult> {
     this.ensureConfigured();
 
@@ -269,7 +308,9 @@ class ExotelService {
     }
 
     const business = input.businessId
-      ? await exotelRepository.findBusinessById(input.businessId)
+      ? input.ownerEmail
+        ? await exotelRepository.findOwnedBusinessById(input.businessId, input.ownerEmail)
+        : await exotelRepository.findBusinessById(input.businessId)
       : input.ownerEmail
         ? await exotelRepository.findBusinessByEmail(input.ownerEmail)
         : null;
@@ -282,6 +323,37 @@ class ExotelService {
           ? "Business not found for the given business_id"
           : "Business profile not found for the current account"
       );
+    }
+
+    const recipient = await UserModel.findUserByPhoneNumber(customerNumber);
+    if (!recipient) {
+      throw new AppError(404, ErrorCode.NOT_FOUND, "Outbound calling is allowed only for registered users");
+    }
+
+    if (!recipient.call_consent || recipient.call_opt_out) {
+      throw new AppError(403, ErrorCode.FORBIDDEN, "Recipient has not consented to AI calls or has opted out");
+    }
+
+    if (input.ownerUserId) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const todayCount = await callSessionRepo.getRecentOutboundCountForDay(input.ownerUserId, startOfDay);
+      if (todayCount >= EXOTEL_OUTBOUND_DAILY_LIMIT) {
+        throw new AppError(429, ErrorCode.FORBIDDEN, "Daily outbound call limit reached for this business");
+      }
+
+      const latestOutbound = await callSessionRepo.getLatestOutboundSession(input.ownerUserId, customerNumber);
+      if (
+        latestOutbound &&
+        Date.now() - new Date(latestOutbound.created_at).getTime() <
+          EXOTEL_OUTBOUND_COOLDOWN_HOURS * 60 * 60 * 1000
+      ) {
+        throw new AppError(
+          429,
+          ErrorCode.FORBIDDEN,
+          `Cooldown active. Wait ${EXOTEL_OUTBOUND_COOLDOWN_HOURS} hours before calling this number again`
+        );
+      }
     }
 
     const sessionId = randomUUID();
@@ -401,6 +473,7 @@ class ExotelService {
     let business = session?.business_id ? await exotelRepository.findBusinessById(session.business_id) : null;
     let routeSource: ResolvedCallRouting["routeSource"] = "default";
     let effectiveSessionId = session?.session_id || input.sessionId || null;
+    let resolvedUserId = session?.user_id ?? null;
 
     if (session && business) {
       routeSource = "session";
@@ -414,12 +487,14 @@ class ExotelService {
           ai_prompt: mapping.ai_prompt,
           phone_number: mapping.phone_number,
         };
+        resolvedUserId = mapping.user_id;
 
         if (!session) {
           effectiveSessionId = effectiveSessionId || randomUUID();
           session = await exotelRepository.createSession({
             sessionId: effectiveSessionId,
             callSid: input.callId || null,
+            userId: mapping.user_id,
             customerNumber: normalizedCustomerNumber,
             businessId: mapping.business_id,
             fromNumber: normalizedCustomerNumber,
@@ -435,12 +510,48 @@ class ExotelService {
             providerPayload: input.payload,
           });
         }
+      } else {
+        const ownerPhoneMatch = await exotelRepository.findBusinessByOwnerPhone(normalizedCustomerNumber);
+        if (ownerPhoneMatch) {
+          routeSource = "owner_phone";
+          business = {
+            id: ownerPhoneMatch.business_id,
+            name: ownerPhoneMatch.business_name,
+            ai_prompt: ownerPhoneMatch.ai_prompt,
+            phone_number: ownerPhoneMatch.phone_number,
+          };
+          resolvedUserId = ownerPhoneMatch.user_id;
+
+          if (!session) {
+            effectiveSessionId = effectiveSessionId || randomUUID();
+            session = await exotelRepository.createSession({
+              sessionId: effectiveSessionId,
+              callSid: input.callId || null,
+              userId: ownerPhoneMatch.user_id,
+              customerNumber: normalizedCustomerNumber,
+              businessId: ownerPhoneMatch.business_id,
+              fromNumber: normalizedCustomerNumber,
+              toNumber: this.exotelNumber,
+              status: "active",
+              direction: "inbound",
+              type: "incoming",
+              routeSource: "owner_phone",
+              providerStatus: "in-progress",
+              metadata: {
+                created_from: "incoming_webhook",
+                owner_phone_match: true,
+              },
+              providerPayload: input.payload,
+            });
+          }
+        }
       }
     }
 
     if (session && effectiveSessionId) {
       await exotelRepository.updateSessionBySessionId(effectiveSessionId, {
         callSid: input.callId || session.call_sid,
+        userId: resolvedUserId ?? session.user_id,
         customerNumber: normalizedCustomerNumber || session.customer_number,
         businessId: business?.id || session.business_id,
         status: business ? "active" : session.status,
@@ -511,8 +622,10 @@ class ExotelService {
       durationSeconds,
     });
 
+    let updatedSession = session;
+
     if (session.session_id) {
-      await exotelRepository.updateSessionBySessionId(session.session_id, {
+      updatedSession = (await exotelRepository.updateSessionBySessionId(session.session_id, {
         status: "completed",
         providerStatus: "recording-received",
         recordingUrl,
@@ -521,23 +634,29 @@ class ExotelService {
           speech_to_text_status: "pending_integration",
         },
         providerPayload: input.payload,
-      });
+      })) || session;
     }
 
     if (session.customer_number && session.business_id) {
       await exotelRepository.touchCustomerBusinessMapping(session.customer_number, session.business_id);
     }
 
+    await this.maybeSendCallSummaryEmail(
+      updatedSession,
+      typeof updatedSession.metadata?.business_name === "string" ? updatedSession.metadata.business_name : null,
+      recordingUrl
+    );
+
     logger.info("Exotel recording stored", {
-      sessionId: session.session_id,
-      callId: session.call_sid,
-      businessId: session.business_id,
+      sessionId: updatedSession.session_id,
+      callId: updatedSession.call_sid,
+      businessId: updatedSession.business_id,
       recordingUrl,
     });
 
     return {
-      sessionId: session.session_id,
-      businessId: session.business_id,
+      sessionId: updatedSession.session_id,
+      businessId: updatedSession.business_id,
     };
   }
 
@@ -556,19 +675,25 @@ class ExotelService {
       return;
     }
 
+    let updatedSession = session;
+
     if (session.session_id) {
-      await exotelRepository.updateSessionBySessionId(session.session_id, {
+      updatedSession = (await exotelRepository.updateSessionBySessionId(session.session_id, {
         callSid: input.callId || session.call_sid,
         status: normalizedStatus,
         providerStatus: input.status || null,
         recordingUrl: input.recordingUrl || session.recording_url,
         providerPayload: input.payload,
-      });
+      })) || session;
+    }
+
+    if (normalizedStatus === "completed" && !(input.recordingUrl || updatedSession.recording_url)) {
+      await this.maybeSendCallSummaryEmail(updatedSession);
     }
 
     logger.info("Exotel call status updated", {
-      sessionId: session.session_id,
-      callId: input.callId || session.call_sid,
+      sessionId: updatedSession.session_id,
+      callId: input.callId || updatedSession.call_sid,
       status: normalizedStatus,
     });
   }

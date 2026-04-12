@@ -15,6 +15,7 @@ import {
   resolveFrontendReturnUrl,
   storeOAuthState,
 } from "../utils/oauth-flow";
+import { resolveOAuthCallbackUrl } from "../utils/oauth-callback";
 import { getRegistrableEmailError, isStrongPassword, isValidEmail, sanitizeEmail } from "../utils/validators";
 import { AuthRequest } from "../middleware/jwt-auth";
 
@@ -22,20 +23,11 @@ type OAuthProvider = "google" | "github";
 
 const getProviderDisplayName = (provider: OAuthProvider) => (provider === "google" ? "Google" : "GitHub");
 
-const getPublicBaseUrl = () => {
-  const publicBaseUrl = normalizeEnvValue(process.env.PUBLIC_BASE_URL);
-  if (!publicBaseUrl) {
-    throw new AppError(500, ErrorCode.AUTH_ERROR, "PUBLIC_BASE_URL is not configured");
-  }
-
-  return publicBaseUrl.replace(/\/+$/, "");
-};
-
 const getGoogleCallbackUrl = () =>
-  normalizeEnvValue(process.env.GOOGLE_CALLBACK_URL) || `${getPublicBaseUrl()}/auth/google/callback`;
+  resolveOAuthCallbackUrl(process.env.GOOGLE_CALLBACK_URL, "/auth/google/callback", "Google");
 
 const getGitHubCallbackUrl = () =>
-  normalizeEnvValue(process.env.GITHUB_CALLBACK_URL) || `${getPublicBaseUrl()}/auth/github/callback`;
+  resolveOAuthCallbackUrl(process.env.GITHUB_CALLBACK_URL, "/auth/github/callback", "GitHub");
 
 const redirectWithOAuthError = (res: Response, returnTo: string, message: string) => {
   res.redirect(302, buildFrontendAuthErrorUrl(returnTo, message));

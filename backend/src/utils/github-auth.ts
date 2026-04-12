@@ -1,6 +1,7 @@
 import axios from "axios";
 import { logger } from "./logger";
 import { normalizeEnvValue } from "./env";
+import { resolveOAuthCallbackUrl } from "./oauth-callback";
 
 type GitHubEmailRecord = {
   email: string;
@@ -24,17 +25,7 @@ export interface GitHubProfile {
 }
 
 const getGitHubCallbackUrl = () => {
-  const configuredCallback = normalizeEnvValue(process.env.GITHUB_CALLBACK_URL);
-  if (configuredCallback) {
-    return configuredCallback;
-  }
-
-  const publicBaseUrl = normalizeEnvValue(process.env.PUBLIC_BASE_URL);
-  if (!publicBaseUrl) {
-    throw new Error("GitHub callback URL is not configured");
-  }
-
-  return `${publicBaseUrl.replace(/\/+$/, "")}/auth/github/callback`;
+  return resolveOAuthCallbackUrl(process.env.GITHUB_CALLBACK_URL, "/auth/github/callback", "GitHub");
 };
 
 const getVerifiedGitHubEmail = (emails: GitHubEmailRecord[]): string | null => {

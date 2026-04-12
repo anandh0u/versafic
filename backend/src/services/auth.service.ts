@@ -6,6 +6,7 @@ import * as UserModel from "../models/user.model";
 import { logger } from "../utils/logger";
 import { ErrorCode } from "../types";
 import { verifyGoogleToken } from "../utils/google-auth";
+import { emailService } from "./email.service";
 import {
   getPhoneValidationError,
   getRegistrableEmailError,
@@ -91,6 +92,19 @@ export const registerUser = async (
     // Create user
     const user = await UserModel.createUser(normalizedEmail, passwordHash, "password", undefined, name?.trim() || undefined);
     logger.info("User registered successfully", { userId: user.id, email: normalizedEmail });
+
+    const welcomeEmailResult = await emailService.sendWelcomeEmail({
+      to: normalizedEmail,
+      name: user.name,
+    });
+
+    if (!welcomeEmailResult.success) {
+      logger.warn("Welcome email failed after registration", {
+        userId: user.id,
+        email: normalizedEmail,
+        reason: welcomeEmailResult.error,
+      });
+    }
 
     // Generate token pair (access + refresh)
     const accessToken = generateAccessToken(user.id, user.email);
@@ -182,6 +196,20 @@ export const handleOAuthProviderAuth = async (
     if (!user) {
       user = await UserModel.createUser(normalizedEmail, undefined, provider, providerId, name?.trim() || undefined);
       logger.info(`New user created via ${provider} OAuth`, { userId: user.id, email: normalizedEmail, provider });
+
+      const welcomeEmailResult = await emailService.sendWelcomeEmail({
+        to: normalizedEmail,
+        name: name?.trim() || user.name,
+      });
+
+      if (!welcomeEmailResult.success) {
+        logger.warn("Welcome email failed after OAuth signup", {
+          userId: user.id,
+          email: normalizedEmail,
+          provider,
+          reason: welcomeEmailResult.error,
+        });
+      }
 
       const accessToken = generateAccessToken(user.id, user.email);
       const refreshToken = generateRefreshToken(user.id);

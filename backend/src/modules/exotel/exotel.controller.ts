@@ -19,7 +19,7 @@ const getOptionalInternalApiKey = (): string => getOptionalEnv("EXOTEL_INTERNAL_
 const enforceInternalApiKeyIfConfigured = (req: Request): void => {
   const configuredKey = getOptionalInternalApiKey();
   if (!configuredKey) {
-    return;
+    throw new AppError(503, ErrorCode.SERVICE_UNAVAILABLE, "Internal Exotel call start is disabled until EXOTEL_INTERNAL_API_KEY is configured");
   }
 
   const providedKey = req.get("x-api-key");

@@ -24,6 +24,7 @@ import {
 import { logger } from '../utils/logger';
 import { AppError } from '../middleware/error-handler';
 import { ErrorCode } from '../types';
+import { emailService } from './email.service';
 
 const DEFAULT_AUTOPAY_THRESHOLD = 100;
 const DEFAULT_AUTOPAY_RECHARGE_AMOUNT = 19900;
@@ -304,6 +305,37 @@ export class WalletService {
     };
   }
 
+  private async maybeSendLowCreditAlert(params: {
+    userId: number;
+    previousBalance: number;
+    currentBalance: number;
+  }): Promise<void> {
+    const settings = await billingModel.getAutopaySettings(params.userId);
+    const thresholdCredits = settings?.threshold_credits ?? DEFAULT_AUTOPAY_THRESHOLD;
+
+    const crossedBelowThreshold =
+      params.previousBalance >= thresholdCredits && params.currentBalance < thresholdCredits;
+
+    if (!crossedBelowThreshold) {
+      return;
+    }
+
+    const result = await emailService.sendLowCreditsAlertToUser({
+      userId: params.userId,
+      balanceCredits: params.currentBalance,
+      thresholdCredits,
+    });
+
+    if (!result.success) {
+      logger.warn("Low credit alert email failed", {
+        userId: params.userId,
+        thresholdCredits,
+        balanceCredits: params.currentBalance,
+        reason: result.error,
+      });
+    }
+  }
+
   /**
    * Get wallet info and recent transactions for a user
    */
@@ -541,6 +573,7 @@ export class WalletService {
     customCredits?: number
   ): Promise<CreditDeductionResult> {
     const credits = this.resolveUsageCredits(source, customCredits);
+    const startingBalance = await this.getBalance(userId);
 
     let result = await billingModel.deductCredits(
       userId,
@@ -583,6 +616,17 @@ export class WalletService {
         };
       }
     }
+
+    void this.maybeSendLowCreditAlert({
+      userId,
+      previousBalance: startingBalance,
+      currentBalance: result.wallet.balance_credits,
+    }).catch((error) => {
+      logger.warn('Low credit email trigger failed', {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 
     void this.maybeTriggerAutopay({
       userId,

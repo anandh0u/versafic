@@ -13,6 +13,7 @@ export interface ExotelCallSession {
   id: string;
   session_id: string | null;
   call_sid: string | null;
+  user_id: number | null;
   customer_number: string | null;
   business_id: string | null;
   status: string;
@@ -43,7 +44,7 @@ interface CreateExotelSessionInput {
   status: string;
   direction: "inbound" | "outbound";
   type: "incoming" | "outgoing";
-  routeSource: "session" | "mapping" | "default";
+  routeSource: "session" | "mapping" | "owner_phone" | "default";
   providerStatus?: string | null;
   metadata?: Record<string, unknown>;
   providerPayload?: Record<string, unknown>;
@@ -51,6 +52,7 @@ interface CreateExotelSessionInput {
 
 interface UpdateExotelSessionInput {
   callSid?: string | null;
+  userId?: number | null;
   businessId?: string | null;
   customerNumber?: string | null;
   status?: string;
@@ -66,6 +68,7 @@ interface UpdateExotelSessionInput {
 export interface CustomerBusinessMappingRecord {
   customer_phone: string;
   business_id: string;
+  user_id: number | null;
   last_interaction: string;
   business_name: string;
   ai_prompt: string | null;
@@ -88,6 +91,21 @@ class ExotelRepository extends BaseRepository {
        WHERE id = $1
        LIMIT 1`,
       [businessId]
+    );
+  }
+
+  async findOwnedBusinessById(businessId: string, ownerEmail: string): Promise<ExotelBusiness | null> {
+    return this.queryOne<ExotelBusiness>(
+      `SELECT
+         b.id,
+         COALESCE(NULLIF(b.name, ''), b.business_name, b.owner_name, b.email, 'Business') AS name,
+         b.ai_prompt,
+         COALESCE(NULLIF(b.phone_number, ''), b.phone) AS phone_number
+       FROM businesses b
+       WHERE b.id = $1
+         AND LOWER(COALESCE(b.email, '')) = LOWER($2)
+       LIMIT 1`,
+      [businessId, ownerEmail]
     );
   }
 
@@ -190,6 +208,11 @@ class ExotelRepository extends BaseRepository {
       values.push(input.callSid);
     }
 
+    if (input.userId !== undefined) {
+      updates.push(`user_id = $${index++}`);
+      values.push(input.userId);
+    }
+
     if (input.businessId !== undefined) {
       updates.push(`business_id = $${index++}`);
       values.push(input.businessId);
@@ -278,16 +301,48 @@ class ExotelRepository extends BaseRepository {
       `SELECT
          cbm.customer_phone,
          cbm.business_id,
+         COALESCE(owner_user.id, owner_profile.user_id) AS user_id,
          cbm.last_interaction,
          COALESCE(NULLIF(b.name, ''), b.business_name, b.owner_name, b.email, 'Business') AS business_name,
          b.ai_prompt,
          COALESCE(NULLIF(b.phone_number, ''), b.phone) AS phone_number
        FROM customer_business_mapping cbm
        INNER JOIN businesses b ON b.id = cbm.business_id
+       LEFT JOIN users owner_user
+         ON LOWER(COALESCE(owner_user.email, '')) = LOWER(COALESCE(b.email, ''))
+       LEFT JOIN business_profiles owner_profile
+         ON regexp_replace(COALESCE(owner_profile.phone, ''), '\\D', '', 'g') =
+            regexp_replace(COALESCE(NULLIF(b.phone_number, ''), b.phone, ''), '\\D', '', 'g')
        WHERE cbm.customer_phone = $1
        ORDER BY cbm.last_interaction DESC
        LIMIT 1`,
       [normalizedPhone]
+    );
+  }
+
+  async findBusinessByOwnerPhone(customerPhone: string): Promise<CustomerBusinessMappingRecord | null> {
+    const normalizedDigits = String(normalizePhoneNumber(customerPhone) || "").replace(/\D/g, "");
+    if (!normalizedDigits) {
+      return null;
+    }
+
+    return this.queryOne<CustomerBusinessMappingRecord>(
+      `SELECT
+         $1 AS customer_phone,
+         b.id AS business_id,
+         COALESCE(u.id, bp.user_id) AS user_id,
+         NOW()::timestamptz AS last_interaction,
+         COALESCE(NULLIF(b.name, ''), b.business_name, b.owner_name, b.email, 'Business') AS business_name,
+         b.ai_prompt,
+         COALESCE(NULLIF(b.phone_number, ''), b.phone) AS phone_number
+       FROM business_profiles bp
+       INNER JOIN users u ON u.id = bp.user_id
+       INNER JOIN businesses b
+         ON LOWER(COALESCE(b.email, '')) = LOWER(COALESCE(u.email, ''))
+       WHERE regexp_replace(COALESCE(bp.phone, ''), '\\D', '', 'g') = $2
+       ORDER BY b.updated_at DESC NULLS LAST, b.created_at DESC, bp.updated_at DESC
+       LIMIT 1`,
+      [normalizePhoneNumber(customerPhone), normalizedDigits]
     );
   }
 

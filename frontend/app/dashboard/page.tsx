@@ -3995,6 +3995,22 @@ const PAGE_BODY = `<div class="mobile-header">
                 </div>
 
                 <div class="settings-section">
+                    <h3><i data-lucide="send" style="width:1em;height:1em;vertical-align:middle"></i> Test SMS</h3>
+                    <p style="font-size:0.84rem;margin-bottom:16px;color:var(--text-muted)">Send a test SMS to verify your MSG91 integration.</p>
+                    <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;align-items:end">
+                        <div class="form-group">
+                            <label class="input-label">Phone Number</label>
+                            <input class="input-field" type="text" id="testSmsPhone" placeholder="Enter phone number (e.g., 9876543210)" value="">
+                        </div>
+                        <button class="btn btn-primary" id="sendTestSmsBtn" onclick="sendTestSms()">
+                            <i data-lucide="send" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Send Test
+                        </button>
+                    </div>
+                    <div id="smsTestResult" style="margin-top:12px;display:none;padding:12px;border-radius:8px;font-size:0.9rem">
+                    </div>
+                </div>
+
+                <div class="settings-section">
                     <h3><i data-lucide="target" style="width:1em;height:1em;vertical-align:middle"></i> Active Intents
                     </h3>
                     <p style="font-size:0.84rem;margin-bottom:16px;color:var(--text-muted)">Enable or disable the
@@ -4400,6 +4416,73 @@ const PAGE_BODY = `<div class="mobile-header">
             const wasOpen = item.classList.contains('open');
             document.querySelectorAll('.faq-item').forEach(i => { i.classList.remove('open'); i.querySelector('.faq-answer').classList.remove('open') });
             if (!wasOpen) { item.classList.add('open'); item.querySelector('.faq-answer').classList.add('open') }
+        }
+
+        // ===== SEND TEST SMS =====
+        async function sendTestSms() {
+            const phoneInput = document.getElementById('testSmsPhone');
+            const resultDiv = document.getElementById('smsTestResult');
+            const btn = document.getElementById('sendTestSmsBtn');
+            const phoneNumber = phoneInput.value.trim();
+
+            if (!phoneNumber) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.backgroundColor = '#fee2e2';
+                resultDiv.style.borderLeft = '4px solid #ef4444';
+                resultDiv.style.color = '#dc2626';
+                resultDiv.innerHTML = '❌ Please enter a phone number';
+                return;
+            }
+
+            // Validate phone number format
+            const phoneDigits = phoneNumber.replace(/\D/g, '');
+            if (phoneDigits.length < 10) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.backgroundColor = '#fee2e2';
+                resultDiv.style.borderLeft = '4px solid #ef4444';
+                resultDiv.style.color = '#dc2626';
+                resultDiv.innerHTML = '❌ Phone number must be at least 10 digits';
+                return;
+            }
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="loader" style="width:1em;height:1em;vertical-align:middle;margin-right:6px;animation:spin 1s linear infinite"></i> Sending...';
+
+                const response = await fetch('/sms/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phoneNumber: phoneNumber,
+                        message: 'This is a test SMS from Versafic AI. Your SMS integration is working perfectly! ✅'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    resultDiv.style.display = 'block';
+                    resultDiv.style.backgroundColor = '#dcfce7';
+                    resultDiv.style.borderLeft = '4px solid #10b981';
+                    resultDiv.style.color = '#047857';
+                    resultDiv.innerHTML = '✅ Test SMS sent successfully! Check your phone for the message.';
+                } else {
+                    resultDiv.style.display = 'block';
+                    resultDiv.style.backgroundColor = '#fee2e2';
+                    resultDiv.style.borderLeft = '4px solid #ef4444';
+                    resultDiv.style.color = '#dc2626';
+                    resultDiv.innerHTML = '❌ Failed to send SMS: ' + (data.message || 'Unknown error');
+                }
+            } catch (error) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.backgroundColor = '#fee2e2';
+                resultDiv.style.borderLeft = '4px solid #ef4444';
+                resultDiv.style.color = '#dc2626';
+                resultDiv.innerHTML = '❌ Error: ' + error.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="send" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Send Test';
+            }
         }
 
         // ===== EXPORT CSV HELPER =====
@@ -5243,6 +5326,73 @@ const PAGE_SCRIPT = `
             const wasOpen = item.classList.contains('open');
             document.querySelectorAll('.faq-item').forEach(i => { i.classList.remove('open'); i.querySelector('.faq-answer').classList.remove('open') });
             if (!wasOpen) { item.classList.add('open'); item.querySelector('.faq-answer').classList.add('open') }
+        }
+
+        // ===== SEND TEST SMS =====
+        async function sendTestSms() {
+            const phoneInput = document.getElementById('testSmsPhone');
+            const resultDiv = document.getElementById('smsTestResult');
+            const btn = document.getElementById('sendTestSmsBtn');
+            const phoneNumber = phoneInput.value.trim();
+
+            if (!phoneNumber) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.backgroundColor = '#fee2e2';
+                resultDiv.style.borderLeft = '4px solid #ef4444';
+                resultDiv.style.color = '#dc2626';
+                resultDiv.innerHTML = '❌ Please enter a phone number';
+                return;
+            }
+
+            // Validate phone number format
+            const phoneDigits = phoneNumber.replace(/\D/g, '');
+            if (phoneDigits.length < 10) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.backgroundColor = '#fee2e2';
+                resultDiv.style.borderLeft = '4px solid #ef4444';
+                resultDiv.style.color = '#dc2626';
+                resultDiv.innerHTML = '❌ Phone number must be at least 10 digits';
+                return;
+            }
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="loader" style="width:1em;height:1em;vertical-align:middle;margin-right:6px;animation:spin 1s linear infinite"></i> Sending...';
+
+                const response = await fetch('/sms/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phoneNumber: phoneNumber,
+                        message: 'This is a test SMS from Versafic AI. Your SMS integration is working perfectly! ✅'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    resultDiv.style.display = 'block';
+                    resultDiv.style.backgroundColor = '#dcfce7';
+                    resultDiv.style.borderLeft = '4px solid #10b981';
+                    resultDiv.style.color = '#047857';
+                    resultDiv.innerHTML = '✅ Test SMS sent successfully! Check your phone for the message.';
+                } else {
+                    resultDiv.style.display = 'block';
+                    resultDiv.style.backgroundColor = '#fee2e2';
+                    resultDiv.style.borderLeft = '4px solid #ef4444';
+                    resultDiv.style.color = '#dc2626';
+                    resultDiv.innerHTML = '❌ Failed to send SMS: ' + (data.message || 'Unknown error');
+                }
+            } catch (error) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.backgroundColor = '#fee2e2';
+                resultDiv.style.borderLeft = '4px solid #ef4444';
+                resultDiv.style.color = '#dc2626';
+                resultDiv.innerHTML = '❌ Error: ' + error.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="send" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Send Test';
+            }
         }
 
         // ===== EXPORT CSV HELPER =====

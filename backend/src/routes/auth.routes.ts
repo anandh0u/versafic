@@ -27,6 +27,20 @@ router.post("/login", AuthController.login);
 router.post("/validate-email", AuthController.validateEmail);
 
 /**
+ * @route POST /auth/forgot-password
+ * @description Send a short-lived password reset link
+ * @body email
+ */
+router.post("/forgot-password", AuthController.forgotPassword);
+
+/**
+ * @route POST /auth/reset-password
+ * @description Reset password using a short-lived token
+ * @body token, password
+ */
+router.post("/reset-password", AuthController.resetPassword);
+
+/**
  * @route POST /auth/refresh
  * @description Refresh access token using refresh token
  * @body refreshToken

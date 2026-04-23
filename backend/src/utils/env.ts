@@ -39,7 +39,12 @@ export const validateEnv = (): void => {
   // AI feature is optional, but log if missing
   const optionalButRecommended = [
     "DATABASE_URL",
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_MODEL",
+    "CLAUDE_OUTBOUND_MODEL",
     "OPENAI_API_KEY",
+    "OPENAI_MODEL",
+    "OPENAI_OUTBOUND_MODEL",
     "SARVAM_API_KEY",
     "FRONTEND_BASE_URL",
     "APP_URL",

@@ -1,11 +1,19 @@
 # Versafic
 
-Versafic is an AI customer support platform with:
+Versafic is an AI voice and customer-ops platform for bookings, support, and business discovery.
+
+Live web links:
+
+- Frontend: https://frontend-anandh0us-projects.vercel.app
+- Backend: https://backend-production-a176.up.railway.app
+
+It includes:
 
 - a Node.js + Express + TypeScript backend
 - a Next.js frontend that preserves the approved legacy design
 - credit-based billing with Razorpay
-- Twilio-backed call flows
+- Exotel-backed call flows
+- Mailgun email delivery
 - AI chat, voice, onboarding, and business directory features
 
 ## Project Structure
@@ -55,6 +63,11 @@ npm run build
 - Frontend production: Vercel
 - Backend production: Railway
 - Database: Aiven PostgreSQL
+
+## Source Links
+
+- Common backend remote: https://github.com/Vtroninternal/common-backend.git
+- Versafic repo: https://github.com/anandh0u/versafic.git
 
 ## Deployment Targets
 
@@ -119,6 +132,12 @@ If Google shows `Error 400: redirect_uri_mismatch`, check both places:
 - Vercel is currently the live frontend host: `https://frontend-anandh0us-projects.vercel.app`
 - Twilio webhook URLs depend on `PUBLIC_BASE_URL`
 - Run `npm run db:migrate:aiven` from the backend when deploying schema changes
+
+## Maintenance Notes
+
+- Keep Bookings labeled as Bookings.
+- Avoid reintroducing HTML-only route sources as the active frontend path.
+- If linting is needed, add a committed frontend ESLint config instead of using the interactive prompt.
 
 ## Beta Launch Readiness
 

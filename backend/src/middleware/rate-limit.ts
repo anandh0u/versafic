@@ -1,123 +1,18 @@
 // src/middleware/rate-limit.ts
 import { Request, Response, NextFunction, RequestHandler } from 'express';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { ErrorCode } from '../types';
 
-/**
- * Get user identifier for rate limiting
- * Uses user ID from JWT if available, otherwise IP address
- */
-const getUserIdentifier = (req: any): string => {
-  if (req.userId) {
-    return `user-${req.userId}`;
-  }
-  const forwardedIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim();
-  const requestIp = req.ip || forwardedIp || '127.0.0.1';
-  return ipKeyGenerator(requestIp);
-};
+const passthroughLimiter: RequestHandler = (_req, _res, next) => next();
 
 /**
- * General API limiter: 100 requests per 15 minutes per IP/user
+ * Runtime rate limits are intentionally disabled.
+ * Earlier product decisions removed request throttling because it was blocking
+ * normal auth, config checks, and dashboard activity in production.
  */
-export const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  keyGenerator: (req: any) => getUserIdentifier(req),
-  handler: (req: any, res: Response) => {
-    logger.warn('General rate limit exceeded', {
-      ip: req.ip,
-      path: req.path,
-      userId: req.userId
-    });
-
-    res.status(429).json({
-      status: 'error',
-      statusCode: 429,
-      errorCode: ErrorCode.RATE_LIMIT_EXCEEDED,
-      message: 'Too many requests. Please try again later.',
-      retryAfter: req.rateLimit?.resetTime,
-      timestamp: new Date().toISOString()
-    });
-  },
-  skip: (req: any) => {
-    // Skip rate limiting for health checks
-    return req.path === '/health' || req.path === '/ops/health';
-  }
-});
-
-/**
- * AI endpoint limiter: 10 requests per minute per user
- * This prevents credit exhaustion attacks
- */
-export const rateLimitAI = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // limit each user to 10 requests per minute
-  keyGenerator: (req: any) => {
-    if (!req.userId) {
-      const forwardedIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim();
-      return ipKeyGenerator(req.ip || forwardedIp || '127.0.0.1');
-    }
-    return `ai-user-${req.userId}`;
-  },
-  handler: (req: any, res: Response) => {
-    const userId = req.userId;
-    logger.warn('AI rate limit exceeded', {
-      userId,
-      path: req.path,
-      ip: req.ip
-    });
-
-    res.status(429).json({
-      status: 'error',
-      statusCode: 429,
-      errorCode: ErrorCode.RATE_LIMIT_EXCEEDED,
-      message: 'Too many AI requests. You can make up to 10 requests per minute. Please wait before trying again.',
-      retryAfter: 60,
-      timestamp: new Date().toISOString()
-    });
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-/**
- * Auth endpoint limiter: 5 attempts per 5 minutes per email
- * Prevents brute force attacks on login/register
- */
-export const authLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 5, // limit per IP to 5 requests per windowMs
-  keyGenerator: (req: any) => {
-    // Try to extract email from body, otherwise use IP
-    const email = (req.body?.email || req.body?.email_address || '').toLowerCase().trim();
-    if (email) {
-      return `auth-${email}`;
-    }
-    const forwardedIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim();
-    return `auth-${ipKeyGenerator(req.ip || forwardedIp || '127.0.0.1')}`;
-  },
-  handler: (req: any, res: Response) => {
-    const email = (req.body?.email || req.body?.email_address || 'unknown').toString();
-    logger.warn('Auth rate limit exceeded', {
-      email,
-      path: req.path,
-      ip: req.ip,
-      attempt: req.rateLimit?.current || 0
-    });
-
-    res.status(429).json({
-      status: 'error',
-      statusCode: 429,
-      errorCode: ErrorCode.RATE_LIMIT_EXCEEDED,
-      message: 'Too many login attempts. Please wait 5 minutes before trying again.',
-      retryAfter: 300,
-      timestamp: new Date().toISOString()
-    });
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+export const generalLimiter: RequestHandler = passthroughLimiter;
+export const rateLimitAI: RequestHandler = passthroughLimiter;
+export const authLimiter: RequestHandler = passthroughLimiter;
 
 /**
  * Request size limiter

@@ -220,6 +220,9 @@ router.post('/end/:sessionId', async (req: Request, res: Response, next: NextFun
       200
     );
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Session')) {
+      return sendError(res, 'Session not found', 404);
+    }
     next(error);
   }
 });

@@ -28,6 +28,7 @@ import {
   getPublicCallConfig,
   getRecentVoiceConversations,
   getResolvedInteractions,
+  getSmsConfig,
   getSetupBusiness,
   getSetupStatus,
   getPreferredPlanId,
@@ -39,7 +40,9 @@ import {
   LegacyApiError,
   login,
   register,
+  requestPasswordReset,
   saveSetupBusiness,
+  sendSmsDemo,
   sendTestEmail,
   sendCustomerServiceChat,
   startExotelCall,
@@ -100,6 +103,8 @@ type DashboardState = {
   activeCustomerSessions: string[];
 };
 
+type PublicCallConfig = Awaited<ReturnType<typeof getPublicCallConfig>>;
+
 type RazorpayWindow = Window & {
   Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
   lucide?: { createIcons: () => void };
@@ -118,11 +123,25 @@ type RazorpayWindow = Window & {
   setFilter?: (button: HTMLElement, kind: string) => void;
   setDateFilter?: (button: HTMLElement) => void;
   setBookingFilter?: (button: HTMLElement) => void;
+  setBookingSubNav?: (button: HTMLElement, sectionId: string) => void;
+  toggleBookingView?: (view: "main" | "settings") => void;
   renderWeeklyCalendar?: () => void;
+  renderActiveBookings?: () => void;
+  renderPastBookings?: () => void;
+  renderWeeklySchedule?: () => void;
+  renderBlockedSlots?: () => void;
+  renderHolidays?: () => void;
   doSearch?: () => void;
   startCall?: () => void;
   simulateCall?: () => void;
+  openModal?: () => void;
   closeModal?: () => void;
+  submitBooking?: (event: Event) => void;
+  openDayDetail?: (dateValue: string) => void;
+  saveSchedule?: () => void;
+  addBlockedSlot?: () => void;
+  addHoliday?: () => void;
+  exportTableCSV?: (bodyId: string, filename: string) => void;
   openCallModal?: () => void;
   closeCallModal?: () => void;
   __versaficOriginalNextStep?: () => void;
@@ -157,6 +176,11 @@ let dashboardRefreshInFlight = false;
 let onboardingValidationAttemptedSteps = new Set<string>();
 const dashboardLazyLoaders = new Map<string, Promise<void>>();
 const dashboardSidebarPages = ["overview", "calls", "chats", "bookings", "customers", "analytics", "credits", "agent"] as const;
+let activeBookingsPage = 1;
+let pastBookingsPage = 1;
+let bookingCalendarMonth = new Date();
+let publicCallConfigCache: PublicCallConfig | null = null;
+let publicCallConfigPromise: Promise<PublicCallConfig | null> | null = null;
 
 const getWindowRef = (): RazorpayWindow => window as RazorpayWindow;
 
@@ -605,6 +629,43 @@ const setDashboardReady = (ready: boolean) => {
 
 const normalizeText = (value?: string | null) => value?.trim() || "";
 
+const primePublicCallConfig = (): Promise<PublicCallConfig | null> => {
+  if (!publicCallConfigPromise) {
+    publicCallConfigPromise = getPublicCallConfig()
+      .then((config) => {
+        publicCallConfigCache = config;
+        return config;
+      })
+      .catch(() => {
+        publicCallConfigCache = null;
+        return null;
+      });
+  }
+
+  return publicCallConfigPromise;
+};
+
+const openDialerLink = (phoneNumber: string) => {
+  const anchor = document.createElement("a");
+  anchor.href = `tel:${phoneNumber}`;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+};
+
+const triggerPublicCallDialer = (messagePrefix = "Opening your phone dialer for") => {
+  const config = publicCallConfigCache;
+  if (!config?.ai_number) {
+    showToast("The AI number is loading. Please try again in a moment.", "info");
+    void primePublicCallConfig();
+    return;
+  }
+
+  showToast(`${messagePrefix} ${config.ai_number}.`, "success");
+  openDialerLink(config.ai_number);
+};
+
 const getBasicEmailValidationMessage = (value?: string | null) => {
   const email = normalizeText(value).toLowerCase();
   if (!email) {
@@ -777,8 +838,12 @@ const getPhoneValidationMessage = (phone: string, countryCode?: string | null) =
 
   const digits = trimmed.replace(/\D/g, "");
   const normalizedCountry = (countryCode || "").toUpperCase();
+  const looksLikeIndianMobile =
+    /^[6-9]\d{9}$/.test(digits) ||
+    (/^0\d{10}$/.test(digits) && /^[6-9]\d{9}$/.test(digits.slice(1))) ||
+    (/^91\d{10}$/.test(digits) && /^[6-9]\d{9}$/.test(digits.slice(2)));
 
-  if (normalizedCountry === "IN" || trimmed.startsWith("+91") || digits.startsWith("91")) {
+  if (normalizedCountry === "IN" || trimmed.startsWith("+91") || digits.startsWith("91") || looksLikeIndianMobile) {
     if (!/^[6-9]\d{9}$/.test(digits.slice(-10))) {
       return "Indian mobile numbers must have exactly 10 digits.";
     }
@@ -1919,11 +1984,26 @@ const bindHomePage = async () => {
   }
 
   const modal = document.getElementById("loginModal");
+  const forgotModal = document.getElementById("forgotPasswordModal");
   const emailInput = document.getElementById("loginEmail") as HTMLInputElement | null;
   const passwordInput = document.getElementById("loginPass") as HTMLInputElement | null;
+  const forgotPasswordLink = document.getElementById("forgotPasswordLink") as HTMLAnchorElement | null;
+  const forgotPasswordEmailInput = document.getElementById("forgotPasswordEmail") as HTMLInputElement | null;
+  const forgotPasswordSubmitButton = replaceInteractiveElement(
+    document.getElementById("forgotPasswordSubmitBtn") as HTMLButtonElement | null
+  );
   const loginButton = replaceInteractiveElement(
     modal?.querySelector<HTMLButtonElement>('.btn.btn-primary[style*="width:100%"]') ?? null
   );
+
+  const openForgotPasswordModal = () => {
+    forgotModal?.classList.add("open");
+    window.setTimeout(() => forgotPasswordEmailInput?.focus(), 60);
+  };
+
+  const closeForgotPasswordModal = () => {
+    forgotModal?.classList.remove("open");
+  };
 
   if (loginButton && emailInput && passwordInput) {
     loginButton.addEventListener("click", async () => {
@@ -1971,7 +2051,7 @@ const bindHomePage = async () => {
     }
 
     button.style.display = "";
-    const provider = "google";
+    const provider = button.getAttribute("data-auth-provider") === "google" ? "google" : "google";
     const interactiveButton = replaceInteractiveElement(button);
     interactiveButton?.addEventListener("click", () => {
       window.location.href = getOAuthStartUrl(provider);
@@ -1982,12 +2062,53 @@ const bindHomePage = async () => {
     dividerRow.style.display = "";
   }
 
+  forgotPasswordLink?.addEventListener("click", (event) => {
+    event.preventDefault();
+    getWindowRef().closeLogin?.();
+    openForgotPasswordModal();
+  });
+
+  forgotPasswordSubmitButton?.addEventListener("click", async () => {
+    const email = normalizeText(forgotPasswordEmailInput?.value || "");
+    const emailValidationMessage = getBasicEmailValidationMessage(email);
+
+    if (emailValidationMessage) {
+      showToast(emailValidationMessage, "warn");
+      forgotPasswordEmailInput?.focus();
+      return;
+    }
+
+    const originalText = forgotPasswordSubmitButton.textContent;
+    forgotPasswordSubmitButton.textContent = "Sending...";
+    forgotPasswordSubmitButton.setAttribute("disabled", "true");
+
+    try {
+      await requestPasswordReset(email);
+      showToast("If that email is registered, a reset link is on the way.", "success");
+      closeForgotPasswordModal();
+    } catch (error) {
+      const message =
+        error instanceof LegacyApiError ? error.message : "Unable to send a reset link right now.";
+      showToast(message, "warn");
+    } finally {
+      forgotPasswordSubmitButton.textContent = originalText || "Send reset link";
+      forgotPasswordSubmitButton.removeAttribute("disabled");
+    }
+  });
+
+  forgotPasswordEmailInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      forgotPasswordSubmitButton?.click();
+    }
+  });
+
   syncHomeSessionActions();
 
   const loadPublicHomepageData = async () => {
     const [planResponse, publicCallConfig] = await Promise.all([
       getPlans(),
-      getPublicCallConfig().catch(() => null),
+      primePublicCallConfig(),
     ]);
 
     updateHomePricing(planResponse.plans);
@@ -2592,6 +2713,7 @@ const updateSearchSidebar = (businesses: DirectoryBusiness[]) => {
 
 const bindSearchPage = async () => {
   const win = getWindowRef();
+  void primePublicCallConfig();
 
   try {
     syncSearchSessionActions();
@@ -2674,13 +2796,7 @@ const bindSearchPage = async () => {
       document.getElementById("callModal")?.classList.remove("open");
     };
     win.simulateCall = async () => {
-      const config = await getPublicCallConfig().catch(() => null);
-      if (!config?.ai_number) {
-        showToast("The AI number is not available right now.", "warn");
-        return;
-      }
-      showToast(`Opening your phone dialer for ${config.ai_number}.`, "success");
-      window.location.href = `tel:${config.ai_number}`;
+      triggerPublicCallDialer();
     };
 
     const modalCallButton = replaceInteractiveElement(
@@ -2691,19 +2807,8 @@ const bindSearchPage = async () => {
         win.closeModal?.();
       }
     });
-    modalCallButton?.addEventListener("click", async () => {
-      try {
-        const config = await getPublicCallConfig();
-        if (!config.ai_number) {
-          showToast("The AI number is not configured yet.", "warn");
-          return;
-        }
-
-        showToast(`Opening your phone dialer for ${config.ai_number}.`, "success");
-        window.location.href = `tel:${config.ai_number}`;
-      } catch {
-        showToast("The AI number is not available right now.", "warn");
-      }
+    modalCallButton?.addEventListener("click", () => {
+      triggerPublicCallDialer();
     });
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -2895,6 +3000,7 @@ const renderProfilePage = async (pageKey: string) => {
 
 const bindProfilePage = async (pageKey: string) => {
   await renderProfilePage(pageKey);
+  void primePublicCallConfig();
 
   const win = getWindowRef();
   win.openCallModal = () => {
@@ -2904,18 +3010,7 @@ const bindProfilePage = async (pageKey: string) => {
     document.getElementById("callModal")?.classList.remove("open");
   };
   win.startCall = async () => {
-    try {
-      const config = await getPublicCallConfig();
-      if (!config.ai_number) {
-        showToast("The AI number is not configured yet.", "warn");
-        return;
-      }
-
-      showToast(`Opening your dialer for ${config.ai_number}.`, "success");
-      window.location.href = `tel:${config.ai_number}`;
-    } catch {
-      showToast("The AI number is not available right now.", "warn");
-    }
+    triggerPublicCallDialer("Opening your dialer for");
   };
 
   document.addEventListener("keydown", (event) => {
@@ -3019,6 +3114,52 @@ type BookingRow = {
   notes: string;
   duration: string;
 };
+
+type ManualBookingEntry = {
+  id: string;
+  customer: string;
+  service: string;
+  date: string;
+  time: string;
+  notes: string;
+  createdAt: string;
+};
+
+type WeeklyScheduleEntry = {
+  day: string;
+  enabled: boolean;
+  from: string;
+  to: string;
+};
+
+type BlockedSlotEntry = {
+  id: string;
+  day: string;
+  from: string;
+  to: string;
+  reason: string;
+};
+
+type HolidayEntry = {
+  id: string;
+  date: string;
+  reason: string;
+};
+
+const MANUAL_BOOKINGS_KEY = "versafic.manualBookings";
+const BOOKING_SCHEDULE_KEY = "versafic.bookingSchedule";
+const BLOCKED_SLOTS_KEY = "versafic.blockedSlots";
+const HOLIDAYS_KEY = "versafic.holidays";
+const WEEK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+const DEFAULT_WEEKLY_SCHEDULE: WeeklyScheduleEntry[] = [
+  { day: "Monday", enabled: true, from: "09:00", to: "17:00" },
+  { day: "Tuesday", enabled: true, from: "09:00", to: "17:00" },
+  { day: "Wednesday", enabled: true, from: "09:00", to: "17:00" },
+  { day: "Thursday", enabled: true, from: "09:00", to: "17:00" },
+  { day: "Friday", enabled: true, from: "09:00", to: "17:00" },
+  { day: "Saturday", enabled: false, from: "10:00", to: "14:00" },
+  { day: "Sunday", enabled: false, from: "10:00", to: "14:00" },
+];
 
 const searchSidebarKindOptions: Array<{ kind: BusinessKind; label: string; icon: string }> = [
   { kind: "hotel", label: "Hotels", icon: "hotel" },
@@ -3195,6 +3336,347 @@ const buildBookingRows = (state: DashboardState): BookingRow[] => {
       void sortKey;
       return rest;
     });
+};
+
+const readStoredArray = <T,>(key: string): T[] => {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw) as T[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeStoredArray = (key: string, value: unknown[]) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(value));
+};
+
+const getManualBookings = () => readStoredArray<ManualBookingEntry>(MANUAL_BOOKINGS_KEY);
+const saveManualBookings = (entries: ManualBookingEntry[]) => writeStoredArray(MANUAL_BOOKINGS_KEY, entries);
+
+const getWeeklyScheduleEntries = (): WeeklyScheduleEntry[] => {
+  const stored = readStoredArray<WeeklyScheduleEntry>(BOOKING_SCHEDULE_KEY);
+  if (!stored.length) {
+    return DEFAULT_WEEKLY_SCHEDULE;
+  }
+
+  return WEEK_DAYS.map((day) => {
+    const existing = stored.find((item) => item.day === day);
+    return existing || DEFAULT_WEEKLY_SCHEDULE.find((item) => item.day === day)!;
+  });
+};
+
+const saveWeeklyScheduleEntries = (entries: WeeklyScheduleEntry[]) => writeStoredArray(BOOKING_SCHEDULE_KEY, entries);
+const getBlockedSlotEntries = () => readStoredArray<BlockedSlotEntry>(BLOCKED_SLOTS_KEY);
+const saveBlockedSlotEntries = (entries: BlockedSlotEntry[]) => writeStoredArray(BLOCKED_SLOTS_KEY, entries);
+const getHolidayEntries = () => readStoredArray<HolidayEntry>(HOLIDAYS_KEY);
+const saveHolidayEntries = (entries: HolidayEntry[]) => writeStoredArray(HOLIDAYS_KEY, entries);
+
+const formatManualBookingTime = (timeValue: string) => {
+  if (!timeValue) {
+    return "--";
+  }
+
+  const [hours, minutes] = timeValue.split(":").map((value) => Number(value));
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return timeValue;
+  }
+
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const toBookingTimestamp = (row: BookingRow) => {
+  const parsed = new Date(`${row.date} ${row.time}`);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.getTime();
+  }
+
+  const dateOnly = new Date(row.date);
+  if (!Number.isNaN(dateOnly.getTime())) {
+    return dateOnly.getTime();
+  }
+
+  return 0;
+};
+
+const buildRuntimeBookingRows = (state: DashboardState): BookingRow[] => {
+  const manualRows = getManualBookings().map<BookingRow>((entry) => ({
+    customer: entry.customer,
+    service: entry.service,
+    assignedTo: "Manual",
+    statusBadge: "badge-blue",
+    statusLabel: "Pending",
+    date: formatDate(entry.date),
+    time: formatManualBookingTime(entry.time),
+    notes: entry.notes || "Manual booking",
+    duration: "--",
+  }));
+
+  return [...manualRows, ...buildBookingRows(state)].sort((left, right) => toBookingTimestamp(right) - toBookingTimestamp(left));
+};
+
+const filterBookingRowsByView = (rows: BookingRow[], filterKey: string) => {
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const endOfWeek = new Date(startOfToday);
+  endOfWeek.setDate(endOfWeek.getDate() + 7);
+  const endOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  if (filterKey === "Today") {
+    return rows.filter((row) => {
+      const timestamp = toBookingTimestamp(row);
+      return timestamp >= startOfToday.getTime() && timestamp < startOfToday.getTime() + 86400000;
+    });
+  }
+
+  if (filterKey === "This Week") {
+    return rows.filter((row) => {
+      const timestamp = toBookingTimestamp(row);
+      return timestamp >= startOfToday.getTime() && timestamp <= endOfWeek.getTime();
+    });
+  }
+
+  if (filterKey === "This Month") {
+    return rows.filter((row) => {
+      const timestamp = toBookingTimestamp(row);
+      return timestamp >= startOfToday.getTime() && timestamp <= endOfMonth.getTime();
+    });
+  }
+
+  return rows;
+};
+
+const renderBookingsPagination = (
+  containerId: string,
+  totalRows: number,
+  pageSize: number,
+  currentPage: number,
+  onPageChange: (page: number) => void
+) => {
+  const container = document.getElementById(containerId);
+  if (!container) {
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalRows / Math.max(pageSize, 1)));
+  const clampedPage = Math.min(Math.max(currentPage, 1), totalPages);
+  const startRow = totalRows === 0 ? 0 : (clampedPage - 1) * pageSize + 1;
+  const endRow = totalRows === 0 ? 0 : Math.min(totalRows, clampedPage * pageSize);
+
+  container.innerHTML = `
+    <div>Showing ${startRow}-${endRow} of ${totalRows} bookings</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" type="button" data-page-action="prev" ${clampedPage <= 1 ? "disabled" : ""}>Previous</button>
+      <span>Page ${clampedPage} / ${totalPages}</span>
+      <button class="btn btn-outline btn-sm" type="button" data-page-action="next" ${clampedPage >= totalPages ? "disabled" : ""}>Next</button>
+    </div>
+  `;
+
+  const prevButton = container.querySelector<HTMLButtonElement>('[data-page-action="prev"]');
+  const nextButton = container.querySelector<HTMLButtonElement>('[data-page-action="next"]');
+  prevButton?.addEventListener("click", () => onPageChange(clampedPage - 1));
+  nextButton?.addEventListener("click", () => onPageChange(clampedPage + 1));
+};
+
+const renderBookingsCalendar = (rows: BookingRow[]) => {
+  const calendarSection = document.getElementById("bookingSub-calendar");
+  const container = calendarSection?.querySelector(".chart-container");
+  if (!container) {
+    return;
+  }
+
+  const calendarMonthStart = new Date(bookingCalendarMonth);
+  calendarMonthStart.setDate(1);
+  calendarMonthStart.setHours(0, 0, 0, 0);
+  const monthName = calendarMonthStart.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  const startDay = calendarMonthStart.getDay();
+  const daysInMonth = new Date(calendarMonthStart.getFullYear(), calendarMonthStart.getMonth() + 1, 0).getDate();
+  const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
+
+  const cells = Array.from({ length: totalCells }, (_, index) => {
+    const dayNumber = index - startDay + 1;
+    const inMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
+    const cellDate = new Date(calendarMonthStart.getFullYear(), calendarMonthStart.getMonth(), dayNumber);
+    const dateLabel = formatDate(cellDate.toISOString());
+    const dayRows = inMonth ? rows.filter((row) => row.date === dateLabel).slice(0, 2) : [];
+    const isToday = inMonth && formatDate(new Date().toISOString()) === dateLabel;
+
+    return `
+      <div data-booking-date="${inMonth ? cellDate.toISOString() : ""}" style="background:${inMonth ? (isToday ? "rgba(99,102,241,0.03)" : "#fff") : "#f9fafb"};min-height:110px;padding:8px;${inMonth ? "cursor:pointer;" : ""}">
+        <div style="${isToday ? "display:inline-block;background:var(--indigo);color:#fff;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;font-size:0.8rem;font-weight:700;margin-bottom:6px;" : "font-size:0.8rem;color:" + (inMonth ? "var(--text-primary)" : "var(--text-muted)") + ";font-weight:500;margin-bottom:6px;"}">${inMonth ? dayNumber : ""}</div>
+        ${dayRows
+          .map(
+            (row) => `
+              <div style="background:rgba(99,102,241,0.1);color:var(--indigo);padding:4px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;margin-bottom:4px;">
+                ${escapeHtml(`${row.time} - ${row.customer}`)}
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="weekly-header-bar" style="border-bottom:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <h3 style="margin:0;font-size:1.15rem;font-weight:700;">${escapeHtml(monthName)}</h3>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline btn-sm" type="button" data-calendar-nav="prev">&lt;</button>
+          <button class="btn btn-outline btn-sm" type="button" data-calendar-nav="today">Today</button>
+          <button class="btn btn-outline btn-sm" type="button" data-calendar-nav="next">&gt;</button>
+        </div>
+      </div>
+      <div style="font-size:0.82rem;color:var(--text-muted);">Live bookings calendar</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7, 1fr);background:var(--border);gap:1px;">
+      ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        .map(
+          (day) => `
+            <div style="background:#f9fafb;padding:12px;text-align:center;font-weight:600;font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;">${day}</div>
+          `
+        )
+        .join("")}
+      ${cells}
+    </div>
+  `;
+
+  container.querySelectorAll<HTMLElement>("[data-booking-date]").forEach((cell) => {
+    const iso = cell.dataset.bookingDate;
+    if (!iso) {
+      return;
+    }
+    cell.addEventListener("click", () => {
+      getWindowRef().openDayDetail?.(iso);
+    });
+  });
+
+  container.querySelector<HTMLButtonElement>('[data-calendar-nav="prev"]')?.addEventListener("click", () => {
+    bookingCalendarMonth = new Date(calendarMonthStart.getFullYear(), calendarMonthStart.getMonth() - 1, 1);
+    renderBookingsCalendar(rows);
+  });
+  container.querySelector<HTMLButtonElement>('[data-calendar-nav="today"]')?.addEventListener("click", () => {
+    bookingCalendarMonth = new Date();
+    renderBookingsCalendar(rows);
+  });
+  container.querySelector<HTMLButtonElement>('[data-calendar-nav="next"]')?.addEventListener("click", () => {
+    bookingCalendarMonth = new Date(calendarMonthStart.getFullYear(), calendarMonthStart.getMonth() + 1, 1);
+    renderBookingsCalendar(rows);
+  });
+};
+
+const renderBookingScheduleTable = () => {
+  const body = document.getElementById("weeklyScheduleBody");
+  if (!body) {
+    return;
+  }
+
+  body.innerHTML = getWeeklyScheduleEntries()
+    .map(
+      (entry, index) => `
+        <div class="schedule-row ${entry.enabled ? "" : "inactive-day"}" style="display:grid;grid-template-columns:150px 120px 1fr;align-items:center;background:#fff;padding:16px;gap:12px;">
+          <div style="font-weight:600;color:var(--text-primary)">${escapeHtml(entry.day)}</div>
+          <label class="toggle-switch">
+            <input type="checkbox" data-schedule-toggle="${index}" ${entry.enabled ? "checked" : ""}>
+            <div class="toggle-track"></div>
+          </label>
+          <div class="schedule-times">
+            ${
+              entry.enabled
+                ? `<input type="time" class="input-field time-sm" data-schedule-from="${index}" value="${escapeHtml(entry.from)}"><span class="time-sep">-</span><input type="time" class="input-field time-sm" data-schedule-to="${index}" value="${escapeHtml(entry.to)}">`
+                : '<span class="closed-text">Closed</span>'
+            }
+          </div>
+        </div>
+      `
+    )
+    .join("");
+};
+
+const renderBlockedSlotsTable = () => {
+  const body = document.getElementById("blockedSlotsBody");
+  if (!body) {
+    return;
+  }
+
+  const rows = getBlockedSlotEntries();
+  body.innerHTML =
+    rows
+      .map(
+        (row, index) => `
+          <tr>
+            <td>${escapeHtml(row.day)}</td>
+            <td>${escapeHtml(`${row.from} - ${row.to}`)}</td>
+            <td>${escapeHtml(row.reason)}</td>
+            <td><button class="btn btn-outline btn-sm" type="button" data-remove-blocked-slot="${index}">Remove</button></td>
+          </tr>
+        `
+      )
+      .join("") ||
+    `<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">No blocked slots added yet.</td></tr>`;
+
+  body.querySelectorAll<HTMLButtonElement>("[data-remove-blocked-slot]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.removeBlockedSlot);
+      const nextRows = getBlockedSlotEntries().filter((_, rowIndex) => rowIndex !== index);
+      saveBlockedSlotEntries(nextRows);
+      renderBlockedSlotsTable();
+      showToast("Blocked slot removed.", "success");
+    });
+  });
+};
+
+const renderHolidayRows = () => {
+  const body = document.getElementById("holidaysTableBody");
+  if (!body) {
+    return;
+  }
+
+  const rows = getHolidayEntries();
+  body.innerHTML =
+    rows
+      .map(
+        (row, index) => `
+          <tr>
+            <td>${escapeHtml(formatDate(row.date))}</td>
+            <td>${escapeHtml(row.reason)}</td>
+            <td>Admin</td>
+            <td><span class="badge badge-amber">Blocked</span></td>
+            <td><button class="btn btn-outline btn-sm" type="button" data-remove-holiday="${index}">Remove</button></td>
+          </tr>
+        `
+      )
+      .join("") ||
+    `<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No blocked dates added yet.</td></tr>`;
+
+  body.querySelectorAll<HTMLButtonElement>("[data-remove-holiday]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.removeHoliday);
+      const nextRows = getHolidayEntries().filter((_, rowIndex) => rowIndex !== index);
+      saveHolidayEntries(nextRows);
+      renderHolidayRows();
+      showToast("Blocked date removed.", "success");
+    });
+  });
 };
 
 const renderCustomerRows = (rows: CustomerAggregate[]) => {
@@ -3574,6 +4056,7 @@ const updateBillingPage = (state: DashboardState) => {
   const topUpSlider = replaceInteractiveElement(
     creditsPage.querySelector<HTMLInputElement>("#billingTopUpSlider")
   ) as HTMLInputElement | null;
+  const topUpSelect = creditsPage.querySelector<HTMLSelectElement>("#billingTopUpSelect");
   const topUpCredits = creditsPage.querySelector<HTMLElement>("#billingTopUpCredits");
   const topUpPrice = creditsPage.querySelector<HTMLElement>("#billingTopUpPrice");
   const topUpHint = creditsPage.querySelector<HTMLElement>("#billingTopUpHint");
@@ -3585,12 +4068,52 @@ const updateBillingPage = (state: DashboardState) => {
     || sortedTopUpPlans[0]
     || null;
 
+  const getSelectedTopUpPlan = () => {
+    if (topUpSelect) {
+      return (
+        sortedTopUpPlans.find((plan) => plan.id === topUpSelect.value)
+        || sortedTopUpPlans.find((plan) => String(plan.credits) === topUpSelect.value)
+        || preferredPlan
+      );
+    }
+
+    return null;
+  };
+
+  if (topUpSelect) {
+    const selectedPlanId = preferredPlan?.id || sortedTopUpPlans[0]?.id || "";
+    
+    // Only update innerHTML if we have plans to display
+    if (sortedTopUpPlans.length > 0) {
+      topUpSelect.innerHTML = sortedTopUpPlans
+        .map((plan) => {
+          const label = `${formatNumber(plan.credits)} Credits - ${formatCurrency(plan.amount_paise)}`;
+          return `<option value="${escapeHtml(plan.id)}">${escapeHtml(label)}</option>`;
+        })
+        .join("");
+      if (selectedPlanId) {
+        topUpSelect.value = selectedPlanId;
+      }
+    } else {
+      // Fallback: Add a default option if no plans are available
+      if (topUpSelect.options.length === 0) {
+        const option = document.createElement('option');
+        option.text = 'Loading plans...';
+        option.value = '';
+        topUpSelect.appendChild(option);
+      }
+    }
+  }
+
   const updateTopUpPreview = () => {
-    const selectedCredits = Math.max(
-      DEFAULT_RECHARGE_MIN_CREDITS,
-      Number(topUpSlider?.value || preferredPlan?.credits || DEFAULT_RECHARGE_MIN_CREDITS)
-    );
-    const amountPaise = getRechargeAmountPaise(selectedCredits, sortedTopUpPlans);
+    const selectedPlan = getSelectedTopUpPlan();
+    const selectedCredits = selectedPlan
+      ? selectedPlan.credits
+      : Math.max(
+          DEFAULT_RECHARGE_MIN_CREDITS,
+          Number(topUpSlider?.value || preferredPlan?.credits || DEFAULT_RECHARGE_MIN_CREDITS)
+        );
+    const amountPaise = selectedPlan?.amount_paise || getRechargeAmountPaise(selectedCredits, sortedTopUpPlans);
 
     if (topUpCredits) {
       topUpCredits.textContent = `${formatNumber(selectedCredits)} credits`;
@@ -3599,10 +4122,13 @@ const updateBillingPage = (state: DashboardState) => {
       topUpPrice.textContent = formatCurrency(amountPaise);
     }
     if (topUpHint) {
-      topUpHint.textContent = `${getRechargeLabel(selectedCredits, sortedTopUpPlans)} · ${formatCurrency(amountPaise)}`;
+      topUpHint.textContent = selectedPlan
+        ? `${selectedPlan.name} · ${selectedPlan.description}`
+        : `${getRechargeLabel(selectedCredits, sortedTopUpPlans)} · ${formatCurrency(amountPaise)}`;
     }
 
     return {
+      plan: selectedPlan,
       credits: selectedCredits,
       amountPaise,
     };
@@ -3624,11 +4150,18 @@ const updateBillingPage = (state: DashboardState) => {
       updateTopUpPreview();
     });
   }
+  topUpSelect?.addEventListener("change", () => {
+    const selectedPlan = getSelectedTopUpPlan();
+    if (selectedPlan) {
+      setPreferredPlanId(selectedPlan.id);
+    }
+    updateTopUpPreview();
+  });
 
   updateTopUpPreview();
 
   topUpButton?.addEventListener("click", async () => {
-    const { credits, amountPaise } = updateTopUpPreview();
+    const { plan, credits, amountPaise } = updateTopUpPreview();
 
     if (!credits || !amountPaise) {
       showToast("Choose a valid top-up amount first.", "warn");
@@ -3636,16 +4169,28 @@ const updateBillingPage = (state: DashboardState) => {
     }
 
     try {
-      await openCheckout({
-        amountPaise,
-        credits,
-        onSuccess: async () => {
-          if (topUpHint) {
-            topUpHint.textContent = `Recharge successful · ${formatNumber(credits)} credits were added to your wallet.`;
+      const checkoutRequest = plan
+        ? {
+            planId: plan.id,
+            onSuccess: async () => {
+              if (topUpHint) {
+                topUpHint.textContent = `Recharge successful · ${formatNumber(plan.credits)} credits were added to your wallet.`;
+              }
+              await bindDashboardPage();
+            },
           }
-          await bindDashboardPage();
-        },
-      });
+        : {
+            amountPaise,
+            credits,
+            onSuccess: async () => {
+              if (topUpHint) {
+                topUpHint.textContent = `Recharge successful · ${formatNumber(credits)} credits were added to your wallet.`;
+              }
+              await bindDashboardPage();
+            },
+          };
+
+      await openCheckout(checkoutRequest);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to start checkout.";
       showToast(message, "warn");
@@ -3977,10 +4522,10 @@ const updateBookingsPage = (state: DashboardState) => {
 
   const bookingFilter = getWindowRef().__versaficSelectedBookingFilter || "Active";
   const filteredState = filterDashboardState(state, getSelectedDateFilter("page-bookings"));
-  const bookingRows = buildBookingRows(filteredState);
+  const bookingRows = buildRuntimeBookingRows(filteredState);
   const todayLabel = formatDate(new Date().toISOString());
   const todaysRows = bookingRows.filter((row) => row.date === todayLabel);
-  const activeRows = bookingFilter === "Today" ? todaysRows : bookingRows;
+  const activeRows = filterBookingRowsByView(bookingRows, bookingFilter);
   const completedRows = bookingRows.filter((row) => row.statusLabel === "Completed");
   const rescheduledRows = bookingRows.filter((row) => row.statusLabel.toLowerCase().includes("resched"));
 
@@ -4089,7 +4634,355 @@ const updateBookingsPage = (state: DashboardState) => {
     }
   }
 
+  bindBookingsPanelInteractions(filteredState);
+  getWindowRef().renderActiveBookings?.();
+  getWindowRef().renderPastBookings?.();
   getWindowRef().renderWeeklyCalendar?.();
+  getWindowRef().renderWeeklySchedule?.();
+  getWindowRef().renderBlockedSlots?.();
+  getWindowRef().renderHolidays?.();
+};
+
+const bindBookingsPanelInteractions = (state: DashboardState) => {
+  const win = getWindowRef();
+
+  const getCurrentRows = () => {
+    const latestState = filterDashboardState(win.__versaficDashboardState || state, getSelectedDateFilter("page-bookings"));
+    const latestRows = buildRuntimeBookingRows(latestState);
+    return filterBookingRowsByView(latestRows, win.__versaficSelectedBookingFilter || "Active");
+  };
+
+  const renderRowsIntoTable = (
+    bodyId: string,
+    rows: BookingRow[],
+    pageSizeSelectId: string,
+    searchInputId: string,
+    fromInputId: string,
+    toInputId: string,
+    paginationId: string,
+    pageRef: "active" | "past"
+  ) => {
+    const body = document.getElementById(bodyId);
+    if (!body) {
+      return;
+    }
+
+    const pageSize = Math.max(
+      1,
+      Number((document.getElementById(pageSizeSelectId) as HTMLSelectElement | null)?.value || 10)
+    );
+    const query = ((document.getElementById(searchInputId) as HTMLInputElement | null)?.value || "").trim().toLowerCase();
+    const fromValue = (document.getElementById(fromInputId) as HTMLInputElement | null)?.value || "";
+    const toValue = (document.getElementById(toInputId) as HTMLInputElement | null)?.value || "";
+
+    const filteredRows = rows.filter((row) => {
+      const rowTimestamp = toBookingTimestamp(row);
+      const matchesQuery = query
+        ? [row.customer, row.service, row.notes, row.statusLabel].some((field) => field.toLowerCase().includes(query))
+        : true;
+      const matchesFrom = fromValue ? rowTimestamp >= new Date(fromValue).getTime() : true;
+      const matchesTo = toValue ? rowTimestamp <= new Date(`${toValue}T23:59:59`).getTime() : true;
+      return matchesQuery && matchesFrom && matchesTo;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+    if (pageRef === "active") {
+      activeBookingsPage = Math.min(Math.max(activeBookingsPage, 1), totalPages);
+    } else {
+      pastBookingsPage = Math.min(Math.max(pastBookingsPage, 1), totalPages);
+    }
+
+    const currentPage = pageRef === "active" ? activeBookingsPage : pastBookingsPage;
+    const startIndex = (currentPage - 1) * pageSize;
+    const pageRows = filteredRows.slice(startIndex, startIndex + pageSize);
+
+    if (pageRef === "active") {
+      body.innerHTML =
+        pageRows
+          .map(
+            (row) => `
+              <tr>
+                <td style="color:var(--text-primary);font-weight:600">${escapeHtml(row.customer)}</td>
+                <td>${escapeHtml(row.service)}</td>
+                <td>${escapeHtml(row.date)}</td>
+                <td>${escapeHtml(row.time)}</td>
+                <td><span class="badge ${escapeHtml(row.statusBadge)}">${escapeHtml(row.statusLabel)}</span></td>
+                <td>${escapeHtml(row.notes)}</td>
+              </tr>
+            `
+          )
+          .join("") ||
+        `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No matching upcoming bookings yet.</td></tr>`;
+    } else {
+      body.innerHTML =
+        pageRows
+          .map(
+            (row) => `
+              <tr>
+                <td>${escapeHtml(row.date)}</td>
+                <td>${escapeHtml(row.time)}</td>
+                <td style="color:var(--text-primary);font-weight:600">${escapeHtml(row.customer)}</td>
+                <td>${escapeHtml(row.service)}</td>
+                <td>${escapeHtml(row.duration)}</td>
+                <td><span class="badge ${escapeHtml(row.statusBadge)}">${escapeHtml(row.statusLabel)}</span></td>
+              </tr>
+            `
+          )
+          .join("") ||
+        `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No matching past bookings yet.</td></tr>`;
+    }
+
+    renderBookingsPagination(paginationId, filteredRows.length, pageSize, currentPage, (nextPage) => {
+      if (pageRef === "active") {
+        activeBookingsPage = nextPage;
+        win.renderActiveBookings?.();
+      } else {
+        pastBookingsPage = nextPage;
+        win.renderPastBookings?.();
+      }
+    });
+  };
+
+  win.toggleBookingView = (view: "main" | "settings") => {
+    const mainView = document.getElementById("booking-main-view");
+    const settingsView = document.getElementById("booking-settings-view");
+    const settingsButton = document.getElementById("btn-booking-settings");
+    const mainButton = document.getElementById("btn-booking-main");
+
+    if (mainView) {
+      mainView.style.display = view === "main" ? "block" : "none";
+    }
+    if (settingsView) {
+      settingsView.style.display = view === "settings" ? "block" : "none";
+    }
+    if (settingsButton) {
+      settingsButton.style.display = view === "main" ? "inline-flex" : "none";
+    }
+    if (mainButton) {
+      mainButton.style.display = view === "settings" ? "inline-flex" : "none";
+    }
+
+    if (view === "settings") {
+      win.renderWeeklySchedule?.();
+      win.renderBlockedSlots?.();
+      win.renderHolidays?.();
+    }
+  };
+
+  win.setBookingSubNav = (button: HTMLElement, sectionId: string) => {
+    button.closest(".booking-sub-nav")?.querySelectorAll(".booking-sub-btn").forEach((node) => node.classList.remove("active"));
+    button.classList.add("active");
+    ["bookingSub-active", "bookingSub-past", "bookingSub-calendar", "bookingSub-schedule", "bookingSub-holidays"].forEach((id) => {
+      const section = document.getElementById(id);
+      if (section) {
+        section.style.display = id === sectionId ? "block" : "none";
+      }
+    });
+
+    if (sectionId === "bookingSub-active") {
+      win.renderActiveBookings?.();
+    } else if (sectionId === "bookingSub-past") {
+      win.renderPastBookings?.();
+    } else if (sectionId === "bookingSub-calendar") {
+      win.renderWeeklyCalendar?.();
+    } else if (sectionId === "bookingSub-schedule") {
+      win.renderWeeklySchedule?.();
+      win.renderBlockedSlots?.();
+    } else if (sectionId === "bookingSub-holidays") {
+      win.renderHolidays?.();
+    }
+  };
+
+  win.openModal = () => {
+    const modal = document.getElementById("bookingModal") as HTMLDialogElement | null;
+    modal?.showModal();
+  };
+
+  win.closeModal = () => {
+    const bookingModal = document.getElementById("bookingModal") as HTMLDialogElement | null;
+    if (bookingModal?.open) {
+      bookingModal.close();
+      return;
+    }
+
+    document.getElementById("callModal")?.classList.remove("open");
+  };
+
+  win.submitBooking = (event: Event) => {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement | null;
+    const resolveBookingValue = (
+      fieldName: string,
+      fallbackId: string
+    ) => {
+      const scopedInput = form?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        `[data-booking-field="${fieldName}"], [name="booking${fieldName.charAt(0).toUpperCase()}${fieldName.slice(1)}"]`
+      );
+      const fallbackInput = document.getElementById(fallbackId) as HTMLInputElement | HTMLTextAreaElement | null;
+      return normalizeText(scopedInput?.value || fallbackInput?.value || "");
+    };
+
+    const customer = resolveBookingValue("customer", "bookName");
+    const phone = resolveBookingValue("phone", "bookPhone");
+    const date = resolveBookingValue("date", "bookDate");
+    const time = resolveBookingValue("time", "bookTime");
+
+    if (!customer || !phone || !date || !time) {
+      showToast("Fill in all booking fields before saving.", "warn");
+      return;
+    }
+
+    const nextEntries = [
+      {
+        id: crypto.randomUUID(),
+        customer,
+        service: "Manual Booking",
+        date,
+        time,
+        notes: `Phone ${phone}`,
+        createdAt: new Date().toISOString(),
+      },
+      ...getManualBookings(),
+    ];
+
+    saveManualBookings(nextEntries);
+    form?.reset();
+    win.closeModal?.();
+    showToast(`Booking created for ${customer}.`, "success");
+    updateBookingsPage(win.__versaficDashboardState || state);
+  };
+
+  win.renderActiveBookings = () => {
+    renderRowsIntoTable(
+      "activeBookingsBody",
+      getCurrentRows(),
+      "activeBookingPageSize",
+      "activeBookingSearch",
+      "activeBookingFrom",
+      "activeBookingTo",
+      "activeBookingsPagination",
+      "active"
+    );
+  };
+
+  win.renderPastBookings = () => {
+    const rows = [...getCurrentRows()].reverse();
+    renderRowsIntoTable(
+      "pastBookingsBody",
+      rows,
+      "pastBookingPageSize",
+      "pastBookingSearch",
+      "pastBookingFrom",
+      "pastBookingTo",
+      "pastBookingsPagination",
+      "past"
+    );
+  };
+
+  win.openDayDetail = (dateValue: string) => {
+    const dialog = document.getElementById("bookingDetailDialog") as HTMLDialogElement | null;
+    const title = document.getElementById("detailDialogTitle");
+    const content = document.getElementById("detailDialogContent");
+    if (!dialog || !title || !content) {
+      return;
+    }
+
+    const displayDate = formatDate(dateValue);
+    const rows = getCurrentRows().filter((row) => row.date === displayDate);
+    title.textContent = `Bookings on ${displayDate}`;
+    content.innerHTML =
+      rows
+        .map(
+          (row) => `
+            <div style="padding:12px 0;border-bottom:1px solid var(--border)">
+              <div style="font-weight:700;color:var(--text-primary)">${escapeHtml(row.customer)}</div>
+              <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px">${escapeHtml(`${row.time} · ${row.service}`)}</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-top:6px">${escapeHtml(row.notes)}</div>
+            </div>
+          `
+        )
+        .join("") ||
+      `<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:0.9rem;">No bookings scheduled for this day.</div>`;
+    dialog.showModal();
+  };
+
+  win.renderWeeklyCalendar = () => {
+    renderBookingsCalendar(getCurrentRows());
+  };
+
+  win.renderWeeklySchedule = () => {
+    renderBookingScheduleTable();
+  };
+
+  win.saveSchedule = () => {
+    const rows = WEEK_DAYS.map((day, index) => {
+      const enabled = (document.querySelector<HTMLInputElement>(`[data-schedule-toggle="${index}"]`)?.checked) ?? false;
+      const from = document.querySelector<HTMLInputElement>(`[data-schedule-from="${index}"]`)?.value || "09:00";
+      const to = document.querySelector<HTMLInputElement>(`[data-schedule-to="${index}"]`)?.value || "17:00";
+      return { day, enabled, from, to };
+    });
+
+    saveWeeklyScheduleEntries(rows);
+    win.renderWeeklySchedule?.();
+    showToast("Schedule saved locally for this dashboard.", "success");
+  };
+
+  win.renderBlockedSlots = () => {
+    renderBlockedSlotsTable();
+  };
+
+  win.addBlockedSlot = () => {
+    const day = normalizeText((document.getElementById("blockDay") as HTMLSelectElement | null)?.value);
+    const from = normalizeText((document.getElementById("blockFrom") as HTMLInputElement | null)?.value);
+    const to = normalizeText((document.getElementById("blockTo") as HTMLInputElement | null)?.value);
+    const reason = normalizeText((document.getElementById("blockReason") as HTMLInputElement | null)?.value) || "Blocked";
+
+    if (!day || !from || !to) {
+      showToast("Choose a day and time range first.", "warn");
+      return;
+    }
+
+    const nextEntries = [{ id: crypto.randomUUID(), day, from, to, reason }, ...getBlockedSlotEntries()];
+    saveBlockedSlotEntries(nextEntries);
+    (document.getElementById("blockReason") as HTMLInputElement | null)?.setAttribute("value", "");
+    const reasonInput = document.getElementById("blockReason") as HTMLInputElement | null;
+    if (reasonInput) {
+      reasonInput.value = "";
+    }
+    win.renderBlockedSlots?.();
+    showToast("Blocked slot added.", "success");
+  };
+
+  win.renderHolidays = () => {
+    renderHolidayRows();
+  };
+
+  win.addHoliday = () => {
+    const date = normalizeText((document.getElementById("holidayDate") as HTMLInputElement | null)?.value);
+    const reason = normalizeText((document.getElementById("holidayReason") as HTMLInputElement | null)?.value);
+
+    if (!date || !reason) {
+      showToast("Enter a date and reason before blocking it.", "warn");
+      return;
+    }
+
+    const nextEntries = [{ id: crypto.randomUUID(), date, reason }, ...getHolidayEntries()];
+    saveHolidayEntries(nextEntries);
+    const reasonInput = document.getElementById("holidayReason") as HTMLInputElement | null;
+    if (reasonInput) {
+      reasonInput.value = "";
+    }
+    win.renderHolidays?.();
+    showToast("Blocked date added.", "success");
+  };
+
+  win.exportTableCSV = (bodyId: string, filename: string) => {
+    const table = document.getElementById(bodyId)?.closest("table");
+    if (table instanceof HTMLTableElement) {
+      exportTable(table, filename);
+      showToast("CSV exported.", "success");
+    }
+  };
 };
 
 const updateCallsPage = (state: DashboardState) => {
@@ -4391,7 +5284,7 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
       </div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" id="mailgunSendTestBtn" type="button">Send Demo Email</button>
-        <div id="mailgunDemoHint" style="font-size:0.82rem;color:var(--text-muted)">Send a Mailgun demo email from the configured backend mail service. Sandbox mode sends only to authorized recipient emails.</div>
+        <div id="mailgunDemoHint" style="font-size:0.82rem;color:var(--text-muted)">Send a Mailgun demo email from the configured backend mail service. If the Mailgun domain is sandboxed or restricted, only approved recipients can receive the email.</div>
       </div>
     `;
 
@@ -4403,20 +5296,52 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     }
   }
 
+  if (!settingsPage.querySelector("#smsDemoPhone")) {
+    const smsDemoWrap = document.createElement("div");
+    smsDemoWrap.id = "smsDemoWrap";
+    smsDemoWrap.innerHTML = `
+      <div class="form-group" style="margin-top:16px">
+        <label class="input-label">SMS Demo Number</label>
+        <input class="input-field" id="smsDemoPhone" type="text" placeholder="Enter the phone number to receive a demo SMS">
+      </div>
+      <div class="form-group">
+        <label class="input-label">SMS Demo Message</label>
+        <textarea class="input-field" id="smsDemoMessage" rows="3" placeholder="Enter a short demo message"></textarea>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" id="smsSendDemoBtn" type="button">Send Demo SMS</button>
+        <div id="smsDemoHint" style="font-size:0.82rem;color:var(--text-muted)">Send a transactional MSG91 demo SMS from the configured backend SMS service.</div>
+      </div>
+    `;
+
+    const mailgunHintNode = settingsPage.querySelector("#mailgunDemoHint");
+    if (mailgunHintNode?.parentNode) {
+      mailgunHintNode.parentNode.insertBefore(smsDemoWrap, mailgunHintNode.parentNode.nextSibling);
+    } else {
+      settingsPage.appendChild(smsDemoWrap);
+    }
+  }
+
   const aiNumberInput = settingsPage.querySelector<HTMLInputElement>("#aiNumberDisplay");
   const consentToggle = settingsPage.querySelector<HTMLInputElement>("#aiCallConsentToggle");
   const optOutToggle = settingsPage.querySelector<HTMLInputElement>("#aiCallOptOutToggle");
   const consentHint = settingsPage.querySelector<HTMLElement>("#aiConsentHint");
   const testCallNumberInput = settingsPage.querySelector<HTMLInputElement>("#aiTestCallNumber");
   const mailgunDemoEmailInput = settingsPage.querySelector<HTMLInputElement>("#mailgunDemoEmail");
+  const smsDemoPhoneInput = settingsPage.querySelector<HTMLInputElement>("#smsDemoPhone");
+  const smsDemoMessageInput = settingsPage.querySelector<HTMLTextAreaElement>("#smsDemoMessage");
   const testCallButton = replaceInteractiveElement(
     settingsPage.querySelector<HTMLButtonElement>("#aiPlaceTestCallBtn")
   );
   const mailgunDemoButton = replaceInteractiveElement(
     settingsPage.querySelector<HTMLButtonElement>("#mailgunSendTestBtn")
   );
+  const smsDemoButton = replaceInteractiveElement(
+    settingsPage.querySelector<HTMLButtonElement>("#smsSendDemoBtn")
+  );
   const testCallHint = settingsPage.querySelector<HTMLElement>("#aiCallActionHint");
   const mailgunDemoHint = settingsPage.querySelector<HTMLElement>("#mailgunDemoHint");
+  const smsDemoHint = settingsPage.querySelector<HTMLElement>("#smsDemoHint");
 
   if (businessNameInput && state.setup?.businessName) {
     businessNameInput.value = state.setup.businessName;
@@ -4432,6 +5357,12 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
   }
   if (mailgunDemoEmailInput) {
     mailgunDemoEmailInput.value = state.user?.email || "";
+  }
+  if (smsDemoPhoneInput) {
+    smsDemoPhoneInput.value = state.user?.phone_number || state.setup?.phone || "";
+  }
+  if (smsDemoMessageInput) {
+    smsDemoMessageInput.value = `Versafic demo SMS from ${state.setup?.businessName || "your AI assistant"}.`;
   }
   if (consentToggle) {
     consentToggle.checked = Boolean(state.user?.call_consent);
@@ -4461,6 +5392,16 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
   optOutToggle?.addEventListener("change", updateConsentHint);
   if (languageSelect) {
     languageSelect.value = "English (US)";
+  }
+
+  const smsConfig = await getSmsConfig().catch(() => null);
+  if (smsDemoHint) {
+    smsDemoHint.textContent = smsConfig?.configured
+      ? `MSG91 is configured${smsConfig.senderId ? ` with sender ${smsConfig.senderId}` : ""}. Use the demo send button to verify delivery.`
+      : "MSG91 SMS demo is not configured on the backend yet.";
+  }
+  if (smsDemoButton && smsConfig && !smsConfig.configured) {
+    smsDemoButton.setAttribute("disabled", "true");
   }
 
   const saveButton = replaceInteractiveElement(
@@ -4626,6 +5567,59 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     } finally {
       mailgunDemoButton.textContent = originalLabel || "Send Demo Email";
       mailgunDemoButton.removeAttribute("disabled");
+    }
+  });
+
+  smsDemoButton?.addEventListener("click", async () => {
+    const phone = normalizeText(smsDemoPhoneInput?.value || state.user?.phone_number || state.setup?.phone);
+    const phoneValidationMessage = getPhoneValidationMessage(phone);
+    const message = normalizeText(smsDemoMessageInput?.value || "");
+
+    if (phoneValidationMessage) {
+      if (smsDemoHint) {
+        smsDemoHint.textContent = phoneValidationMessage;
+      }
+      showToast(phoneValidationMessage, "warn");
+      smsDemoPhoneInput?.focus();
+      return;
+    }
+
+    if (!message) {
+      const hintMessage = "Enter a short SMS demo message before sending.";
+      if (smsDemoHint) {
+        smsDemoHint.textContent = hintMessage;
+      }
+      showToast(hintMessage, "warn");
+      smsDemoMessageInput?.focus();
+      return;
+    }
+
+    const originalLabel = smsDemoButton.textContent;
+    smsDemoButton.textContent = "Sending...";
+    smsDemoButton.setAttribute("disabled", "true");
+
+    try {
+      const response = await sendSmsDemo({
+        phoneNumber: phone,
+        message,
+      });
+
+      if (smsDemoHint) {
+        smsDemoHint.textContent = `MSG91 accepted the demo SMS for ${response.phoneNumber}.`;
+      }
+      showToast(`Demo SMS queued for ${response.phoneNumber}.`, "success");
+    } catch (error) {
+      const messageText =
+        error instanceof LegacyApiError ? error.message : "Unable to send the SMS demo right now.";
+      if (smsDemoHint) {
+        smsDemoHint.textContent = messageText;
+      }
+      showToast(messageText, "warn");
+    } finally {
+      smsDemoButton.textContent = originalLabel || "Send Demo SMS";
+      if (!smsConfig || smsConfig.configured) {
+        smsDemoButton.removeAttribute("disabled");
+      }
     }
   });
 

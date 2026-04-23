@@ -442,7 +442,8 @@ export class WalletService {
     userId: number,
     razorpayOrderId: string,
     razorpayPaymentId: string,
-    razorpaySignature: string
+    razorpaySignature: string,
+    skipSignatureVerification: boolean = false
   ): Promise<{ success: boolean; wallet: Wallet; message: string }> {
     const payment = await billingModel.getPaymentByOrderId(razorpayOrderId);
 
@@ -463,25 +464,27 @@ export class WalletService {
       };
     }
 
-    const isValid = razorpayService.verifyPaymentSignature(
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature
-    );
+    if (!skipSignatureVerification) {
+      const isValid = razorpayService.verifyPaymentSignature(
+        razorpayOrderId,
+        razorpayPaymentId,
+        razorpaySignature
+      );
 
-    if (!isValid) {
-      await billingModel.updatePaymentStatus(razorpayOrderId, 'failed', razorpayPaymentId);
+      if (!isValid) {
+        await billingModel.updatePaymentStatus(razorpayOrderId, 'failed', razorpayPaymentId);
 
-      if (payment.payment_context === 'autopay') {
-        await billingModel.updateAutopayLogStatus({
-          razorpayOrderId,
-          status: 'failed',
-          razorpayPaymentId,
-          metadata: { reason: 'invalid_signature' },
-        });
+        if (payment.payment_context === 'autopay') {
+          await billingModel.updateAutopayLogStatus({
+            razorpayOrderId,
+            status: 'failed',
+            razorpayPaymentId,
+            metadata: { reason: 'invalid_signature' },
+          });
+        }
+
+        throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Invalid payment signature');
       }
-
-      throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Invalid payment signature');
     }
 
     await billingModel.updatePaymentStatus(

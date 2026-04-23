@@ -38,6 +38,19 @@ type LowCreditsAlertInput = {
   thresholdCredits: number;
 };
 
+type PasswordResetEmailInput = {
+  to: string;
+  name?: string | null | undefined;
+  resetLink: string;
+  expiresMinutes: number;
+};
+
+type LoginAlertEmailInput = {
+  to: string;
+  name?: string | null | undefined;
+  providerLabel?: string | null | undefined;
+};
+
 type ResolvedBusinessContact = {
   email: string | null;
   name: string;
@@ -71,6 +84,14 @@ const extractEmailAddress = (input?: string | null): string | null => {
 };
 
 const isSandboxMailgunDomain = (): boolean => getMailgunConfig().domain.toLowerCase().includes(".mailgun.org");
+
+const getRestrictedMailgunRecipientMessage = (): string =>
+  isSandboxMailgunDomain()
+    ? "Mailgun sandbox can only send to authorized recipient emails. Add this email in Mailgun authorized recipients or use a verified custom domain."
+    : "Mailgun rejected this email delivery request. Check that your sending domain is verified, the recipient is allowed, and the Mailgun account is fully enabled.";
+
+const isForbiddenMailgunError = (value?: string | null): boolean =>
+  typeof value === "string" && value.toLowerCase().includes("forbidden");
 
 const buildEmailShell = (title: string, body: string): string => `
   <html>
@@ -163,6 +184,53 @@ const buildLowCreditsTemplate = (input: LowCreditsAlertInput): { subject: string
   };
 };
 
+const buildPasswordResetTemplate = (input: PasswordResetEmailInput): { subject: string; html: string; text: string } => {
+  const displayName = input.name?.trim() || "there";
+  const html = buildEmailShell(
+    "Reset your password",
+    `
+      <p style="margin:0 0 16px;">Hi ${displayName},</p>
+      <p style="margin:0 0 16px;">We received a request to reset your ${APP_NAME} password.</p>
+      <p style="margin:0 0 16px;">This secure link stays valid for ${input.expiresMinutes} minutes.</p>
+      <p style="margin:24px 0;">
+        <a href="${input.resetLink}" style="display:inline-block;padding:12px 18px;background:#111827;color:#ffffff;text-decoration:none;border-radius:10px;">
+          Reset password
+        </a>
+      </p>
+      <p style="margin:0 0 12px;">If you did not request this, you can ignore this email.</p>
+      <p style="margin:0;font-size:13px;color:#6b7280;word-break:break-all;">${input.resetLink}</p>
+    `
+  );
+
+  return {
+    subject: `${APP_NAME} password reset`,
+    html,
+    text: `Hi ${displayName}, we received a request to reset your ${APP_NAME} password. Use this link within ${input.expiresMinutes} minutes: ${input.resetLink}`,
+  };
+};
+
+const buildLoginAlertTemplate = (input: LoginAlertEmailInput): { subject: string; html: string; text: string } => {
+  const displayName = input.name?.trim() || "there";
+  const providerLine = input.providerLabel ? `<p style="margin:0 0 16px;"><strong>Sign-in method:</strong> ${input.providerLabel}</p>` : "";
+  const occurredAt = new Date().toLocaleString("en-IN", { timeZone: "Asia/Calcutta" });
+  const html = buildEmailShell(
+    `Successful sign-in to ${APP_NAME}`,
+    `
+      <p style="margin:0 0 16px;">Hi ${displayName},</p>
+      <p style="margin:0 0 16px;">You successfully signed in to your ${APP_NAME} account.</p>
+      ${providerLine}
+      <p style="margin:0 0 16px;"><strong>Time:</strong> ${occurredAt}</p>
+      <p style="margin:0;">If this wasn't you, reset your password and review your account access immediately.</p>
+    `
+  );
+
+  return {
+    subject: `${APP_NAME} sign-in alert`,
+    html,
+    text: `Hi ${displayName}, you successfully signed in to your ${APP_NAME} account.${input.providerLabel ? ` Sign-in method: ${input.providerLabel}.` : ""} Time: ${occurredAt}. If this wasn't you, reset your password immediately.`,
+  };
+};
+
 const buildTestTemplate = (): { subject: string; html: string; text: string } => {
   const html = buildEmailShell(
     "Mailgun is connected",
@@ -200,23 +268,20 @@ class EmailService {
         status?: unknown;
       };
 
-      if (candidate.status === 403 && isSandboxMailgunDomain()) {
-        return "Mailgun sandbox can only send to authorized recipient emails. Add this email in Mailgun authorized recipients or use a verified custom domain.";
+      if (candidate.status === 403) {
+        return getRestrictedMailgunRecipientMessage();
       }
 
       if (typeof candidate.details?.message === "string") {
-        if (
-          candidate.details.message.toLowerCase().includes("forbidden") &&
-          isSandboxMailgunDomain()
-        ) {
-          return "Mailgun sandbox can only send to authorized recipient emails. Add this email in Mailgun authorized recipients or use a verified custom domain.";
+        if (isForbiddenMailgunError(candidate.details.message)) {
+          return getRestrictedMailgunRecipientMessage();
         }
         return candidate.details.message;
       }
 
       if (typeof candidate.message === "string") {
-        if (candidate.message.toLowerCase().includes("forbidden") && isSandboxMailgunDomain()) {
-          return "Mailgun sandbox can only send to authorized recipient emails. Add this email in Mailgun authorized recipients or use a verified custom domain.";
+        if (isForbiddenMailgunError(candidate.message)) {
+          return getRestrictedMailgunRecipientMessage();
         }
         return candidate.message;
       }
@@ -343,6 +408,26 @@ class EmailService {
     });
   }
 
+  async sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<SendEmailResult> {
+    const template = buildPasswordResetTemplate(input);
+    return this.sendEmail({
+      to: input.to,
+      subject: template.subject,
+      text: template.text,
+      html: template.html,
+    });
+  }
+
+  async sendLoginAlertEmail(input: LoginAlertEmailInput): Promise<SendEmailResult> {
+    const template = buildLoginAlertTemplate(input);
+    return this.sendEmail({
+      to: input.to,
+      subject: template.subject,
+      text: template.text,
+      html: template.html,
+    });
+  }
+
   async sendTestEmail(to?: string | null): Promise<SendEmailResult> {
     const recipient = this.getTestRecipient(to);
     if (!recipient) {
@@ -442,6 +527,27 @@ class EmailService {
       name: user.name,
       balanceCredits: params.balanceCredits,
       thresholdCredits: params.thresholdCredits,
+    });
+  }
+
+  async sendLoginAlertToUser(params: {
+    userId: number;
+    providerLabel?: string | null;
+  }): Promise<SendEmailResult> {
+    const user = await UserModel.findUserById(params.userId);
+    if (!user?.email) {
+      logger.warn("Skipping login alert because recipient email is unavailable", { userId: params.userId });
+      return {
+        success: false,
+        provider: "mailgun",
+        error: "Recipient email unavailable",
+      };
+    }
+
+    return this.sendLoginAlertEmail({
+      to: user.email,
+      name: user.name,
+      providerLabel: params.providerLabel,
     });
   }
 

@@ -71,6 +71,9 @@ This file is the working memory for any future Copilot/agent session on this rep
 
 - Add new user-requested work here before starting.
 - Remove completed tasks after recording them in session notes below.
+- Current Codex follow-up items:
+  - continue replacing any remaining user-visible placeholder copy after hydration
+  - optionally improve Exotel/Mailgun provider-state messaging
 
 ### Assigned By User
 - None recorded yet in this file.
@@ -154,7 +157,7 @@ This file is the working memory for any future Copilot/agent session on this rep
   - home no longer contains `Grand Horizon Hotel`
 
 #### Remaining Issues / Blockers
-- `frontend npm run lint` still drops into Next.js interactive ESLint setup because this frontend does not yet have a committed ESLint config. This is not blocking builds/deploys, but a future agent should add a real lint config instead of relying on the prompt.
+- `frontend npm run lint` now runs with the committed ESLint config, but it still reports the existing TypeScript support notice and the custom-font warning in `frontend/app/layout.tsx`.
 - Mailgun deliverability to inbox vs spam folder still depends on Mailgun account/domain setup outside code:
   - verified custom sending domain
   - SPF/DKIM/DMARC
@@ -178,7 +181,6 @@ This file is the working memory for any future Copilot/agent session on this rep
    - preserve Exotel as primary provider
    - preserve Mailgun auth/throttle protection on `/email/test`
 5. Good next cleanup target:
-   - add a committed ESLint config for the frontend
    - continue replacing any remaining non-live placeholder copy that is still user-visible after hydration
    - if requested, add clearer provider-state messaging for Exotel KYC and Mailgun sandbox restrictions
 
@@ -216,6 +218,134 @@ This file is the working memory for any future Copilot/agent session on this rep
    - Bookings
    - Back to Calendar
    - Weekly Schedule
+
+### 2026-04-21 Bookings + Google + SMS Demo Pass
+
+#### Work Completed
+- Fixed the live homepage/login source so Google sign-in only uses the real OAuth path and no longer carries old inline `/dashboard` fallback redirects.
+- Removed the remaining GitHub login button from the active homepage/login source markup.
+- Finished wiring the Bookings runtime helpers in the active binding layer so the calendar/schedule/holidays actions have real handlers again.
+- Added a new authenticated SMS demo flow in AI Settings using the backend MSG91 routes.
+- Hardened MSG91 backend startup so the service no longer throws during app boot if SMS env vars are missing.
+- Added lightweight per-user SMS demo throttling and auth protection on the SMS demo routes.
+
+#### Files Changed
+- `frontend/app/page.tsx`
+- `frontend/components/legacy/legacy-bindings.tsx`
+- `frontend/lib/legacy-api.ts`
+- `backend/src/services/msg91.service.ts`
+- `backend/src/routes/msg91.routes.ts`
+- `AGENT_HANDOFF.md`
+
+#### Validation Done
+- `backend npm run build`
+- `frontend npm run build`
+- live frontend:
+  - `/login` -> `200`
+  - `/dashboard/bookings` -> `200`
+  - `/dashboard/agent` -> `200`
+- live backend:
+  - `/health` -> `200`
+  - `/auth/google/start` -> `302` to `accounts.google.com`
+  - `/sms/config` without auth -> `401`
+- live HTML checks:
+  - login no longer contains `Continue with GitHub`
+  - login no longer contains `window.location.href='/dashboard'`
+  - login still contains `Continue with Google`
+  - bookings page still contains `Weekly Schedule`
+  - bookings page still contains `Blocked Dates & Holidays`
+
+#### Remaining Issues / Blockers
+- The SMS demo UI is live on the frontend, but successful SMS delivery still depends on the MSG91 credentials/config already being present in Railway.
+- Mailgun delivery restrictions still apply if the domain remains in sandbox mode.
+- Exotel provider-side KYC/trial restrictions can still block real outbound calls even when frontend/backend logic is correct.
+
+#### Deployment / Runtime Notes
+- Frontend production:
+  - `https://frontend-anandh0us-projects.vercel.app`
+- Latest frontend deploy in this pass:
+  - `https://frontend-n2jdfrhoa-anandh0us-projects.vercel.app`
+- Backend production:
+  - `https://backend-production-a176.up.railway.app`
+- Railway backend was redeployed via CLI upload in this pass.
+
+#### Next Agent Start Here
+1. Preserve the current accepted Next/TS frontend and do not reintroduce inline auth fallback redirects.
+2. If Bookings is touched again, keep the current calendar/schedule/holidays structure and use runtime handlers in `frontend/components/legacy/legacy-bindings.tsx`.
+3. If SMS demo needs follow-up, check live Railway env first:
+   - `MSG91_AUTH_KEY`
+   - `MSG91_SENDER_ID`
+   - optional DLT/OTP envs
+4. Verify the SMS demo while authenticated from `/dashboard/agent` before making further UI changes.
+
+### 2026-04-21 Auth Recovery + Reset Flow Pass
+
+#### Work Completed
+- Added a full backend password reset flow in local code:
+  - short-lived reset token generation
+  - reset token persistence
+  - forgot-password endpoint
+  - reset-password endpoint
+- Added login alert email support in local backend code for successful sign-ins.
+- Added forgot-password UI to the active login modal without changing the accepted design.
+- Added a new frontend reset-password route for the emailed reset link.
+- Added a new DB migration for password reset token columns.
+
+#### Files Changed
+- `backend/migrations/012_add_password_reset_columns.sql`
+- `backend/src/utils/security.ts`
+- `backend/src/models/user.model.ts`
+- `backend/src/services/email.service.ts`
+- `backend/src/services/auth.service.ts`
+- `backend/src/controllers/auth.controller.ts`
+- `backend/src/routes/auth.routes.ts`
+- `frontend/app/page.tsx`
+- `frontend/app/reset-password/page.tsx`
+- `frontend/lib/legacy-api.ts`
+- `frontend/components/legacy/legacy-bindings.tsx`
+- `AGENT_HANDOFF.md`
+
+#### Validation Done
+- `backend npm run build`
+- `frontend npm run build`
+- live frontend:
+  - `/login` -> `200`
+  - `/reset-password?token=test` -> `200`
+  - login HTML contains `forgotPasswordModal`
+  - login HTML contains `forgotPasswordLink`
+- live production backend checks showed:
+  - `/auth/forgot-password` -> `404`
+  - `/auth/reset-password` -> `404`
+  which confirms the backend deploy did not complete.
+
+#### Remaining Issues / Blockers
+- Railway CLI auth expired during deploy/migration:
+  - `railway run npm run db:migrate:aiven` failed with `Unauthorized. Please run railway login again.`
+  - `railway up --service backend` failed with the same auth issue.
+- Because of that, the new backend auth routes and migration are only local right now and are not live on Railway yet.
+- Frontend for forgot/reset is deployed, but it depends on the backend deploy before the reset flow can work end to end.
+
+#### Deployment / Runtime Notes
+- Frontend production:
+  - `https://frontend-anandh0us-projects.vercel.app`
+- Latest frontend deploy in this pass:
+  - `https://frontend-kvqhwufgb-anandh0us-projects.vercel.app`
+- Backend production is still the previous Railway deploy:
+  - `https://backend-production-a176.up.railway.app`
+- Before continuing this auth feature, re-run:
+  1. `railway login`
+  2. `railway run npm run db:migrate:aiven`
+  3. `railway up --service backend`
+
+#### Next Agent Start Here
+1. Re-auth Railway CLI first.
+2. Run migration `012_add_password_reset_columns.sql` against production using `railway run npm run db:migrate:aiven`.
+3. Redeploy backend with `railway up --service backend`.
+4. Verify live:
+   - `POST /auth/forgot-password`
+   - `POST /auth/reset-password`
+   - successful login sends Mailgun login alert
+5. Keep the current login/forgot modal UI intact.
    - Blocked Dates & Holidays
 4. Prioritize logic/integration fixes only; avoid UI redesign.
 5. Re-run `frontend npm run build` before handoff.
@@ -228,6 +358,7 @@ This file is the working memory for any future Copilot/agent session on this rep
 
 #### Files Changed
 - `AGENT_HANDOFF.md` (this note)
+- `frontend/.eslintrc.json`
 
 #### Validation Done
 - `git remote get-url common-backend`
@@ -244,6 +375,36 @@ This file is the working memory for any future Copilot/agent session on this rep
 1. Read this file first.
 2. If continuing backend work, push meaningful code changes to the `common-backend` remote only after build/type validation.
 3. Keep the accepted UI/UX unchanged unless explicitly asked.
+
+### 2026-04-12 Repo Refresh Session
+
+#### Work Completed
+- Cleaned local scratch artifacts from the workspace.
+- Refreshed the top-level repository README with a clearer product description and live web links.
+- Added explicit source links for the common backend remote and the main Versafic repo.
+- Added a committed frontend ESLint config so `frontend npm run lint` no longer needs the interactive setup prompt.
+- Kept Bookings and the accepted UI wording unchanged.
+
+#### Files Changed
+- `README.md`
+- `AGENT_HANDOFF.md`
+
+#### Validation Done
+- Confirmed local scratch artifacts were removed from the workspace.
+- Verified current repo state after cleanup.
+
+#### Remaining Issues / Blockers
+- The frontend still relies on the accepted Next/TS app structure; do not switch it back to HTML-only routes.
+- Lint now has a committed frontend ESLint config; the remaining output is the existing font warning in `frontend/app/layout.tsx`.
+
+#### Deployment / Runtime Notes
+- Frontend web link: `https://frontend-anandh0us-projects.vercel.app`
+- Backend web link: `https://backend-production-a176.up.railway.app`
+
+#### Next Agent Start Here
+1. Read this file first.
+2. Keep the repo docs and web links current when deploying or renaming anything.
+3. Preserve Bookings as Bookings and keep the active frontend structure in `frontend/`.
 
 ### Latest Completed Work
 - Fixed Bookings regression on the new TS/Next frontend.

@@ -31,6 +31,7 @@ import exotelRoutes from "./modules/exotel/exotel.routes";
 import observabilityRoutes from "./routes/observability.routes";
 import billingRoutes from "./routes/billing.routes";
 
+
 // Validate environment variables
 const exotelConfigured = ["EXOTEL_SID", "EXOTEL_API_KEY", "EXOTEL_API_TOKEN", "EXOTEL_NUMBER"].every((key) => {
   const value = getOptionalEnv(key);

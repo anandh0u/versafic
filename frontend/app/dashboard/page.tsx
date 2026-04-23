@@ -3205,17 +3205,21 @@ const PAGE_BODY = `<div class="mobile-header">
                                 </div>
                                 <form class="admin-form" onsubmit="submitBooking(event)">
                                     <div style="margin-bottom:14px"><label class="admin-input-label">Customer
-                                            Name</label><input type="text" class="input-field"
+                                            Name</label><input type="text" class="input-field" name="bookingName"
+                                            data-booking-field="customer"
                                             placeholder="e.g., John Doe"></div>
                                     <div style="margin-bottom:14px"><label class="admin-input-label">Phone
-                                            Number</label><input type="tel" class="input-field"
+                                            Number</label><input type="tel" class="input-field" name="bookingPhone"
+                                            data-booking-field="phone"
                                             placeholder="+1 (555) 000-0000"></div>
                                     <div class="admin-row-inputs">
                                         <div class="admin-input-wrap"><label
                                                 class="admin-input-label">Date</label><input type="date"
+                                                name="bookingDate" data-booking-field="date"
                                                 class="input-field"></div>
                                         <div class="admin-input-wrap"><label
                                                 class="admin-input-label">Time</label><input type="time"
+                                                name="bookingTime" data-booking-field="time"
                                                 class="input-field"></div>
                                     </div>
                                     <button type="submit" class="btn btn-primary btn-block">Create Booking</button>
@@ -3609,18 +3613,18 @@ const PAGE_BODY = `<div class="mobile-header">
                     <div>
                         <div style="font-size:0.85rem;color:#9ca3af;margin-bottom:8px">Credits Remaining</div>
                         <div class="credits-value">3,248</div>
-                        <div style="font-size:0.82rem;color:var(--text-muted);margin-top:8px">~54 hours of call time
+                        <div id="billingHeroInfo" style="font-size:0.82rem;color:var(--text-muted);margin-top:8px">~54 hours of call time
                             remaining</div>
                     </div>
                     <div style="text-align:right">
                         <div style="font-size:0.82rem;color:#9ca3af;margin-bottom:4px">This Month's Usage</div>
-                        <div style="font-size:1.8rem;font-weight:800;color:#e5e7eb">1,752</div>
+                        <div id="billingUsageValue" style="font-size:1.8rem;font-weight:800;color:#e5e7eb">1,752</div>
                         <div class="usage-meter" style="width:200px;margin-top:8px">
                             <div class="usage-bar">
-                                <div class="usage-fill" style="width:35%"></div>
+                                <div class="usage-fill" id="billingUsageFill" style="width:35%"></div>
                             </div>
                         </div>
-                        <div style="font-size:0.75rem;color:var(--text-muted)">35% of 5,000 credits used</div>
+                        <div id="billingUsageCaption" style="font-size:0.75rem;color:var(--text-muted)">35% of 5,000 credits used</div>
                     </div>
                 </div>
 
@@ -3631,13 +3635,13 @@ const PAGE_BODY = `<div class="mobile-header">
                     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
                         <div
                             style="text-align:center;padding:16px;background:rgba(255,255,255,0.06);border-radius:var(--radius-sm)">
-                            <div style="font-size:1.4rem;font-weight:800;color:var(--indigo)">1,248</div>
+                            <div id="billingBreakdownCalls" style="font-size:1.4rem;font-weight:800;color:var(--indigo)">1,248</div>
                             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px"><i data-lucide="phone"
                                     style="width:0.85em;height:0.85em;vertical-align:middle"></i> AI Calls</div>
                         </div>
                         <div
                             style="text-align:center;padding:16px;background:rgba(255,255,255,0.06);border-radius:var(--radius-sm)">
-                            <div style="font-size:1.4rem;font-weight:800;color:var(--green)">312</div>
+                            <div id="billingBreakdownChats" style="font-size:1.4rem;font-weight:800;color:var(--green)">312</div>
                             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px"><i
                                     data-lucide="message-square"
                                     style="width:0.85em;height:0.85em;vertical-align:middle"></i> Chat Sessions
@@ -3645,7 +3649,7 @@ const PAGE_BODY = `<div class="mobile-header">
                         </div>
                         <div
                             style="text-align:center;padding:16px;background:rgba(255,255,255,0.06);border-radius:var(--radius-sm)">
-                            <div style="font-size:1.4rem;font-weight:800;color:var(--amber)">142</div>
+                            <div id="billingBreakdownSms" style="font-size:1.4rem;font-weight:800;color:var(--amber)">142</div>
                             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px"><i
                                     data-lucide="smartphone"
                                     style="width:0.85em;height:0.85em;vertical-align:middle"></i> SMS Follow-ups
@@ -3653,7 +3657,7 @@ const PAGE_BODY = `<div class="mobile-header">
                         </div>
                         <div
                             style="text-align:center;padding:16px;background:rgba(255,255,255,0.06);border-radius:var(--radius-sm)">
-                            <div style="font-size:1.4rem;font-weight:800;color:var(--pink)">50</div>
+                            <div id="billingBreakdownTranscripts" style="font-size:1.4rem;font-weight:800;color:var(--pink)">50</div>
                             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px"><i
                                     data-lucide="file-text"
                                     style="width:0.85em;height:0.85em;vertical-align:middle"></i> Transcriptions
@@ -3695,14 +3699,19 @@ const PAGE_BODY = `<div class="mobile-header">
                     </div>
                     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
                         <div style="flex:1;min-width:200px"><label class="input-label">Amount</label>
-                            <select class="input-field">
+                            <select class="input-field" id="billingTopUpSelect">
                                 <option>100 Credits - $5.00</option>
                                 <option>250 Credits - $10.00</option>
                                 <option>500 Credits - $18.00</option>
                                 <option>1,000 Credits - $29.00</option>
                             </select>
                         </div>
-                        <button class="btn btn-primary">Top Up Now</button>
+                        <button class="btn btn-primary" id="billingTopUpButton">Top Up Now</button>
+                    </div>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:12px;font-size:0.82rem;color:var(--text-muted)">
+                        <span id="billingTopUpCredits">1,000 credits</span>
+                        <span id="billingTopUpPrice">$29.00</span>
+                        <span id="billingTopUpHint">Select a recharge plan and continue with Razorpay.</span>
                     </div>
                 </div>
 
@@ -3723,7 +3732,7 @@ const PAGE_BODY = `<div class="mobile-header">
                                     <th>Action</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="billingInvoiceBody">
                                 <tr>
                                     <td style="color:var(--text-primary);font-weight:600">#INV-2026-0328</td>
                                     <td>Mar 28, 2026</td>
@@ -3771,12 +3780,12 @@ const PAGE_BODY = `<div class="mobile-header">
                     </div>
                     <div class="payment-card">
                         <div class="payment-card-left">
-                            <div class="payment-card-icon">VISA</div>
+                            <div class="payment-card-icon" id="billingPrimaryPaymentIcon">VISA</div>
                             <div>
-                                <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary)">•••• ••••
+                                <div id="billingPrimaryPaymentLabel" style="font-weight:600;font-size:0.88rem;color:var(--text-primary)">•••• ••••
                                     ••••
                                     4242</div>
-                                <div style="font-size:0.78rem;color:var(--text-muted)">Expires 08/2028</div>
+                                <div id="billingPrimaryPaymentSubLabel" style="font-size:0.78rem;color:var(--text-muted)">Expires 08/2028</div>
                             </div>
                         </div>
                         <div style="display:flex;gap:8px"><span class="badge badge-green">Default</span><button
@@ -3784,18 +3793,18 @@ const PAGE_BODY = `<div class="mobile-header">
                     </div>
                     <div class="payment-card">
                         <div class="payment-card-left">
-                            <div class="payment-card-icon" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">MC
+                            <div class="payment-card-icon" id="billingSecondaryPaymentIcon" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">MC
                             </div>
                             <div>
-                                <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary)">•••• ••••
+                                <div id="billingSecondaryPaymentLabel" style="font-weight:600;font-size:0.88rem;color:var(--text-primary)">•••• ••••
                                     ••••
                                     8901</div>
-                                <div style="font-size:0.78rem;color:var(--text-muted)">Expires 12/2027</div>
+                                <div id="billingSecondaryPaymentSubLabel" style="font-size:0.78rem;color:var(--text-muted)">Expires 12/2027</div>
                             </div>
                         </div>
                         <div><button class="btn btn-outline btn-sm">Edit</button></div>
                     </div>
-                    <button class="btn btn-outline" style="margin-top:12px">+ Add Payment Method</button>
+                    <button class="btn btn-outline" id="billingAddPaymentButton" style="margin-top:12px">+ Add Payment Method</button>
                 </div>
 
                 <div class="chart-container">
@@ -4000,13 +4009,17 @@ const PAGE_BODY = `<div class="mobile-header">
                     <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;align-items:end">
                         <div class="form-group">
                             <label class="input-label">Phone Number</label>
-                            <input class="input-field" type="text" id="testSmsPhone" placeholder="Enter phone number (e.g., 9876543210)" value="">
+                            <input class="input-field" type="text" id="smsDemoPhone" placeholder="Enter phone number (e.g., 9876543210)" value="">
                         </div>
-                        <button class="btn btn-primary" id="sendTestSmsBtn" onclick="sendTestSms()">
+                        <button class="btn btn-primary" id="smsSendDemoBtn" type="button">
                             <i data-lucide="send" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Send Test
                         </button>
                     </div>
-                    <div id="smsTestResult" style="margin-top:12px;display:none;padding:12px;border-radius:8px;font-size:0.9rem">
+                    <div class="form-group" style="margin-top:12px">
+                        <label class="input-label">Message</label>
+                        <textarea class="input-field" id="smsDemoMessage" rows="3" placeholder="Enter a short demo message"></textarea>
+                    </div>
+                    <div id="smsDemoHint" style="margin-top:12px;display:block;padding:12px;border-radius:8px;font-size:0.9rem;color:var(--text-muted);background:rgba(255,255,255,0.04)">
                     </div>
                 </div>
 
@@ -4081,14 +4094,14 @@ const PAGE_BODY = `<div class="mobile-header">
         <p style="font-size:0.8rem;color:#6b7280;margin-bottom:24px;margin-top:4px">Bypass AI to schedule an appointment
             directly.</p>
         <form class="admin-form" onsubmit="submitBooking(event)">
-            <div class="form-group"><label class="input-label">Customer Name</label><input type="text" id="bookName"
+            <div class="form-group"><label class="input-label">Customer Name</label><input type="text" id="bookName" name="bookingName" data-booking-field="customer"
                     class="input-field" placeholder="e.g., John Doe" required></div>
-            <div class="form-group"><label class="input-label">Phone Number</label><input type="tel" id="bookPhone"
+            <div class="form-group"><label class="input-label">Phone Number</label><input type="tel" id="bookPhone" name="bookingPhone" data-booking-field="phone"
                     class="input-field" placeholder="+1 (555) 000-0000" required></div>
             <div style="display:flex;gap:16px;margin-bottom:16px">
-                <div style="flex:1"><label class="input-label">Date</label><input type="date" id="bookDate"
+                <div style="flex:1"><label class="input-label">Date</label><input type="date" id="bookDate" name="bookingDate" data-booking-field="date"
                         class="input-field" required></div>
-                <div style="flex:1"><label class="input-label">Time</label><input type="time" id="bookTime"
+                <div style="flex:1"><label class="input-label">Time</label><input type="time" id="bookTime" name="bookingTime" data-booking-field="time"
                         class="input-field" required></div>
             </div>
             <div style="display:flex;gap:12px;margin-top:24px"><button type="button" class="btn btn-outline btn-block"

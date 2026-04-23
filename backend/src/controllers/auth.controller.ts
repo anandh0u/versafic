@@ -152,6 +152,56 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (typeof email !== "string" || !email.trim()) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, "Email is required"));
+    }
+
+    await AuthService.requestPasswordReset(email);
+
+    res.status(200).json({
+      status: "success",
+      message: "If that email is registered, a reset link has been sent.",
+      data: {
+        accepted: true,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+
+    if (typeof token !== "string" || !token.trim()) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, "Reset token is required"));
+    }
+
+    if (typeof password !== "string" || !password.trim()) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, "Password is required"));
+    }
+
+    await AuthService.resetPasswordWithToken(token, password);
+
+    res.status(200).json({
+      status: "success",
+      message: "Password updated successfully",
+      data: {
+        reset: true,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const startOAuthFlow = (
   provider: OAuthProvider,
   buildAuthorizationUrl: (state: string) => string

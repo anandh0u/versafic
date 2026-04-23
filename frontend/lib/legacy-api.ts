@@ -108,6 +108,14 @@ export type CallConfig = {
   trial_guidance?: string;
 };
 
+export type SmsConfig = {
+  configured: boolean;
+  provider?: string;
+  senderId?: string;
+  route?: string;
+  apiBaseUrl?: string;
+};
+
 export type CallSession = {
   id: string;
   call_sid: string;
@@ -459,6 +467,18 @@ export const login = async (email: string, password: string) => {
   return normalizedUser;
 };
 
+export const requestPasswordReset = async (email: string) =>
+  request<{ accepted: boolean }>("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+
+export const resetPassword = async (payload: { token: string; password: string }) =>
+  request<{ reset: boolean }>("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
 export const getOAuthStartUrl = (provider: "google" | "github") => {
   if (typeof window === "undefined") {
     return `${API_BASE_URL}/auth/${provider}/start`;
@@ -673,6 +693,19 @@ export const sendTestEmail = async (to: string) =>
     id?: string | null;
     recipient?: string | null;
   }>(`/email/test?to=${encodeURIComponent(to)}`, undefined, { auth: true });
+
+export const getSmsConfig = async () =>
+  request<SmsConfig>("/sms/config", undefined, { auth: true });
+
+export const sendSmsDemo = async (payload: { phoneNumber: string; message: string }) =>
+  request<{ messageId?: string | null; phoneNumber: string }>(
+    "/sms/send",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  );
 
 export const getChatHistory = async (limit = 12) =>
   request<{ messages: ChatHistoryItem[]; count: number }>(`/ai/chat/history?limit=${limit}`, undefined, { auth: true });

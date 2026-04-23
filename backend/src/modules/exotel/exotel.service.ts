@@ -223,7 +223,7 @@ class ExotelService {
     return {
       configured,
       provider: "exotel",
-      ai_number: configured ? this.exotelNumber : null,
+      ai_number: configured ? this.rawExotelNumber : null,
       call_credit_cost: 20,
       account_mode: "live",
       demo_mode: false,

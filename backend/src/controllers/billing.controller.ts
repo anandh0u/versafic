@@ -462,11 +462,13 @@ export const razorpayWebhook = async (req: Request, res: Response, next: NextFun
         }
 
         // Verify payment with backend
+        // Skip signature verification because webhook signature is already verified above
         const verifyResult = await walletService.verifyPaymentAndAddCredits(
           payment.user_id,
           orderId,
           paymentData.id, // Razorpay payment ID
-          paymentData.method
+          '',  // No signature needed (already verified via webhook signature)
+          true  // skipSignatureVerification = true
         );
 
         if (verifyResult.success) {

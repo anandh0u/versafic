@@ -1807,7 +1807,7 @@ const PAGE_BODY = `<!-- CURSOR SPOTLIGHT -->
             <div class="modal-title">Welcome back</div>
             <div class="modal-sub">Log in to your Versafic account</div>
 
-            <button class="social-btn" onclick="window.location.href='/dashboard'">
+            <button class="social-btn" type="button" data-auth-provider="google">
                 <svg width="18" height="18" viewBox="0 0 18 18">
                     <path fill="#4285F4"
                         d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" />
@@ -1820,13 +1820,6 @@ const PAGE_BODY = `<!-- CURSOR SPOTLIGHT -->
                 </svg>
                 Continue with Google
             </button>
-            <button class="social-btn" onclick="window.location.href='/dashboard'">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="white">
-                    <path
-                        d="M8.998 0C4.027 0 0 4.03 0 9.003c0 3.979 2.578 7.35 6.155 8.541.45.082.616-.195.616-.433 0-.215-.008-.78-.012-1.531-2.504.544-3.032-1.208-3.032-1.208-.41-1.04-1-1.317-1-1.317-.817-.559.062-.547.062-.547.903.063 1.38.927 1.38.927.801 1.374 2.102.977 2.614.747.081-.58.314-.978.571-1.201-1.995-.228-4.093-1.001-4.093-4.455 0-.984.35-1.788.924-2.419-.093-.228-.4-1.144.088-2.384 0 0 .754-.241 2.47.92A8.582 8.582 0 0 1 9 4.718c.764.004 1.533.103 2.252.303 1.715-1.161 2.468-.92 2.468-.92.49 1.24.183 2.156.09 2.384.575.631.922 1.435.922 2.419 0 3.463-2.1 4.225-4.101 4.448.322.278.61.826.61 1.664 0 1.2-.011 2.169-.011 2.464 0 .24.163.52.619.432C15.42 16.35 18 12.979 18 9.003 18 4.03 13.973 0 8.998 0z" />
-                </svg>
-                Continue with GitHub
-            </button>
 
             <div class="divider-row">
                 <hr><span>or</span>
@@ -1838,12 +1831,26 @@ const PAGE_BODY = `<!-- CURSOR SPOTLIGHT -->
                 <input type="email" placeholder="you@company.com" id="loginEmail">
             </div>
             <div class="field">
-                <label>Password <a href="#" class="forgot-link">Forgot?</a></label>
+                <label>Password <a href="#" class="forgot-link" id="forgotPasswordLink">Forgot?</a></label>
                 <input type="password" placeholder="••••••••" id="loginPass">
             </div>
-            <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px"
-                onclick="window.location.href='/dashboard'">Log in →</button>
+            <button class="btn btn-primary" type="button" style="width:100%;justify-content:center;margin-top:8px">Log in →</button>
             <div class="modal-footer-link">Don't have an account? <a href="/onboarding">Sign up free</a></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="forgotPasswordModal" onclick="if(event.target===this)this.classList.remove('open')">
+        <div class="modal-box">
+            <button class="modal-close" type="button" onclick="document.getElementById('forgotPasswordModal').classList.remove('open')">✕</button>
+            <div class="modal-title">Reset your password</div>
+            <div class="modal-sub">Enter your email and we’ll send you a secure reset link.</div>
+
+            <div class="field">
+                <label>Email address</label>
+                <input type="email" placeholder="you@company.com" id="forgotPasswordEmail">
+            </div>
+            <button class="btn btn-primary" type="button" id="forgotPasswordSubmitBtn" style="width:100%;justify-content:center;margin-top:8px">Send reset link</button>
+            <div class="modal-footer-link">We’ll send a short-lived link if this email is registered.</div>
         </div>
     </div>
 

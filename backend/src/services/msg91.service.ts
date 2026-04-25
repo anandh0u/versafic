@@ -17,6 +17,7 @@ class MSG91Service {
   private authKey: string;
   private senderId: string;
   private route: string;
+  private flowId: string;
   private dltTemplateId: string;
   private dltEntityId: string;
   private baseUrl = 'https://api.msg91.com';
@@ -26,6 +27,11 @@ class MSG91Service {
     this.authKey = getOptionalEnv('MSG91_AUTH_KEY') || '';
     this.senderId = getOptionalEnv('MSG91_SENDER_ID') || '';
     this.route = getOptionalEnv('MSG91_ROUTE') || '4';
+    this.flowId =
+      getOptionalEnv('MSG91_FLOW_ID') ||
+      getOptionalEnv('MSG91_TEMPLATE_ID') ||
+      getOptionalEnv('MSG91_DLT_TE_ID') ||
+      '';
     this.dltTemplateId =
       getOptionalEnv('MSG91_DLT_TE_ID') ||
       getOptionalEnv('MSG91_DLT_TEMPLATE_ID') ||
@@ -63,6 +69,7 @@ class MSG91Service {
       senderId: this.isConfigured ? this.senderId : null,
       route: this.route,
       apiBaseUrl: this.baseUrl,
+      flowConfigured: Boolean(this.flowId),
       dltTemplateConfigured: Boolean(this.dltTemplateId),
       dltEntityConfigured: Boolean(this.dltEntityId),
       indianSenderIdFormatOk: /^[A-Za-z0-9]{6,10}$/.test(this.senderId),
@@ -138,6 +145,53 @@ class MSG91Service {
       // Ensure phone number is in correct format (without +)
       const cleanPhone = phoneNumber.replace(/^\+/, '');
       const isIndianNumber = cleanPhone.startsWith('91');
+
+      if (this.flowId) {
+        const response = await axios.post<MSG91SendResponse | string>(
+          `${this.baseUrl}/api/v5/flow/`,
+          {
+            flow_id: this.flowId,
+            sender: this.senderId,
+            route: this.route,
+            recipients: [
+              {
+                mobiles: cleanPhone,
+                VAR1: message,
+                var: message,
+              },
+            ],
+          },
+          {
+            headers: {
+              authkey: this.authKey,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+            timeout: 10000,
+          }
+        );
+        const normalizedResponse = this.normalizeSendResponse(response.data);
+
+        if (normalizedResponse.success) {
+          logger.info('MSG91 flow SMS accepted', {
+            phone: cleanPhone,
+            flowId: this.flowId,
+          });
+          return {
+            success: true,
+            ...(normalizedResponse.messageId ? { messageId: normalizedResponse.messageId } : {}),
+          };
+        }
+
+        logger.error(`MSG91 flow SMS failed: ${normalizedResponse.error}`, undefined, {
+          phone: cleanPhone,
+          providerResponse: normalizedResponse.raw,
+        });
+        return {
+          success: false,
+          error: normalizedResponse.error || 'MSG91 rejected the SMS flow request',
+        };
+      }
 
       if (isIndianNumber && !this.dltTemplateId) {
         logger.warn('Sending Indian SMS without DLT template id; MSG91 may accept but telecom delivery can be rejected', {

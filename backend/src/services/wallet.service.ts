@@ -276,10 +276,7 @@ export class WalletService {
       return null;
     }
 
-    const checkout =
-      latestLog.status === 'pending_checkout'
-        ? await this.getPendingCheckoutForUser(params.userId)
-        : null;
+    const checkout = await this.getPendingCheckoutForUser(params.userId);
 
     const blockedLog = await billingModel.createAutopayLog({
       userId: params.userId,

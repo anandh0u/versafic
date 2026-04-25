@@ -80,7 +80,25 @@ export type AutopayStatus = {
     status: string;
   } | null;
   logs?: Array<Record<string, unknown>>;
-  pending_checkout?: Record<string, unknown> | null;
+  pending_checkout?: RazorpayCheckoutOrder | null;
+};
+
+export type RazorpayCheckoutOrder = {
+  order_id: string;
+  key_id: string;
+  amount: number;
+  currency: string;
+  credits: number;
+  name: string;
+  description: string;
+};
+
+export type AutopayTriggerResponse = {
+  settings: NonNullable<AutopayStatus["settings"]>;
+  log: Record<string, unknown>;
+  balance_credits: number;
+  requires_user_action: boolean;
+  checkout?: RazorpayCheckoutOrder | null;
 };
 
 export type BusinessRecord = {
@@ -635,15 +653,7 @@ export const getAutopayStatus = async () =>
   request<AutopayStatus>("/billing/autopay/status", undefined, { auth: true });
 
 export const createOrder = async (payload: { plan_id?: string; amount_paise?: number; credits?: number }) =>
-  request<{
-    order_id: string;
-    key_id: string;
-    amount: number;
-    currency: string;
-    credits: number;
-    name: string;
-    description: string;
-  }>(
+  request<RazorpayCheckoutOrder>(
     "/billing/create-order",
     {
       method: "POST",
@@ -651,6 +661,50 @@ export const createOrder = async (payload: { plan_id?: string; amount_paise?: nu
     },
     { auth: true }
   );
+
+export const enableAutopay = async (payload: {
+  threshold_credits: number;
+  recharge_amount?: number;
+  mode?: "demo" | "real";
+  selected_plan?: string;
+}) =>
+  request<AutopayStatus>(
+    "/billing/autopay/enable",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  ).then((result) => {
+    notifyDataChanged("autopay-enabled");
+    return result;
+  });
+
+export const disableAutopay = async () =>
+  request<AutopayStatus>(
+    "/billing/autopay/disable",
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+    { auth: true }
+  ).then((result) => {
+    notifyDataChanged("autopay-disabled");
+    return result;
+  });
+
+export const triggerAutopay = async (payload: { triggered_by?: "low_balance" | "manual_retry" | "insufficient_credits"; force?: boolean } = {}) =>
+  request<AutopayTriggerResponse>(
+    "/billing/autopay/trigger",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  ).then((result) => {
+    notifyDataChanged("autopay-triggered");
+    return result;
+  });
 
 export const verifyPayment = async (payload: {
   razorpay_order_id: string;

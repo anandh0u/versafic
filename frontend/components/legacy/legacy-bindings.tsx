@@ -10,10 +10,13 @@ import {
   CustomerResolutionStats,
   CustomerSentimentStats,
   CustomerServiceInteraction,
+  AutopayTriggerResponse,
+  RazorpayCheckoutOrder,
   VoiceConversation,
   getOAuthStartUrl,
   createBusinessRecord,
   createOrder,
+  enableAutopay,
   getAutopayStatus,
   getBusinessList,
   getCallConfig,
@@ -49,6 +52,7 @@ import {
   startExotelCall,
   setPreferredPlanId,
   startCustomerServiceSession,
+  triggerAutopay,
   updateBusiness,
   updateCurrentUser,
   validateRegistrableEmail,
@@ -1702,7 +1706,10 @@ const loadRazorpayScript = () =>
       script.remove();
       reject(new Error(message));
     };
-    const timeoutId = window.setTimeout(() => fail("Razorpay is taking too long to load."), RAZORPAY_LOAD_TIMEOUT_MS);
+    const timeoutId = window.setTimeout(
+      () => fail("Razorpay checkout is taking too long to load. Allow checkout.razorpay.com and retry."),
+      RAZORPAY_LOAD_TIMEOUT_MS
+    );
 
     script.src = RAZORPAY_SCRIPT_SRC;
     script.async = true;
@@ -1715,7 +1722,7 @@ const loadRazorpayScript = () =>
       }
       fail("Razorpay loaded without initializing checkout.");
     };
-    script.onerror = () => fail("Razorpay failed to load.");
+    script.onerror = () => fail("Razorpay checkout failed to load. Allow checkout.razorpay.com and retry.");
     document.head.appendChild(script);
   });
 
@@ -1762,7 +1769,21 @@ const openCheckout = async (planPayload: {
     credits: planPayload.credits,
   });
 
+  await openRazorpayCheckout(order, {
+    onSuccess: planPayload.onSuccess,
+    successMessage: "Payment confirmed and credits added.",
+  });
+};
+
+const openRazorpayCheckout = async (
+  order: RazorpayCheckoutOrder,
+  options: {
+    onSuccess?: () => Promise<void> | void;
+    successMessage?: string;
+  } = {}
+) => {
   const win = getWindowRef();
+  await ensureRazorpay();
   const RazorpayCheckout = win.Razorpay;
   if (!RazorpayCheckout) {
     throw new Error("Razorpay checkout is unavailable");
@@ -1783,8 +1804,8 @@ const openCheckout = async (planPayload: {
       }) => {
         try {
           await verifyPayment(response);
-          await planPayload.onSuccess?.();
-          showToast("Payment confirmed and credits added.", "success");
+          await options.onSuccess?.();
+          showToast(options.successMessage || "Payment confirmed and credits added.", "success");
           resolve();
         } catch (error) {
           reject(error);
@@ -1800,6 +1821,22 @@ const openCheckout = async (planPayload: {
 
     checkout.open();
   });
+};
+
+const getCheckoutFromAutopay = (result: AutopayTriggerResponse | Awaited<ReturnType<typeof getAutopayStatus>> | null) => {
+  if (!result) {
+    return null;
+  }
+
+  if ("checkout" in result && result.checkout) {
+    return result.checkout;
+  }
+
+  if ("pending_checkout" in result && result.pending_checkout) {
+    return result.pending_checkout;
+  }
+
+  return null;
 };
 
 const queueDashboardRefresh = (delayMs: number = 900) => {
@@ -4269,17 +4306,68 @@ const updateBillingPage = (state: DashboardState) => {
   const addPaymentButton = replaceInteractiveElement(
     creditsPage.querySelector<HTMLButtonElement>("#billingAddPaymentButton")
   );
-  addPaymentButton?.addEventListener("click", () => {
-    const autopay = state.autopay?.settings;
-    if (!autopay) {
-      showToast("Payment methods are handled through Razorpay checkout. Save an autopay rule to reuse it.", "info");
+  addPaymentButton?.addEventListener("click", async () => {
+    const originalLabel = addPaymentButton.textContent;
+    const selectedPlan = getSelectedTopUpPlan()
+      || preferredPlan
+      || sortedTopUpPlans.find((plan) => plan.id === "growth")
+      || sortedTopUpPlans[0];
+
+    if (!selectedPlan) {
+      showToast("No Razorpay recharge plan is configured right now.", "warn");
       return;
     }
 
-    showToast(
-      `Autopay is ${autopay.enabled ? "enabled" : "disabled"} at ${formatNumber(autopay.threshold_credits)} credits.`,
-      "info"
-    );
+    addPaymentButton.textContent = "Opening...";
+    addPaymentButton.setAttribute("disabled", "true");
+
+    try {
+      const latestStatus = await getAutopayStatus().catch(() => state.autopay);
+      const pendingCheckout = getCheckoutFromAutopay(latestStatus);
+
+      if (pendingCheckout) {
+        await openRazorpayCheckout(pendingCheckout, {
+          onSuccess: bindDashboardPage,
+          successMessage: "Autopay checkout confirmed and credits added.",
+        });
+        return;
+      }
+
+      const thresholdCredits =
+        latestStatus?.settings?.threshold_credits
+        ?? state.autopay?.settings?.threshold_credits
+        ?? DEFAULT_RECHARGE_MIN_CREDITS;
+
+      await enableAutopay({
+        threshold_credits: thresholdCredits,
+        recharge_amount: selectedPlan.amount_paise,
+        mode: "real",
+        selected_plan: selectedPlan.id,
+      });
+
+      const triggerResult = await triggerAutopay({
+        triggered_by: "manual_retry",
+        force: true,
+      });
+      const checkout = getCheckoutFromAutopay(triggerResult);
+
+      if (!checkout) {
+        showToast("Autopay is enabled. Razorpay did not return a checkout request yet.", "info");
+        await bindDashboardPage();
+        return;
+      }
+
+      await openRazorpayCheckout(checkout, {
+        onSuccess: bindDashboardPage,
+        successMessage: "Autopay checkout confirmed and credits added.",
+      });
+    } catch (error) {
+      const message = error instanceof LegacyApiError ? error.message : "Unable to open Razorpay autopay checkout.";
+      showToast(message, "warn");
+    } finally {
+      addPaymentButton.textContent = originalLabel || "+ Add Payment Method";
+      addPaymentButton.removeAttribute("disabled");
+    }
   });
 
   const faqAnswers = creditsPage.querySelectorAll(".faq-answer");

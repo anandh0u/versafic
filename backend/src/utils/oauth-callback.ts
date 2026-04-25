@@ -10,7 +10,14 @@ const isLocalHostUrl = (value: string): boolean => {
 };
 
 const buildFromPublicBase = (path: string, provider: string): string => {
-  const publicBaseUrl = normalizeEnvValue(process.env.PUBLIC_BASE_URL);
+  const railwayDomain = normalizeEnvValue(process.env.RAILWAY_PUBLIC_DOMAIN);
+  const vercelUrl = normalizeEnvValue(process.env.VERCEL_URL);
+  const publicBaseUrl =
+    normalizeEnvValue(process.env.PUBLIC_BASE_URL) ||
+    normalizeEnvValue(process.env.BACKEND_BASE_URL) ||
+    (railwayDomain ? `https://${railwayDomain}` : "") ||
+    (vercelUrl ? `https://${vercelUrl}` : "");
+
   if (!publicBaseUrl) {
     throw new Error(`${provider} callback URL is not configured`);
   }

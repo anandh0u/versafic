@@ -155,6 +155,34 @@ export const handleExotelStatus = async (req: Request, res: Response, next: Next
   }
 };
 
+export const simulateExotelIncoming = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, ErrorCode.UNAUTHORIZED, "Sign in to simulate an incoming AI call.");
+    }
+
+    const customerNumber = getValue(req.body?.customer_number, req.body?.phone_number);
+    const businessId = getValue(req.body?.business_id);
+
+    const result = await exotelService.simulateIncomingCall({
+      customerNumber: customerNumber ?? null,
+      businessId: businessId ?? null,
+      ownerUserId: Number(req.user.id),
+      ownerEmail: req.user.email,
+    });
+
+    res.status(200).json({
+      status: "success",
+      statusCode: 200,
+      message: "Incoming Exotel AI call simulated",
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getExotelConfig = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     res.status(200).json({

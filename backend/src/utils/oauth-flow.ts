@@ -18,6 +18,7 @@ const getAllowedFrontendOrigins = (): string[] => {
   const configuredOrigins = [
     process.env.FRONTEND_BASE_URL,
     process.env.APP_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
     ...(process.env.CORS_ORIGINS || "").split(","),
   ]
     .map((value) => normalizeEnvValue(value))
@@ -49,8 +50,10 @@ const isAllowedFrontendOrigin = (origin: string): boolean => {
 };
 
 const getDefaultFrontendReturnUrl = (): string => {
+  const vercelUrl = normalizeEnvValue(process.env.FRONTEND_VERCEL_URL);
   const fallbackOrigin =
     getAllowedFrontendOrigins()[0] ||
+    (vercelUrl ? `https://${vercelUrl}` : "") ||
     (process.env.NODE_ENV === "production" ? "https://frontend-anandh0us-projects.vercel.app" : "http://localhost:3000");
 
   return `${fallbackOrigin.replace(/\/+$/, "")}/auth/callback`;

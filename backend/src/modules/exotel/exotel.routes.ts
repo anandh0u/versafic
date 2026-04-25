@@ -5,6 +5,7 @@ import {
   handleExotelIncoming,
   handleExotelRecording,
   handleExotelStatus,
+  simulateExotelIncoming,
   startExotelCall,
 } from "./exotel.controller";
 
@@ -13,6 +14,7 @@ const router = Router();
 router.get("/exotel/config", getExotelConfig);
 router.post("/call/start", verifyToken, startExotelCall);
 router.post("/internal/call/start", startExotelCall);
+router.post("/exotel/simulate-incoming", verifyToken, simulateExotelIncoming);
 router.route("/exotel/incoming").get(handleExotelIncoming).post(handleExotelIncoming);
 router.route("/exotel/recording").get(handleExotelRecording).post(handleExotelRecording);
 router.post("/exotel/status", handleExotelStatus);

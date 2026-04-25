@@ -68,7 +68,10 @@ export const validateEnv = (): void => {
     "EXOTEL_NUMBER",
     "EXOTEL_API_BASE_URL",
     "EXOTEL_CALL_FLOW_URL",
-    "EXOTEL_INTERNAL_API_KEY"
+    "EXOTEL_INTERNAL_API_KEY",
+    "MSG91_AUTH_KEY",
+    "MSG91_SENDER_ID",
+    "MSG91_ROUTE"
   ];
 
   const missingRequired = requiredVars.filter((variable) => !normalizeEnvValue(process.env[variable]));

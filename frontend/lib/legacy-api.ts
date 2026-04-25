@@ -111,9 +111,26 @@ export type CallConfig = {
 export type SmsConfig = {
   configured: boolean;
   provider?: string;
-  senderId?: string;
+  senderId?: string | null;
   route?: string;
   apiBaseUrl?: string;
+};
+
+export type SimulatedIncomingCall = {
+  session_id: string | null;
+  call_id: string;
+  customer_number: string;
+  business_id: string | null;
+  business_name: string | null;
+  status: "calling" | "connected" | "completed";
+  statuses: Array<{
+    status: "calling" | "connected" | "completed";
+    at: string;
+    message: string;
+  }>;
+  ai_response: string;
+  voice_xml: string;
+  route_source: string;
 };
 
 export type CallSession = {
@@ -684,6 +701,19 @@ export const startExotelCall = async (payload: { customer_number: string; busine
     { auth: true }
   ).then((result) => {
     notifyDataChanged("exotel-call-started");
+    return result;
+  });
+
+export const simulateExotelIncoming = async (payload: { customer_number?: string; business_id?: string }) =>
+  request<SimulatedIncomingCall>(
+    "/exotel/simulate-incoming",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  ).then((result) => {
+    notifyDataChanged("exotel-incoming-simulated");
     return result;
   });
 

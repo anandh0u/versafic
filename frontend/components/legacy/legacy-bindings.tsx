@@ -45,6 +45,7 @@ import {
   sendSmsDemo,
   sendTestEmail,
   sendCustomerServiceChat,
+  simulateExotelIncoming,
   startExotelCall,
   setPreferredPlanId,
   startCustomerServiceSession,
@@ -665,6 +666,9 @@ const triggerPublicCallDialer = (messagePrefix = "Opening your phone dialer for"
   showToast(`${messagePrefix} ${config.ai_number}.`, "success");
   openDialerLink(config.ai_number);
 };
+
+const isExotelKycBlockMessage = (message: string) =>
+  /kyc|not yet kyc compliant|mandatory before making outbound calls/i.test(message);
 
 const getBasicEmailValidationMessage = (value?: string | null) => {
   const email = normalizeText(value).toLowerCase();
@@ -5274,6 +5278,25 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     }
   }
 
+  if (!settingsPage.querySelector("#simulateIncomingCallBtn")) {
+    const incomingDemoWrap = document.createElement("div");
+    incomingDemoWrap.id = "incomingCallDemoWrap";
+    incomingDemoWrap.innerHTML = `
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px">
+          <button class="btn btn-secondary btn-sm" id="simulateIncomingCallBtn" type="button">Simulate Incoming AI Call</button>
+          <div id="incomingCallDemoStatus" style="font-size:0.82rem;color:var(--text-muted)">Run a local Exotel webhook simulation and view the AI voice response.</div>
+        </div>
+        <div id="incomingCallDemoLog" style="margin-top:10px;font-size:0.82rem;color:var(--text-muted);line-height:1.6"></div>
+      `;
+
+    const callHintNode = settingsPage.querySelector("#aiCallActionHint");
+    if (callHintNode?.parentNode) {
+      callHintNode.parentNode.insertBefore(incomingDemoWrap, callHintNode.nextSibling);
+    } else {
+      settingsPage.appendChild(incomingDemoWrap);
+    }
+  }
+
   if (!settingsPage.querySelector("#mailgunDemoEmail")) {
     const mailgunDemoWrap = document.createElement("div");
     mailgunDemoWrap.id = "mailgunDemoWrap";
@@ -5333,6 +5356,9 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
   const testCallButton = replaceInteractiveElement(
     settingsPage.querySelector<HTMLButtonElement>("#aiPlaceTestCallBtn")
   );
+  const simulateIncomingCallButton = replaceInteractiveElement(
+    settingsPage.querySelector<HTMLButtonElement>("#simulateIncomingCallBtn")
+  );
   const mailgunDemoButton = replaceInteractiveElement(
     settingsPage.querySelector<HTMLButtonElement>("#mailgunSendTestBtn")
   );
@@ -5340,6 +5366,8 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     settingsPage.querySelector<HTMLButtonElement>("#smsSendDemoBtn")
   );
   const testCallHint = settingsPage.querySelector<HTMLElement>("#aiCallActionHint");
+  const incomingCallDemoStatus = settingsPage.querySelector<HTMLElement>("#incomingCallDemoStatus");
+  const incomingCallDemoLog = settingsPage.querySelector<HTMLElement>("#incomingCallDemoLog");
   const mailgunDemoHint = settingsPage.querySelector<HTMLElement>("#mailgunDemoHint");
   const smsDemoHint = settingsPage.querySelector<HTMLElement>("#smsDemoHint");
 
@@ -5523,6 +5551,16 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
       showToast(`Exotel is calling ${phone} now.`, "success");
     } catch (error) {
       const message = error instanceof LegacyApiError ? error.message : "Unable to place the Exotel test call right now.";
+      if (isExotelKycBlockMessage(message) && state.callConfig?.ai_number) {
+        const inboundMessage = `Outbound calling is waiting for Exotel KYC. For now, call the AI number ${state.callConfig.ai_number} to test the inbound assistant.`;
+        if (testCallHint) {
+          testCallHint.textContent = inboundMessage;
+        }
+        showToast(inboundMessage, "info");
+        triggerPublicCallDialer("Opening inbound AI number");
+        return;
+      }
+
       if (testCallHint) {
         testCallHint.textContent = message;
       }
@@ -5530,6 +5568,82 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     } finally {
       testCallButton.textContent = originalLabel || "Place Test Call";
       testCallButton.removeAttribute("disabled");
+    }
+  });
+
+  simulateIncomingCallButton?.addEventListener("click", async () => {
+    const user = state.user;
+    const phone = normalizeText(testCallNumberInput?.value) || normalizeText(user?.phone_number) || normalizeText(state.setup?.phone);
+    const phoneValidationMessage = phone ? getPhoneValidationMessage(phone) : null;
+
+    if (!user?.email) {
+      showToast("Log in again before simulating an incoming call.", "warn");
+      return;
+    }
+
+    if (phoneValidationMessage) {
+      if (incomingCallDemoStatus) {
+        incomingCallDemoStatus.textContent = phoneValidationMessage;
+      }
+      showToast(phoneValidationMessage, "warn");
+      testCallNumberInput?.focus();
+      return;
+    }
+
+    const originalLabel = simulateIncomingCallButton.textContent;
+    simulateIncomingCallButton.textContent = "Calling...";
+    simulateIncomingCallButton.setAttribute("disabled", "true");
+    if (incomingCallDemoStatus) {
+      incomingCallDemoStatus.textContent = "calling...";
+    }
+    if (incomingCallDemoLog) {
+      incomingCallDemoLog.textContent = "calling...";
+    }
+
+    try {
+      const businesses = await getBusinessList(50);
+      const ownBusiness = businesses.find((business) => business.email === user.email);
+      const response = await simulateExotelIncoming({
+        customer_number: phone || undefined,
+        business_id: ownBusiness?.id,
+      });
+
+      response.statuses.forEach((entry, index) => {
+        window.setTimeout(() => {
+          if (incomingCallDemoStatus) {
+            incomingCallDemoStatus.textContent = entry.status;
+          }
+          if (incomingCallDemoLog) {
+            incomingCallDemoLog.innerHTML = response.statuses
+              .slice(0, index + 1)
+              .map((item) => `<div><strong>${escapeHtml(item.status)}</strong> · ${escapeHtml(item.message)}</div>`)
+              .join("");
+          }
+        }, index * 450);
+      });
+
+      window.setTimeout(() => {
+        if (incomingCallDemoLog) {
+          incomingCallDemoLog.innerHTML += `<div><strong>AI response</strong> · ${escapeHtml(response.ai_response)}</div>`;
+        }
+      }, response.statuses.length * 450);
+
+      showToast("Incoming AI call simulation completed.", "success");
+    } catch (error) {
+      const message =
+        error instanceof LegacyApiError ? error.message : "Unable to simulate the incoming AI call right now.";
+      if (incomingCallDemoStatus) {
+        incomingCallDemoStatus.textContent = message;
+      }
+      if (incomingCallDemoLog) {
+        incomingCallDemoLog.textContent = message;
+      }
+      showToast(message, "warn");
+    } finally {
+      window.setTimeout(() => {
+        simulateIncomingCallButton.textContent = originalLabel || "Simulate Incoming AI Call";
+        simulateIncomingCallButton.removeAttribute("disabled");
+      }, 1500);
     }
   });
 

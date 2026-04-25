@@ -22,6 +22,13 @@ type StartCallInput = {
   ownerEmail?: string | null;
 };
 
+type SimulateIncomingCallInput = {
+  customerNumber?: string | null;
+  businessId?: string | null;
+  ownerUserId?: number | null;
+  ownerEmail?: string | null;
+};
+
 type IncomingWebhookInput = {
   sessionId?: string | null;
   callId?: string | null;
@@ -64,7 +71,25 @@ type StartCallResult = {
   status_callback_url: string;
 };
 
+type SimulateIncomingCallResult = {
+  session_id: string | null;
+  call_id: string;
+  customer_number: string;
+  business_id: string | null;
+  business_name: string | null;
+  status: "calling" | "connected" | "completed";
+  statuses: Array<{
+    status: "calling" | "connected" | "completed";
+    at: string;
+    message: string;
+  }>;
+  ai_response: string;
+  voice_xml: string;
+  route_source: ResolvedCallRouting["routeSource"];
+};
+
 const DEFAULT_EXOTEL_API_BASE_URL = "https://api.in.exotel.com";
+const EXOTEL_GLOBAL_API_BASE_URL = "https://api.exotel.com";
 const DEFAULT_UNKNOWN_BUSINESS_MESSAGE =
   "Hello. We could not identify the correct business for this call right now. Please try again from your latest business interaction.";
 const EXOTEL_NUMBER_FALLBACK = "unknown-exotel-number";
@@ -184,8 +209,14 @@ class ExotelService {
     }
   }
 
-  private getConnectEndpoint(): string {
-    return `${this.apiBaseUrl}/v1/Accounts/${encodeURIComponent(this.sid)}/Calls/connect.json`;
+  private buildConnectEndpoint(apiBaseUrl: string): string {
+    return `${apiBaseUrl}/v1/Accounts/${encodeURIComponent(this.sid)}/Calls/connect.json`;
+  }
+
+  private getConnectEndpoints(): string[] {
+    return Array.from(new Set([this.apiBaseUrl, EXOTEL_GLOBAL_API_BASE_URL])).map((baseUrl) =>
+      this.buildConnectEndpoint(baseUrl)
+    );
   }
 
   private getIncomingCallbackUrl(sessionId: string): string {
@@ -263,6 +294,116 @@ class ExotelService {
 <Response>
   <Say>Thank you. We are processing your request.</Say>
 </Response>`;
+  }
+
+  async simulateIncomingCall(input: SimulateIncomingCallInput): Promise<SimulateIncomingCallResult> {
+    const normalizedCustomerNumber =
+      normalizePhoneNumber(input.customerNumber || "") ||
+      normalizePhoneNumber(getOptionalEnv("EXOTEL_DEMO_CUSTOMER_NUMBER")) ||
+      "+919999999999";
+    const callId = `demo-${randomUUID()}`;
+    const now = new Date();
+
+    const business = input.businessId
+      ? input.ownerEmail
+        ? await exotelRepository.findOwnedBusinessById(input.businessId, input.ownerEmail)
+        : await exotelRepository.findBusinessById(input.businessId)
+      : input.ownerEmail
+        ? await exotelRepository.findBusinessByEmail(input.ownerEmail)
+        : null;
+
+    let session: ExotelCallSession | null = null;
+    let sessionId: string | null = null;
+    let routeSource: ResolvedCallRouting["routeSource"] = business ? "session" : "default";
+
+    if (business) {
+      sessionId = randomUUID();
+      session = await exotelRepository.createSession({
+        sessionId,
+        callSid: callId,
+        userId: input.ownerUserId ?? null,
+        customerNumber: normalizedCustomerNumber,
+        businessId: business.id,
+        fromNumber: normalizedCustomerNumber,
+        toNumber: this.exotelNumber,
+        status: "active",
+        direction: "inbound",
+        type: "incoming",
+        routeSource,
+        providerStatus: "demo-connected",
+        metadata: {
+          demo: true,
+          business_name: business.name,
+          created_from: "settings_simulation",
+        },
+        providerPayload: {
+          provider: "exotel",
+          simulated: true,
+          call_id: callId,
+        },
+      });
+
+      await exotelRepository.updateSessionBySessionId(sessionId, {
+        status: "completed",
+        providerStatus: "demo-completed",
+        durationSeconds: 12,
+        metadata: {
+          demo_completed_at: new Date().toISOString(),
+        },
+      });
+
+      if (normalizedCustomerNumber) {
+        await exotelRepository.touchCustomerBusinessMapping(normalizedCustomerNumber, business.id);
+      }
+    }
+
+    const routing: ResolvedCallRouting = {
+      sessionId,
+      session,
+      business,
+      routeSource,
+    };
+    const voiceXml = this.buildIncomingXml(routing);
+    const aiResponse = business
+      ? this.buildBusinessMessage(business)
+      : this.defaultMessage;
+
+    logger.info("Exotel incoming call simulated", {
+      sessionId,
+      callId,
+      businessId: business?.id,
+      customerNumber: normalizedCustomerNumber,
+      routeSource,
+    });
+
+    return {
+      session_id: sessionId,
+      call_id: callId,
+      customer_number: normalizedCustomerNumber,
+      business_id: business?.id ?? null,
+      business_name: business?.name ?? null,
+      status: "completed",
+      statuses: [
+        {
+          status: "calling",
+          at: now.toISOString(),
+          message: "Simulated Exotel incoming call event received.",
+        },
+        {
+          status: "connected",
+          at: new Date(now.getTime() + 1000).toISOString(),
+          message: "Incoming caller connected to the AI assistant.",
+        },
+        {
+          status: "completed",
+          at: new Date(now.getTime() + 3000).toISOString(),
+          message: "AI voice response generated and call marked completed.",
+        },
+      ],
+      ai_response: aiResponse,
+      voice_xml: voiceXml,
+      route_source: routeSource,
+    };
   }
 
   private async maybeSendCallSummaryEmail(
@@ -398,53 +539,75 @@ class ExotelService {
       TimeOut: getOptionalEnv("EXOTEL_TIMEOUT_SECONDS", "30"),
     });
 
-    try {
-      const response = await axios.post(this.getConnectEndpoint(), payload.toString(), {
-        auth: {
-          username: this.apiKey,
-          password: this.apiToken,
-        },
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
-        },
-        timeout: 15000,
-      });
+    const connectEndpoints = this.getConnectEndpoints();
+    let lastConnectError: unknown = null;
 
-      const providerCallId = response.data?.Call?.Sid || null;
-      const providerStatus = String(response.data?.Call?.Status || "queued");
+    for (const endpoint of connectEndpoints) {
+      try {
+        const response = await axios.post(endpoint, payload.toString(), {
+          auth: {
+            username: this.apiKey,
+            password: this.apiToken,
+          },
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Accept: "application/json",
+          },
+          timeout: 15000,
+        });
 
-      await exotelRepository.updateSessionBySessionId(sessionId, {
-        callSid: providerCallId,
-        status: mapExotelStatus(providerStatus),
-        providerStatus,
-        providerPayload: {
-          outbound_connect_response: response.data,
-        },
-      });
+        const providerCallId = response.data?.Call?.Sid || null;
+        const providerStatus = String(response.data?.Call?.Status || "queued");
 
-      await exotelRepository.touchCustomerBusinessMapping(customerNumber, business.id);
+        await exotelRepository.updateSessionBySessionId(sessionId, {
+          callSid: providerCallId,
+          status: mapExotelStatus(providerStatus),
+          providerStatus,
+          providerPayload: {
+            outbound_connect_endpoint: endpoint.replace(this.sid, "<sid>"),
+            outbound_connect_response: response.data,
+          },
+        });
 
-      logger.info("Exotel outbound call initiated", {
-        sessionId,
-        businessId: business.id,
-        customerNumber,
-        callId: providerCallId,
-      });
+        await exotelRepository.touchCustomerBusinessMapping(customerNumber, business.id);
 
-      return {
-        session_id: sessionId,
-        call_id: providerCallId,
-        business_id: business.id,
-        customer_number: customerNumber,
-        status: mapExotelStatus(providerStatus),
-        provider: "exotel",
-        callback_url: callbackUrl,
-        status_callback_url: statusCallbackUrl,
-      };
-    } catch (error) {
-      const axiosError = error as AxiosError;
-      const providerDetails = axiosError.response?.data || axiosError.message;
+        logger.info("Exotel outbound call initiated", {
+          sessionId,
+          businessId: business.id,
+          customerNumber,
+          callId: providerCallId,
+          endpoint: endpoint.replace(this.sid, "<sid>"),
+        });
+
+        return {
+          session_id: sessionId,
+          call_id: providerCallId,
+          business_id: business.id,
+          customer_number: customerNumber,
+          status: mapExotelStatus(providerStatus),
+          provider: "exotel",
+          callback_url: callbackUrl,
+          status_callback_url: statusCallbackUrl,
+        };
+      } catch (error) {
+        const axiosError = error as AxiosError;
+        lastConnectError = error;
+
+        if (axiosError.response?.status === 401 && endpoint !== connectEndpoints[connectEndpoints.length - 1]) {
+          logger.warn("Exotel endpoint rejected credentials, trying fallback host", {
+            sessionId,
+            endpoint: endpoint.replace(this.sid, "<sid>"),
+          });
+          continue;
+        }
+
+        break;
+      }
+    }
+
+    {
+      const axiosError = lastConnectError as AxiosError | null;
+      const providerDetails = axiosError?.response?.data || axiosError?.message || "Failed to initiate Exotel outbound call";
       const providerMessage = getExotelProviderMessage(providerDetails);
 
       await exotelRepository.updateSessionBySessionId(sessionId, {
@@ -456,11 +619,15 @@ class ExotelService {
         },
       });
 
-      logger.error("Exotel outbound call initiation failed", error instanceof Error ? error : new Error(String(error)), {
+      logger.error(
+        "Exotel outbound call initiation failed",
+        lastConnectError instanceof Error ? lastConnectError : new Error(String(lastConnectError)),
+        {
         sessionId,
         businessId: business.id,
         customerNumber,
-      });
+        }
+      );
 
       throw new AppError(503, ErrorCode.SERVICE_UNAVAILABLE, providerMessage, providerDetails);
     }

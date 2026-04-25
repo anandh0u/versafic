@@ -227,6 +227,7 @@ export class CallSessionRepository extends BaseRepository {
        FROM call_sessions
        WHERE user_id = $1
          AND type = 'outgoing'
+         AND status <> 'failed'
          AND created_at >= $2`,
       [userId, since]
     );
@@ -241,6 +242,7 @@ export class CallSessionRepository extends BaseRepository {
        WHERE user_id = $1
          AND phone_number = $2
          AND type = 'outgoing'
+         AND status <> 'failed'
        ORDER BY created_at DESC
        LIMIT 1`,
       [userId, phoneNumber]

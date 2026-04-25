@@ -18,6 +18,7 @@ class MSG91Service {
   private senderId: string;
   private route: string;
   private dltTemplateId: string;
+  private dltEntityId: string;
   private baseUrl = 'https://api.msg91.com';
   private isConfigured: boolean;
 
@@ -25,7 +26,16 @@ class MSG91Service {
     this.authKey = getOptionalEnv('MSG91_AUTH_KEY') || '';
     this.senderId = getOptionalEnv('MSG91_SENDER_ID') || '';
     this.route = getOptionalEnv('MSG91_ROUTE') || '4';
-    this.dltTemplateId = getOptionalEnv('MSG91_DLT_TEMPLATE_ID') || getOptionalEnv('MSG91_TEMPLATE_ID') || '';
+    this.dltTemplateId =
+      getOptionalEnv('MSG91_DLT_TE_ID') ||
+      getOptionalEnv('MSG91_DLT_TEMPLATE_ID') ||
+      getOptionalEnv('MSG91_TEMPLATE_ID') ||
+      '';
+    this.dltEntityId =
+      getOptionalEnv('MSG91_DLT_PE_ID') ||
+      getOptionalEnv('MSG91_DLT_ENTITY_ID') ||
+      getOptionalEnv('MSG91_DLT_CG_ID') ||
+      '';
 
     this.isConfigured = Boolean(
       this.authKey &&
@@ -54,6 +64,8 @@ class MSG91Service {
       route: this.route,
       apiBaseUrl: this.baseUrl,
       dltTemplateConfigured: Boolean(this.dltTemplateId),
+      dltEntityConfigured: Boolean(this.dltEntityId),
+      indianSenderIdFormatOk: /^[A-Za-z0-9]{6,10}$/.test(this.senderId),
     };
   }
 
@@ -116,7 +128,7 @@ class MSG91Service {
   async sendSMS(
     phoneNumber: string,
     message: string
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  ): Promise<{ success: boolean; messageId?: string; error?: string; warning?: string }> {
     if (!this.isConfigured) {
       logger.error('MSG91 not configured');
       return { success: false, error: 'MSG91 SMS service not configured' };
@@ -125,6 +137,15 @@ class MSG91Service {
     try {
       // Ensure phone number is in correct format (without +)
       const cleanPhone = phoneNumber.replace(/^\+/, '');
+      const isIndianNumber = cleanPhone.startsWith('91');
+
+      if (isIndianNumber && !this.dltTemplateId) {
+        logger.warn('Sending Indian SMS without DLT template id; MSG91 may accept but telecom delivery can be rejected', {
+          phone: cleanPhone,
+          senderId: this.senderId,
+          route: this.route,
+        });
+      }
 
       const response = await axios.get<MSG91SendResponse | string>(
         `${this.baseUrl}/api/sendhttp.php`,
@@ -135,7 +156,7 @@ class MSG91Service {
             message: message,
             sender: this.senderId,
             route: this.route,
-            country: cleanPhone.startsWith('91') ? '91' : '0',
+            country: isIndianNumber ? '91' : '0',
             response: 'json',
             ...(this.dltTemplateId ? { DLT_TE_ID: this.dltTemplateId } : {}),
           },
@@ -152,6 +173,9 @@ class MSG91Service {
         return {
           success: true,
           ...(normalizedResponse.messageId ? { messageId: normalizedResponse.messageId } : {}),
+          ...(isIndianNumber && !this.dltTemplateId
+            ? { warning: 'MSG91 accepted the request, but Indian SMS delivery needs an approved DLT template id mapped to the sender.' }
+            : {}),
         };
       } else {
         logger.error(`MSG91 SMS send failed: ${normalizedResponse.error}`, undefined, {
@@ -179,7 +203,7 @@ class MSG91Service {
     phoneNumber: string,
     otp: string,
     businessName?: string
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  ): Promise<{ success: boolean; messageId?: string; error?: string; warning?: string }> {
     const message = businessName
       ? `Your ${businessName} OTP is ${otp}. Please do not share this code.`
       : `Your OTP is ${otp}. Please do not share this code.`;
@@ -193,7 +217,7 @@ class MSG91Service {
   async sendVerification(
     phoneNumber: string,
     businessName: string
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  ): Promise<{ success: boolean; messageId?: string; error?: string; warning?: string }> {
     const message = `${businessName} has requested access to your phone number. Reply CONFIRM to allow or DENY to reject.`;
     return this.sendSMS(phoneNumber, message);
   }

@@ -82,6 +82,7 @@ export const sendSMS = async (req: Request, res: Response) => {
       sendSuccess(res, 'SMS sent successfully', {
         messageId: result.messageId ?? null,
         phoneNumber,
+        warning: result.warning ?? null,
       });
     } else {
       throw new AppError(500, ErrorCode.INTERNAL_ERROR, result.error || 'Failed to send SMS');
@@ -133,6 +134,7 @@ export const sendOTP = async (req: Request, res: Response) => {
       sendSuccess(res, 'OTP sent successfully', {
         messageId: result.messageId ?? null,
         phoneNumber,
+        warning: result.warning ?? null,
       });
     } else {
       throw new AppError(500, ErrorCode.INTERNAL_ERROR, result.error || 'Failed to send OTP');
@@ -188,6 +190,7 @@ export const sendVerification = async (req: Request, res: Response) => {
       sendSuccess(res, 'Verification message sent successfully', {
         messageId: result.messageId ?? null,
         phoneNumber,
+        warning: result.warning ?? null,
       });
     } else {
       throw new AppError(500, ErrorCode.INTERNAL_ERROR, result.error || 'Failed to send verification');
@@ -206,6 +209,39 @@ export const sendVerification = async (req: Request, res: Response) => {
         message: 'Failed to send verification message',
       });
     }
+  }
+};
+
+/**
+ * MSG91 delivery report webhook.
+ * Configure this URL in MSG91 SMS > Webhook to get delivery/rejected/failed reports.
+ */
+export const deliveryReport = async (req: Request, res: Response) => {
+  try {
+    const rawData = req.body?.data;
+    let reports: unknown = req.body;
+
+    if (typeof rawData === 'string') {
+      try {
+        reports = JSON.parse(rawData);
+      } catch {
+        reports = rawData;
+      }
+    }
+
+    logger.info('MSG91 delivery report received', {
+      reports,
+    });
+
+    sendSuccess(res, 'MSG91 delivery report received', {
+      received: true,
+    });
+  } catch (error) {
+    logger.error('MSG91 delivery report error', error instanceof Error ? error : new Error(String(error)));
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to process MSG91 delivery report',
+    });
   }
 };
 

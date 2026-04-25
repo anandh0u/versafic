@@ -5807,9 +5807,14 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
       });
 
       if (smsDemoHint) {
-        smsDemoHint.textContent = `MSG91 accepted the demo SMS for ${response.phoneNumber}.`;
+        smsDemoHint.textContent = response.warning
+          ? `MSG91 accepted the demo SMS for ${response.phoneNumber}. ${response.warning}`
+          : `MSG91 accepted the demo SMS for ${response.phoneNumber}.`;
       }
-      showToast(`Demo SMS queued for ${response.phoneNumber}.`, "success");
+      showToast(
+        response.warning ? "SMS queued, but DLT setup is needed for Indian delivery." : `Demo SMS queued for ${response.phoneNumber}.`,
+        response.warning ? "warn" : "success"
+      );
     } catch (error) {
       const messageText =
         error instanceof LegacyApiError ? error.message : "Unable to send the SMS demo right now.";

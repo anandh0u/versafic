@@ -16,6 +16,12 @@ router.get('/status', msg91Controller.checkStatus);
 router.get('/config', msg91Controller.getConfig);
 
 /**
+ * POST /sms/delivery-report
+ * MSG91 delivery status webhook
+ */
+router.post('/delivery-report', msg91Controller.deliveryReport);
+
+/**
  * POST /sms/send
  * Send SMS message
  * Body: { phoneNumber: string, message: string (1-160 chars) }

@@ -782,7 +782,7 @@ export const getSmsConfig = async () =>
   request<SmsConfig>("/sms/config", undefined, { auth: true });
 
 export const sendSmsDemo = async (payload: { phoneNumber: string; message: string }) =>
-  request<{ messageId?: string | null; phoneNumber: string }>(
+  request<{ messageId?: string | null; phoneNumber: string; warning?: string | null }>(
     "/sms/send",
     {
       method: "POST",

@@ -5478,7 +5478,7 @@ const bindAiSettingsPanel = async (state: DashboardState) => {
     smsDemoPhoneInput.value = state.user?.phone_number || state.setup?.phone || "";
   }
   if (smsDemoMessageInput) {
-    smsDemoMessageInput.value = `Versafic demo SMS from ${state.setup?.businessName || "your AI assistant"}.`;
+    smsDemoMessageInput.value = "hi welcome to versafic";
   }
   if (consentToggle) {
     consentToggle.checked = Boolean(state.user?.call_consent);

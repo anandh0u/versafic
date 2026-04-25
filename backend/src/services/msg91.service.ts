@@ -159,6 +159,7 @@ class MSG91Service {
             country: isIndianNumber ? '91' : '0',
             response: 'json',
             ...(this.dltTemplateId ? { DLT_TE_ID: this.dltTemplateId } : {}),
+            ...(this.dltEntityId ? { DLT_PE_ID: this.dltEntityId } : {}),
           },
           timeout: 10000,
         }

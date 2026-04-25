@@ -1,4 +1,4 @@
-import { resolveMx } from "node:dns/promises";
+import { resolve4, resolve6, resolveMx } from "node:dns/promises";
 import validator from "validator";
 
 const INDIA_LOCAL_PHONE_PATTERN = /^[6-9]\d{9}$/;
@@ -43,6 +43,54 @@ const withLookupTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Pro
     }),
   ]);
 
+const resolveWithDoh = async (domain: string, type: "A" | "AAAA" | "MX"): Promise<Array<Record<string, unknown>>> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), EMAIL_DOMAIN_LOOKUP_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/dns-json",
+      },
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const payload = (await response.json()) as {
+      Status?: number;
+      Answer?: Array<Record<string, unknown>>;
+    };
+
+    return payload.Status === 0 && Array.isArray(payload.Answer) ? payload.Answer : [];
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const hasAddressRecords = async (domain: string): Promise<boolean> => {
+  try {
+    const records = await withLookupTimeout(resolve4(domain), EMAIL_DOMAIN_LOOKUP_TIMEOUT_MS);
+    if (records.length > 0) {
+      return true;
+    }
+  } catch {
+    // Ignore IPv4 lookup failures and fall back to IPv6.
+  }
+
+  try {
+    const records = await withLookupTimeout(resolve6(domain), EMAIL_DOMAIN_LOOKUP_TIMEOUT_MS);
+    return records.length > 0;
+  } catch {
+    const [aRecords, aaaaRecords] = await Promise.all([resolveWithDoh(domain, "A"), resolveWithDoh(domain, "AAAA")]);
+    return aRecords.length > 0 || aaaaRecords.length > 0;
+  }
+};
+
 const hasMailRoutingDomain = async (domain: string): Promise<boolean> => {
   const cached = emailDomainCheckCache.get(domain);
   if (cached && Date.now() - cached.checkedAt < EMAIL_DOMAIN_CHECK_TTL_MS) {
@@ -63,10 +111,15 @@ const hasMailRoutingDomain = async (domain: string): Promise<boolean> => {
       return mark(true);
     }
   } catch {
-    return mark(false);
+    const dohMxRecords = await resolveWithDoh(domain, "MX");
+    if (dohMxRecords.some((record) => String(record.data || "") && String(record.data) !== ".")) {
+      return mark(true);
+    }
+
+    return mark(await hasAddressRecords(domain));
   }
 
-  return mark(false);
+  return mark(await hasAddressRecords(domain));
 };
 
 const getPhoneDigits = (phone: string) => phone.replace(/\D/g, "");

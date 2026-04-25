@@ -5,6 +5,7 @@
 
 import OpenAI from 'openai';
 import { logger } from './logger';
+import { isPlaceholderEnvValue } from './env';
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -21,19 +22,69 @@ export interface ChatResponse {
   model: string;
 }
 
+const FALLBACK_MODEL = 'fallback-rule-engine';
+
+const inferIntentFromText = (text: string): string => {
+  const normalized = text.toLowerCase();
+
+  if (normalized.includes('book') || normalized.includes('appointment') || normalized.includes('reserve')) {
+    return 'booking';
+  }
+  if (normalized.includes('price') || normalized.includes('cost') || normalized.includes('plan')) {
+    return 'pricing';
+  }
+  if (normalized.includes('refund') || normalized.includes('cancel')) {
+    return 'refund';
+  }
+  if (normalized.includes('support') || normalized.includes('issue') || normalized.includes('problem') || normalized.includes('error')) {
+    return 'support';
+  }
+
+  return 'general';
+};
+
+const buildFallbackMessage = (text: string): string => {
+  switch (inferIntentFromText(text)) {
+    case 'booking':
+      return 'I can help with your booking request. Please share the preferred date, time, and any key details so I can guide the next step.';
+    case 'pricing':
+      return 'I can help with pricing details. Please tell me which service or plan you want, and I will guide you further.';
+    case 'refund':
+      return 'I can help with cancellation or refund guidance. Please share the relevant booking or payment detail so I can point you to the next step.';
+    case 'support':
+      return 'I can help with this support issue. Please describe the problem you are facing so I can guide you clearly.';
+    default:
+      return 'Thank you for reaching out. I can help with support, bookings, pricing, and general enquiries. Please share a little more detail so I can guide the next step.';
+  }
+};
+
+const extractCustomerDataFallback = (customerMessage: string) => {
+  const email = customerMessage.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '';
+  const phone = customerMessage.match(/(?:\+?\d[\d\s\-()]{8,}\d)/)?.[0] || '';
+
+  return {
+    name: '',
+    phone: phone.trim(),
+    email: email.toLowerCase(),
+    request: customerMessage.trim(),
+  };
+};
+
 export class OpenAIClient {
   private client: OpenAI;
   private model: string = 'gpt-3.5-turbo';
+  private apiKeyConfigured: boolean;
 
   constructor(apiKey?: string) {
     const key = apiKey || process.env.OPENAI_API_KEY;
+    this.apiKeyConfigured = !isPlaceholderEnvValue(key);
 
-    if (!key) {
+    if (!this.apiKeyConfigured) {
       logger.warn('OpenAI API key not configured');
     }
 
     this.client = new OpenAI({
-      apiKey: key,
+      apiKey: this.apiKeyConfigured ? key : undefined,
       timeout: 30000
     });
   }
@@ -45,11 +96,29 @@ export class OpenAIClient {
     this.model = model;
   }
 
+  isConfigured(): boolean {
+    return this.apiKeyConfigured;
+  }
+
   /**
    * Generate a chat response
    */
   async chat(messages: ChatMessage[]): Promise<ChatResponse> {
+    const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user')?.content || '';
+
     try {
+      if (!this.isConfigured()) {
+        return {
+          message: buildFallbackMessage(lastUserMessage),
+          tokens: {
+            prompt: 0,
+            completion: 0,
+            total: 0,
+          },
+          model: FALLBACK_MODEL,
+        };
+      }
+
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
@@ -75,7 +144,15 @@ export class OpenAIClient {
       };
     } catch (error) {
       logger.error('OpenAI chat failed', error instanceof Error ? error : new Error(String(error)));
-      throw new Error(`Chat generation failed: ${error instanceof Error ? error.message : String(error)}`);
+      return {
+        message: buildFallbackMessage(lastUserMessage),
+        tokens: {
+          prompt: 0,
+          completion: 0,
+          total: 0,
+        },
+        model: FALLBACK_MODEL,
+      };
     }
   }
 
@@ -118,6 +195,10 @@ Tone: polite, helpful, professional, conversational`
     request?: string;
   }> {
     try {
+      if (!this.isConfigured()) {
+        return extractCustomerDataFallback(customerMessage);
+      }
+
       const response = await this.chat([
         {
           role: 'system',
@@ -134,11 +215,11 @@ If a field is not mentioned, leave it empty string.`
       try {
         return JSON.parse(response.message);
       } catch {
-        return { request: customerMessage };
+        return extractCustomerDataFallback(customerMessage);
       }
     } catch (error) {
       logger.error('Data extraction failed', error instanceof Error ? error : new Error(String(error)));
-      return { request: customerMessage };
+      return extractCustomerDataFallback(customerMessage);
     }
   }
 
@@ -147,6 +228,13 @@ If a field is not mentioned, leave it empty string.`
    */
   async analyzeSentiment(text: string): Promise<'positive' | 'negative' | 'neutral'> {
     try {
+      if (!this.isConfigured()) {
+        const normalized = text.toLowerCase();
+        if (/(happy|great|good|thanks|thank you|awesome)/.test(normalized)) return 'positive';
+        if (/(bad|angry|issue|problem|refund|cancel|complaint)/.test(normalized)) return 'negative';
+        return 'neutral';
+      }
+
       const response = await this.chat([
         {
           role: 'system',

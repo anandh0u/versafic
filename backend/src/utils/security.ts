@@ -211,10 +211,10 @@ export const generateSessionToken = (): string => {
 /**
  * Create password reset token
  */
-export const createPasswordResetToken = (): { token: string; hash: string; expiresAt: Date } => {
+export const createPasswordResetToken = (ttlMs: number = 30 * 60 * 1000): { token: string; hash: string; expiresAt: Date } => {
   const token = generateToken(32);
   const hash = hashSHA256(token);
-  const expiresAt = new Date(Date.now() + 3600000); // 1 hour
+  const expiresAt = new Date(Date.now() + ttlMs);
 
   return { token, hash, expiresAt };
 };

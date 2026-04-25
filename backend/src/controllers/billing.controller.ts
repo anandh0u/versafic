@@ -5,6 +5,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { walletService } from '../services/wallet.service';
+import { razorpayService } from '../services/razorpay.service';
+import { billingModel } from '../models/billing.model';
 import { AutopayMode, PRICING_PLANS } from '../types/billing.types';
 import { AppError } from '../middleware/error-handler';
 import { ErrorCode } from '../types';
@@ -411,5 +413,124 @@ export const triggerAutopay = async (
     });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * POST /billing/webhook/razorpay
+ * Webhook handler for Razorpay payment notifications
+ * This is called by Razorpay servers when payments are processed
+ */
+export const razorpayWebhook = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { event, payload } = req.body;
+
+    // Verify webhook signature using Razorpay service
+    const { signature } = req.headers;
+    const isValidSignature = razorpayService.verifyWebhookSignature(
+      JSON.stringify(req.body),
+      signature as string
+    );
+
+    if (!isValidSignature) {
+      logger.warn('Invalid Razorpay webhook signature', { event });
+      res.status(400).json({
+        status: 'error',
+        message: 'Invalid signature'
+      });
+      return;
+    }
+
+    logger.info('Razorpay webhook received', { event, orderId: payload.payment?.order_id });
+
+    // Handle webhook events
+    switch (event) {
+      case 'payment.authorized':
+      case 'payment.captured': {
+        const paymentData = payload.payment;
+        const orderId = paymentData.order_id;
+
+        // Get payment details from database
+        const payment = await billingModel.getPaymentByOrderId(orderId);
+        if (!payment) {
+          logger.warn('Payment not found for Razorpay order', { orderId });
+          res.status(404).json({
+            status: 'error',
+            message: 'Order not found'
+          });
+          return;
+        }
+
+        // Verify payment with backend
+        // Skip signature verification because webhook signature is already verified above
+        const verifyResult = await walletService.verifyPaymentAndAddCredits(
+          payment.user_id,
+          orderId,
+          paymentData.id, // Razorpay payment ID
+          '',  // No signature needed (already verified via webhook signature)
+          true  // skipSignatureVerification = true
+        );
+
+        if (verifyResult.success) {
+          logger.info('Payment verified via webhook', {
+            userId: payment.user_id,
+            orderId
+          });
+
+          res.status(200).json({
+            status: 'success',
+            message: 'Payment processed successfully'
+          });
+        } else {
+          logger.error('Payment verification failed');
+          res.status(400).json({
+            status: 'error',
+            message: 'Payment verification failed'
+          });
+        }
+        break;
+      }
+
+      case 'payment.failed': {
+        const paymentData = payload.payment;
+        const orderId = paymentData.order_id;
+
+        logger.warn('Payment failed via webhook', {
+          orderId,
+          reason: paymentData.failure_reason
+        });
+
+        // Optional: Send notification to user
+        // await notificationService.sendPaymentFailureEmail(...)
+
+        res.status(200).json({
+          status: 'success',
+          message: 'Payment failure recorded'
+        });
+        break;
+      }
+
+      case 'payment.pending': {
+        logger.info('Payment pending', { orderId: payload.payment?.order_id });
+        res.status(200).json({
+          status: 'success',
+          message: 'Payment pending acknowledged'
+        });
+        break;
+      }
+
+      default:
+        logger.info('Unhandled webhook event', { event });
+        res.status(200).json({
+          status: 'success',
+          message: 'Event acknowledged'
+        });
+    }
+  } catch (error) {
+    logger.error('Error processing Razorpay webhook', error instanceof Error ? error : new Error(String(error)));
+    res.status(500).json({
+      status: 'error',
+      message: 'Webhook processing error'
+    });
   }
 };

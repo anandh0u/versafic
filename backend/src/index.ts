@@ -16,6 +16,7 @@ import { generalLimiter, validateRequestSize, rateLimitAI } from "./middleware/r
 import { requestContextMiddleware } from "./middleware/request-context";
 // Import metrics
 import { metrics } from "./utils/metrics";
+import { getOptionalEnv, isPlaceholderEnvValue } from "./utils/env";
 
 // Import routes
 import authRoutes from "./routes/auth.routes";
@@ -24,14 +25,25 @@ import aiRoutes from "./routes/ai.routes";
 import customerServiceRoutes from "./routes/customer-service.routes";
 import voiceRoutes from "./routes/voice.routes";
 import businessRoutes from "./routes/business.routes";
+import emailRoutes from "./routes/email";
 import callRoutes from "./modules/call/call.routes";
+import exotelRoutes from "./modules/exotel/exotel.routes";
 import observabilityRoutes from "./routes/observability.routes";
 import billingRoutes from "./routes/billing.routes";
+import msg91Routes from "./routes/msg91.routes";
+
 
 // Validate environment variables
+const exotelConfigured = ["EXOTEL_SID", "EXOTEL_API_KEY", "EXOTEL_API_TOKEN", "EXOTEL_NUMBER"].every((key) => {
+  const value = getOptionalEnv(key);
+  return Boolean(value) && !isPlaceholderEnvValue(value);
+});
+
 try {
   validateEnv();
-  validateTwilioWebhookConfig();
+  if (!exotelConfigured) {
+    validateTwilioWebhookConfig();
+  }
 } catch (error) {
   process.exit(1);
 }
@@ -67,6 +79,10 @@ app.use(helmet({
 // Enforce HTTPS in production
 if (process.env.NODE_ENV === "production") {
   app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === "/health" || req.path.startsWith("/ops/")) {
+      return next();
+    }
+
     const forwardedProto = req.get("x-forwarded-proto");
     if (!req.secure && forwardedProto !== "https") {
       return res.redirect(`https://${req.get("host")}${req.url}`);
@@ -175,8 +191,11 @@ app.use("/ai", rateLimitAI, aiRoutes);
 app.use("/customer-service", generalLimiter, customerServiceRoutes);
 app.use("/voice", generalLimiter, voiceRoutes);
 app.use("/business", generalLimiter, businessRoutes);
+app.use("/email", generalLimiter, emailRoutes);
+app.use("/", exotelRoutes);
 app.use("/call", generalLimiter, callRoutes);
 app.use("/billing", generalLimiter, billingRoutes);
+app.use("/sms", generalLimiter, msg91Routes);
 
 // Root endpoint
 app.get("/", (req: Request, res: Response) => {
@@ -224,14 +243,18 @@ export const initializeApp = async (): Promise<void> => {
         logger.info("Skipping runtime table bootstrap in production");
       }
 
-      try {
-        const { getTwilioService } = await import("./services/twilioService");
-        const syncResult = await getTwilioService().syncIncomingVoiceWebhookIfEnabled();
-        logger.info("Twilio incoming webhook sync checked", syncResult);
-      } catch (twilioError) {
-        logger.warn("Twilio webhook sync skipped", {
-          error: twilioError instanceof Error ? twilioError.message : String(twilioError)
-        });
+      if (!exotelConfigured) {
+        try {
+          const { getTwilioService } = await import("./services/twilioService");
+          const syncResult = await getTwilioService().syncIncomingVoiceWebhookIfEnabled();
+          logger.info("Twilio incoming webhook sync checked", syncResult);
+        } catch (twilioError) {
+          logger.warn("Twilio webhook sync skipped", {
+            error: twilioError instanceof Error ? twilioError.message : String(twilioError)
+          });
+        }
+      } else {
+        logger.info("Skipping Twilio webhook bootstrap because Exotel is configured as the active call provider");
       }
     })().catch((error) => {
       initializationPromise = null;

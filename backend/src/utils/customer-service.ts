@@ -1,6 +1,6 @@
 /**
  * Customer Service Manager
- * Orchestrates conversation flow between Sarvam AI and OpenAI
+ * Orchestrates conversation flow between Sarvam AI and the configured LLM
  */
 
 import { randomUUID } from 'crypto';
@@ -239,6 +239,7 @@ export class CustomerServiceManager {
    * End session
    */
   endSession(sessionId: string): void {
+    this.getSession(sessionId);
     this.sessions.delete(sessionId);
     logger.info('Customer service session ended', { sessionId });
   }

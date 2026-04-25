@@ -17,6 +17,15 @@ export const normalizeEnvValue = (value?: string | null): string => {
   return normalized.replace(/\\r\\n|\\n|\\r/g, "").trim();
 };
 
+export const isPlaceholderEnvValue = (value?: string | null): boolean => {
+  const normalized = normalizeEnvValue(value);
+  if (!normalized) {
+    return true;
+  }
+
+  return /^(your_|replace_|paste_)/i.test(normalized) || normalized.includes("_here");
+};
+
 export const validateEnv = (): void => {
   const hasDatabaseUrl = Boolean(normalizeEnvValue(process.env.DATABASE_URL));
   const requiredVars = [
@@ -30,7 +39,12 @@ export const validateEnv = (): void => {
   // AI feature is optional, but log if missing
   const optionalButRecommended = [
     "DATABASE_URL",
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_MODEL",
+    "CLAUDE_OUTBOUND_MODEL",
     "OPENAI_API_KEY",
+    "OPENAI_MODEL",
+    "OPENAI_OUTBOUND_MODEL",
     "SARVAM_API_KEY",
     "FRONTEND_BASE_URL",
     "APP_URL",
@@ -40,10 +54,24 @@ export const validateEnv = (): void => {
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
     "GITHUB_CALLBACK_URL",
+    "MAILGUN_API_KEY",
+    "MAILGUN_DOMAIN",
+    "MAILGUN_FROM",
+    "MAILGUN_BASE_URL",
     "PUBLIC_BASE_URL",
     "TWILIO_ACCOUNT_SID",
     "TWILIO_AUTH_TOKEN",
-    "TWILIO_PHONE_NUMBER"
+    "TWILIO_PHONE_NUMBER",
+    "EXOTEL_SID",
+    "EXOTEL_API_KEY",
+    "EXOTEL_API_TOKEN",
+    "EXOTEL_NUMBER",
+    "EXOTEL_API_BASE_URL",
+    "EXOTEL_CALL_FLOW_URL",
+    "EXOTEL_INTERNAL_API_KEY",
+    "MSG91_AUTH_KEY",
+    "MSG91_SENDER_ID",
+    "MSG91_ROUTE"
   ];
 
   const missingRequired = requiredVars.filter((variable) => !normalizeEnvValue(process.env[variable]));

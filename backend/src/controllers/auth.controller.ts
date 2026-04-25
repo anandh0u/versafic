@@ -15,6 +15,7 @@ import {
   resolveFrontendReturnUrl,
   storeOAuthState,
 } from "../utils/oauth-flow";
+import { resolveOAuthCallbackUrl } from "../utils/oauth-callback";
 import { getRegistrableEmailError, isStrongPassword, isValidEmail, sanitizeEmail } from "../utils/validators";
 import { AuthRequest } from "../middleware/jwt-auth";
 
@@ -22,20 +23,11 @@ type OAuthProvider = "google" | "github";
 
 const getProviderDisplayName = (provider: OAuthProvider) => (provider === "google" ? "Google" : "GitHub");
 
-const getPublicBaseUrl = () => {
-  const publicBaseUrl = normalizeEnvValue(process.env.PUBLIC_BASE_URL);
-  if (!publicBaseUrl) {
-    throw new AppError(500, ErrorCode.AUTH_ERROR, "PUBLIC_BASE_URL is not configured");
-  }
-
-  return publicBaseUrl.replace(/\/+$/, "");
-};
-
 const getGoogleCallbackUrl = () =>
-  normalizeEnvValue(process.env.GOOGLE_CALLBACK_URL) || `${getPublicBaseUrl()}/auth/google/callback`;
+  resolveOAuthCallbackUrl(process.env.GOOGLE_CALLBACK_URL, "/auth/google/callback", "Google");
 
 const getGitHubCallbackUrl = () =>
-  normalizeEnvValue(process.env.GITHUB_CALLBACK_URL) || `${getPublicBaseUrl()}/auth/github/callback`;
+  resolveOAuthCallbackUrl(process.env.GITHUB_CALLBACK_URL, "/auth/github/callback", "GitHub");
 
 const redirectWithOAuthError = (res: Response, returnTo: string, message: string) => {
   res.redirect(302, buildFrontendAuthErrorUrl(returnTo, message));
@@ -154,6 +146,56 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
         refreshToken: result.refreshToken
       },
       timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (typeof email !== "string" || !email.trim()) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, "Email is required"));
+    }
+
+    await AuthService.requestPasswordReset(email);
+
+    res.status(200).json({
+      status: "success",
+      message: "If that email is registered, a reset link has been sent.",
+      data: {
+        accepted: true,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+
+    if (typeof token !== "string" || !token.trim()) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, "Reset token is required"));
+    }
+
+    if (typeof password !== "string" || !password.trim()) {
+      return next(new AppError(400, ErrorCode.VALIDATION_ERROR, "Password is required"));
+    }
+
+    await AuthService.resetPasswordWithToken(token, password);
+
+    res.status(200).json({
+      status: "success",
+      message: "Password updated successfully",
+      data: {
+        reset: true,
+      },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);

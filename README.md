@@ -1,17 +1,25 @@
 # Versafic
 
-Versafic is an AI customer support platform with:
+Versafic is an AI voice and customer-ops platform for bookings, support, and business discovery.
+
+Live web links:
+
+- Frontend: https://frontend-anandh0us-projects.vercel.app
+- Backend: https://backend-production-a176.up.railway.app
+
+It includes:
 
 - a Node.js + Express + TypeScript backend
-- a React + Vite frontend
+- a Next.js frontend that preserves the approved legacy design
 - credit-based billing with Razorpay
-- Twilio-powered calling flows
-- AI chat and voice processing support
+- Exotel-backed call flows
+- Mailgun email delivery
+- AI chat, voice, onboarding, and business directory features
 
 ## Project Structure
 
-- `backend/` API, database migrations, and integrations
-- `frontend/` dashboard and client-facing UI
+- `backend/` API, database migrations, telephony, billing, and auth
+- `frontend/` customer-facing and dashboard UI
 
 ## Local Setup
 
@@ -29,11 +37,11 @@ npm run dev
 ```bash
 cd frontend
 npm install
-cp .env.example .env
+cp .env.example .env.local
 npm run dev
 ```
 
-## Build
+## Build Checks
 
 ### Backend
 
@@ -46,36 +54,91 @@ npm run build
 
 ```bash
 cd frontend
+npm run lint
 npm run build
 ```
 
-## Environment Templates
+## Runtime Environments
 
-- `backend/.env.example`
-- `frontend/.env.example`
+- Frontend production: Vercel
+- Backend production: Railway
+- Database: Aiven PostgreSQL
 
-## Deployment
+## Source Links
 
-- frontend uses `frontend/vercel.json`
-- backend uses `backend/vercel.json`
-- backend can also be deployed on Render with `render.yaml`
+- Common backend remote: https://github.com/Vtroninternal/common-backend.git
+- Versafic repo: https://github.com/anandh0u/versafic.git
 
-## Backend On Render
+## Deployment Targets
 
-```bash
-1. Push this repo to GitHub
-2. In Render, create a new Blueprint or Web Service
-3. Point Render to this repo root
-4. If using Blueprint, it will read render.yaml automatically
-5. Set backend environment variables from backend/.env.example
-6. Make sure PUBLIC_BASE_URL is your Render backend URL
-7. Make sure CORS_ORIGINS includes your frontend domain
-8. Deploy and verify /health
-```
+### Frontend on Vercel
 
-Notes:
+- Project root: `frontend/`
+- Required env:
+  - `NEXT_PUBLIC_API_BASE_URL=https://backend-production-a176.up.railway.app`
+  - `NEXT_PUBLIC_API_URL=https://backend-production-a176.up.railway.app` if you are using the legacy env name
 
-- `DATABASE_URL` is supported, so Render Postgres or any managed Postgres URL can be used directly.
-- If you keep Aiven, you can still use the split `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` variables.
-- For Twilio webhooks on Render, set `PUBLIC_BASE_URL=https://your-service.onrender.com`.
-- For the first deploy, run `npm run db:migrate:aiven` from Render Shell, or temporarily set `RUN_DB_MIGRATIONS_ON_STARTUP=true`.
+### Backend on Railway
+
+- Service root: `backend/`
+- Config file: `backend/railway.json`
+- Health check path: `/health`
+
+Required backend envs:
+
+- `NODE_ENV=production`
+- `JWT_SECRET`
+- `JWT_REFRESH_SECRET`
+- `PUBLIC_BASE_URL`
+- `FRONTEND_BASE_URL`
+- `APP_URL`
+- `CORS_ORIGINS`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
+
+Feature envs:
+
+- `OPENAI_API_KEY`
+- `SARVAM_API_KEY`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_PHONE_NUMBER`
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_CALLBACK_URL` (must match the backend public callback URL exactly)
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- `GITHUB_CALLBACK_URL`
+
+OAuth callback values for the current Railway backend:
+
+- Google redirect URI: `https://backend-production-a176.up.railway.app/auth/google/callback`
+- GitHub callback URL: `https://backend-production-a176.up.railway.app/auth/github/callback`
+
+If Google shows `Error 400: redirect_uri_mismatch`, check both places:
+
+- Google Cloud Console -> OAuth client -> Authorized redirect URIs
+- Railway env `GOOGLE_CALLBACK_URL` (or leave it empty and rely on `PUBLIC_BASE_URL`)
+
+## Operations Notes
+
+- Railway is currently the live backend host: `https://backend-production-a176.up.railway.app`
+- Vercel is currently the live frontend host: `https://frontend-anandh0us-projects.vercel.app`
+- Twilio webhook URLs depend on `PUBLIC_BASE_URL`
+- Run `npm run db:migrate:aiven` from the backend when deploying schema changes
+
+## Maintenance Notes
+
+- Keep Bookings labeled as Bookings.
+- Avoid reintroducing HTML-only route sources as the active frontend path.
+- If linting is needed, add a committed frontend ESLint config instead of using the interactive prompt.
+
+## Beta Launch Readiness
+
+See [`BETA_LAUNCH_CHECKLIST.md`](./BETA_LAUNCH_CHECKLIST.md) for the full launch checklist and remaining production gaps.

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../config/database";
 import { logger } from "../utils/logger";
+import { emailService } from "../services/email.service";
 import {
   getPhoneValidationError,
   getRegistrableEmailError,
@@ -135,6 +136,20 @@ export class BusinessController {
         id: businessId,
         name: business_name
       });
+
+      const welcomeEmailResult = await emailService.sendWelcomeEmail({
+        to: normalizedEmail,
+        name: owner_name,
+        businessName: business_name,
+      });
+
+      if (!welcomeEmailResult.success) {
+        logger.warn("Business onboarding welcome email failed", {
+          businessId,
+          email: normalizedEmail,
+          reason: welcomeEmailResult.error,
+        });
+      }
 
       res.status(201).json({
         status: "success",

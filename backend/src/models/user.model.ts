@@ -8,6 +8,8 @@ export interface User {
   name?: string | null;
   phone_number?: string | null;
   password_hash?: string;
+  password_reset_token_hash?: string | null;
+  password_reset_expires_at?: string | null;
   provider?: string;
   provider_id?: string;
   is_onboarded: boolean;
@@ -156,6 +158,84 @@ export const setUserCallOptOut = async (
     return result.rows[0] || null;
   } catch (error) {
     logger.error("Error updating call opt-out status", error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
+};
+
+export const storePasswordResetToken = async (
+  userId: string | number,
+  tokenHash: string,
+  expiresAt: Date
+): Promise<void> => {
+  try {
+    await pool.query(
+      `UPDATE users
+       SET password_reset_token_hash = $2,
+           password_reset_expires_at = $3,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [Number(userId), tokenHash, expiresAt]
+    );
+  } catch (error) {
+    logger.error("Error storing password reset token", error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
+};
+
+export const clearPasswordResetToken = async (userId: string | number): Promise<void> => {
+  try {
+    await pool.query(
+      `UPDATE users
+       SET password_reset_token_hash = NULL,
+           password_reset_expires_at = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [Number(userId)]
+    );
+  } catch (error) {
+    logger.error("Error clearing password reset token", error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
+};
+
+export const findUserByPasswordResetHash = async (tokenHash: string): Promise<User | null> => {
+  try {
+    const result = await pool.query(
+      `SELECT id, email, name, phone_number, password_hash, password_reset_token_hash, password_reset_expires_at, provider, provider_id, is_onboarded, call_consent, call_opt_out, created_at, updated_at
+       FROM users
+       WHERE password_reset_token_hash = $1
+         AND password_reset_expires_at IS NOT NULL
+         AND password_reset_expires_at > NOW()
+       LIMIT 1`,
+      [tokenHash]
+    );
+
+    return result.rows[0] || null;
+  } catch (error) {
+    logger.error("Error finding user by password reset hash", error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
+};
+
+export const updateUserPassword = async (
+  userId: string | number,
+  passwordHash: string
+): Promise<User | null> => {
+  try {
+    const result = await pool.query(
+      `UPDATE users
+       SET password_hash = $2,
+           password_reset_token_hash = NULL,
+           password_reset_expires_at = NULL,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, email, name, phone_number, password_hash, provider, provider_id, is_onboarded, call_consent, call_opt_out, created_at, updated_at`,
+      [Number(userId), passwordHash]
+    );
+
+    return result.rows[0] || null;
+  } catch (error) {
+    logger.error("Error updating user password", error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 };

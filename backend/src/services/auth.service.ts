@@ -6,9 +6,12 @@ import * as UserModel from "../models/user.model";
 import { logger } from "../utils/logger";
 import { ErrorCode } from "../types";
 import { verifyGoogleToken } from "../utils/google-auth";
+import { emailService } from "./email.service";
+import { createPasswordResetToken, hashSHA256 } from "../utils/security";
 import {
   getPhoneValidationError,
   getRegistrableEmailError,
+  isStrongPassword,
   isValidEmail,
   normalizePhoneNumber,
   sanitizeEmail,
@@ -16,28 +19,47 @@ import {
 
 type OAuthProvider = "google" | "github";
 
+const PASSWORD_RESET_TTL_MINUTES = 30;
+const PASSWORD_RESET_TTL_MS = PASSWORD_RESET_TTL_MINUTES * 60 * 1000;
+const FRONTEND_APP_URL = (
+  process.env.FRONTEND_BASE_URL ||
+  process.env.APP_URL ||
+  "https://frontend-anandh0us-projects.vercel.app"
+).replace(/\/+$/, "");
+
 const serializeUser = (user: UserModel.User, overrides?: { name?: string }): {
   id: number;
   email: string;
   name?: string;
+  phone_number?: string;
   phoneNumber?: string;
+  call_consent: boolean;
   callConsent: boolean;
+  call_opt_out: boolean;
   callOptOut: boolean;
+  is_onboarded: boolean;
   isOnboarded: boolean;
 } => {
   const serializedUser: {
     id: number;
     email: string;
     name?: string;
+    phone_number?: string;
     phoneNumber?: string;
+    call_consent: boolean;
     callConsent: boolean;
+    call_opt_out: boolean;
     callOptOut: boolean;
+    is_onboarded: boolean;
     isOnboarded: boolean;
   } = {
     id: user.id,
     email: user.email,
+    call_consent: user.call_consent,
     callConsent: user.call_consent,
+    call_opt_out: user.call_opt_out,
     callOptOut: user.call_opt_out,
+    is_onboarded: user.is_onboarded,
     isOnboarded: user.is_onboarded,
   };
 
@@ -47,6 +69,7 @@ const serializeUser = (user: UserModel.User, overrides?: { name?: string }): {
   }
 
   if (user.phone_number) {
+    serializedUser.phone_number = user.phone_number;
     serializedUser.phoneNumber = user.phone_number;
   }
 
@@ -79,6 +102,19 @@ export const registerUser = async (
     // Create user
     const user = await UserModel.createUser(normalizedEmail, passwordHash, "password", undefined, name?.trim() || undefined);
     logger.info("User registered successfully", { userId: user.id, email: normalizedEmail });
+
+    const welcomeEmailResult = await emailService.sendWelcomeEmail({
+      to: normalizedEmail,
+      name: user.name,
+    });
+
+    if (!welcomeEmailResult.success) {
+      logger.warn("Welcome email failed after registration", {
+        userId: user.id,
+        email: normalizedEmail,
+        reason: welcomeEmailResult.error,
+      });
+    }
 
     // Generate token pair (access + refresh)
     const accessToken = generateAccessToken(user.id, user.email);
@@ -128,6 +164,18 @@ export const loginUser = async (
 
     logger.info("User logged in successfully", { userId: user.id, email: normalizedEmail });
 
+    const loginEmailResult = await emailService.sendLoginAlertToUser({
+      userId: user.id,
+      providerLabel: "Email and password",
+    });
+    if (!loginEmailResult.success) {
+      logger.warn("Login alert email failed after password sign-in", {
+        userId: user.id,
+        email: normalizedEmail,
+        reason: loginEmailResult.error,
+      });
+    }
+
     // Generate token pair (access + refresh)
     const accessToken = generateAccessToken(user.id, user.email);
     const refreshToken = generateRefreshToken(user.id);
@@ -171,6 +219,33 @@ export const handleOAuthProviderAuth = async (
       user = await UserModel.createUser(normalizedEmail, undefined, provider, providerId, name?.trim() || undefined);
       logger.info(`New user created via ${provider} OAuth`, { userId: user.id, email: normalizedEmail, provider });
 
+      const welcomeEmailResult = await emailService.sendWelcomeEmail({
+        to: normalizedEmail,
+        name: name?.trim() || user.name,
+      });
+
+      if (!welcomeEmailResult.success) {
+        logger.warn("Welcome email failed after OAuth signup", {
+          userId: user.id,
+          email: normalizedEmail,
+          provider,
+          reason: welcomeEmailResult.error,
+        });
+      }
+
+      const loginEmailResult = await emailService.sendLoginAlertToUser({
+        userId: user.id,
+        providerLabel: provider === "google" ? "Google" : "GitHub",
+      });
+      if (!loginEmailResult.success) {
+        logger.warn("Login alert email failed after OAuth signup", {
+          userId: user.id,
+          email: normalizedEmail,
+          provider,
+          reason: loginEmailResult.error,
+        });
+      }
+
       const accessToken = generateAccessToken(user.id, user.email);
       const refreshToken = generateRefreshToken(user.id);
 
@@ -182,6 +257,19 @@ export const handleOAuthProviderAuth = async (
       };
     } else {
       logger.info(`User logged in via ${provider} OAuth`, { userId: user.id, email: normalizedEmail, provider });
+
+      const loginEmailResult = await emailService.sendLoginAlertToUser({
+        userId: user.id,
+        providerLabel: provider === "google" ? "Google" : "GitHub",
+      });
+      if (!loginEmailResult.success) {
+        logger.warn("Login alert email failed after OAuth sign-in", {
+          userId: user.id,
+          email: normalizedEmail,
+          provider,
+          reason: loginEmailResult.error,
+        });
+      }
 
       const accessToken = generateAccessToken(user.id, user.email);
       const refreshToken = generateRefreshToken(user.id);
@@ -274,6 +362,63 @@ export const getCurrentUserProfile = async (userId: string | number): Promise<an
   }
 
   return serializeUser(user);
+};
+
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  const normalizedEmail = sanitizeEmail(email);
+  if (!isValidEmail(normalizedEmail)) {
+    throw new AppError(400, ErrorCode.VALIDATION_ERROR, "Enter a valid email address.");
+  }
+
+  const user = await UserModel.findUserByEmail(normalizedEmail);
+  if (!user) {
+    logger.info("Password reset requested for unknown email", { email: normalizedEmail });
+    return;
+  }
+
+  const { token, hash, expiresAt } = createPasswordResetToken(PASSWORD_RESET_TTL_MS);
+  await UserModel.storePasswordResetToken(user.id, hash, expiresAt);
+
+  const resetLink = `${FRONTEND_APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
+  const emailResult = await emailService.sendPasswordResetEmail({
+    to: user.email,
+    name: user.name,
+    resetLink,
+    expiresMinutes: PASSWORD_RESET_TTL_MINUTES,
+  });
+
+  if (!emailResult.success) {
+    logger.warn("Password reset email failed", {
+      userId: user.id,
+      email: user.email,
+      reason: emailResult.error,
+    });
+  }
+};
+
+export const resetPasswordWithToken = async (token: string, password: string): Promise<void> => {
+  if (!token.trim()) {
+    throw new AppError(400, ErrorCode.VALIDATION_ERROR, "Reset token is required.");
+  }
+
+  const passwordValidation = isStrongPassword(password);
+  if (!passwordValidation.valid) {
+    throw new AppError(400, ErrorCode.VALIDATION_ERROR, `Password requirements: ${passwordValidation.errors.join(", ")}`);
+  }
+
+  const hash = hashSHA256(token.trim());
+  const user = await UserModel.findUserByPasswordResetHash(hash);
+  if (!user) {
+    throw new AppError(400, ErrorCode.INVALID_TOKEN, "This password reset link is invalid or has expired.");
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const updatedUser = await UserModel.updateUserPassword(user.id, passwordHash);
+  if (!updatedUser) {
+    throw new AppError(500, ErrorCode.INTERNAL_ERROR, "Unable to update password right now.");
+  }
+
+  logger.info("Password reset completed successfully", { userId: user.id, email: user.email });
 };
 
 export const updateCurrentUserContactPreferences = async (params: {

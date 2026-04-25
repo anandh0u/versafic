@@ -3,25 +3,16 @@ import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { logger } from '../utils/logger';
 import { ErrorCode } from '../types';
 
-/**
- * All request throttling is intentionally disabled for the live demo flow.
- * We keep these middleware exports so existing route wiring stays compatible.
- */
-export const generalLimiter: RequestHandler = (_req: Request, _res: Response, next: NextFunction) => {
-  next();
-};
-
-export const rateLimitAI: RequestHandler = (_req: Request, _res: Response, next: NextFunction) => {
-  next();
-};
+const passthroughLimiter: RequestHandler = (_req, _res, next) => next();
 
 /**
- * Auth endpoint limiter intentionally disabled for the live demo flow.
- * We keep the exported middleware so existing route wiring stays compatible.
+ * Runtime rate limits are intentionally disabled.
+ * Earlier product decisions removed request throttling because it was blocking
+ * normal auth, config checks, and dashboard activity in production.
  */
-export const authLimiter: RequestHandler = (_req: Request, _res: Response, next: NextFunction) => {
-  next();
-};
+export const generalLimiter: RequestHandler = passthroughLimiter;
+export const rateLimitAI: RequestHandler = passthroughLimiter;
+export const authLimiter: RequestHandler = passthroughLimiter;
 
 /**
  * Request size limiter

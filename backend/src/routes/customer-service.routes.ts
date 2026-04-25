@@ -5,6 +5,9 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { getCustomerServiceManager } from '../utils/customer-service';
+import { verifyAccessToken } from '../middleware/jwt-auth';
+import { walletService } from '../services/wallet.service';
+import { CREDIT_COSTS } from '../types/billing.types';
 import {
   createInteraction,
   getSessionInteractions,
@@ -18,6 +21,21 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 const manager = getCustomerServiceManager();
+
+const getOptionalAuthenticatedUserId = (req: Request): number | null => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) {
+    return null;
+  }
+
+  try {
+    const token = header.replace('Bearer ', '').trim();
+    const decoded = verifyAccessToken(token);
+    return Number(decoded.id);
+  } catch {
+    return null;
+  }
+};
 
 /**
  * POST /customer-service/start
@@ -45,6 +63,37 @@ router.post('/chat', async (req: Request, res: Response, next: NextFunction) => 
       return sendError(res, 'Either audioBase64 or textMessage is required', 400);
     }
 
+    const authenticatedUserId = getOptionalAuthenticatedUserId(req);
+    const usageSource = audioBase64 ? 'voice_process' : 'ai_chat';
+    const usageCredits = audioBase64 ? CREDIT_COSTS.VOICE_PROCESS_ACTION : CREDIT_COSTS.AI_CHAT_MESSAGE;
+    const creditReference = authenticatedUserId
+      ? `CS-${authenticatedUserId}-${Date.now()}`
+      : null;
+
+    let creditsReserved = false;
+
+    if (authenticatedUserId && creditReference) {
+      const chargeResult = await walletService.deductCreditsForUsage(
+        authenticatedUserId,
+        usageSource,
+        audioBase64 ? 'Customer-service voice request' : 'Customer-service text request',
+        creditReference,
+        usageCredits
+      );
+
+      if (!chargeResult.success) {
+        return sendError(
+          res,
+          chargeResult.autopay?.requires_user_action
+            ? 'Insufficient credits. A compliant recharge checkout has been prepared and is waiting for user confirmation.'
+            : 'Insufficient credits for this AI request.',
+          402
+        );
+      }
+
+      creditsReserved = true;
+    }
+
     const response = await manager.processCustomerRequest({
       audioBase64,
       textMessage,
@@ -53,6 +102,14 @@ router.post('/chat', async (req: Request, res: Response, next: NextFunction) => 
     });
 
     if (!response.success) {
+      if (authenticatedUserId && creditReference && creditsReserved) {
+        await walletService.refundCredits(
+          authenticatedUserId,
+          usageCredits,
+          creditReference,
+          'Refunded customer-service credits after an unsuccessful request.'
+        );
+      }
       return sendError(res, response.error || 'Failed to process request', 500);
     }
 
@@ -163,6 +220,9 @@ router.post('/end/:sessionId', async (req: Request, res: Response, next: NextFun
       200
     );
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Session')) {
+      return sendError(res, 'Session not found', 404);
+    }
     next(error);
   }
 });

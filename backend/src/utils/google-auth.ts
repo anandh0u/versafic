@@ -1,6 +1,7 @@
 import { logger } from "./logger";
 import axios from "axios";
 import { normalizeEnvValue } from "./env";
+import { resolveOAuthCallbackUrl } from "./oauth-callback";
 
 export interface GoogleTokenPayload {
   email: string;
@@ -16,17 +17,7 @@ export interface GoogleTokenPayload {
 const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 
 const getGoogleCallbackUrl = () => {
-  const configuredCallback = normalizeEnvValue(process.env.GOOGLE_CALLBACK_URL);
-  if (configuredCallback) {
-    return configuredCallback;
-  }
-
-  const publicBaseUrl = normalizeEnvValue(process.env.PUBLIC_BASE_URL);
-  if (!publicBaseUrl) {
-    throw new Error("Google callback URL is not configured");
-  }
-
-  return `${publicBaseUrl.replace(/\/+$/, "")}/auth/google/callback`;
+  return resolveOAuthCallbackUrl(process.env.GOOGLE_CALLBACK_URL, "/auth/google/callback", "Google");
 };
 
 const parseEpochSeconds = (value: unknown): number | undefined => {

@@ -13,6 +13,7 @@ import {
   AutopaySettings,
   AutopayStatusResponse,
   AutopayTriggeredReason,
+  CreatePaymentLinkResponse,
   CreateOrderResponse,
   CREDIT_COSTS,
   Payment,
@@ -25,6 +26,7 @@ import { logger } from '../utils/logger';
 import { AppError } from '../middleware/error-handler';
 import { ErrorCode } from '../types';
 import { emailService } from './email.service';
+import { normalizeEnvValue } from '../utils/env';
 
 const DEFAULT_AUTOPAY_THRESHOLD = 100;
 const DEFAULT_AUTOPAY_RECHARGE_AMOUNT = 19900;
@@ -48,6 +50,15 @@ type AutopayActionState = {
   requires_user_action: boolean;
 };
 
+type PaymentContext = 'manual_topup' | 'autopay';
+
+type CheckoutPricing = {
+  amountPaise: number;
+  credits: number;
+  planName: string;
+  description: string;
+};
+
 export class WalletService {
   private defaultAutopaySettings(userId: number): AutopaySettings {
     const now = new Date();
@@ -68,6 +79,53 @@ export class WalletService {
 
   private calculateCreditsFromAmount(amountPaise: number): number {
     return Math.max(1, Math.floor(amountPaise / CREDITS_PER_RUPEE));
+  }
+
+  private resolveCheckoutPricing(
+    planId?: string,
+    customAmountPaise?: number,
+    customCredits?: number,
+    paymentContext: PaymentContext = 'manual_topup'
+  ): CheckoutPricing {
+    if (planId) {
+      const plan = PRICING_PLANS.find((item) => item.id === planId);
+      if (!plan) {
+        throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Invalid plan selected');
+      }
+
+      return {
+        amountPaise: plan.amount_paise,
+        credits: plan.credits,
+        planName: plan.name,
+        description: plan.description,
+      };
+    }
+
+    if (customAmountPaise && customCredits) {
+      if (customAmountPaise < 100) {
+        throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Minimum amount is INR 1');
+      }
+
+      return {
+        amountPaise: customAmountPaise,
+        credits: customCredits,
+        planName: paymentContext === 'autopay' ? 'Autopay Recharge' : 'Custom',
+        description: `${customCredits} credits`,
+      };
+    }
+
+    throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Please select a plan or provide custom amount');
+  }
+
+  private getPaymentLinkCallbackUrl(): string {
+    const railwayDomain = normalizeEnvValue(process.env.RAILWAY_PUBLIC_DOMAIN);
+    const publicBaseUrl =
+      normalizeEnvValue(process.env.PUBLIC_BASE_URL) ||
+      normalizeEnvValue(process.env.BACKEND_BASE_URL) ||
+      (railwayDomain ? `https://${railwayDomain}` : '') ||
+      `http://localhost:${process.env.PORT || 5000}`;
+
+    return `${publicBaseUrl.replace(/\/+$/, '')}/billing/payment-link/callback`;
   }
 
   private resolveUsageCredits(source: TransactionSource, customCredits?: number): number {
@@ -354,40 +412,19 @@ export class WalletService {
     planId?: string,
     customAmountPaise?: number,
     customCredits?: number,
-    paymentContext: 'manual_topup' | 'autopay' = 'manual_topup',
+    paymentContext: PaymentContext = 'manual_topup',
     metadata: Record<string, unknown> = {}
   ): Promise<CreateOrderResponse> {
     if (!razorpayService.isConfigured()) {
       throw new AppError(503, ErrorCode.SERVICE_UNAVAILABLE, 'Payment service is not configured');
     }
 
-    let amountPaise: number;
-    let credits: number;
-    let planName: string;
-    let description: string;
-
-    if (planId) {
-      const plan = PRICING_PLANS.find((item) => item.id === planId);
-      if (!plan) {
-        throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Invalid plan selected');
-      }
-
-      amountPaise = plan.amount_paise;
-      credits = plan.credits;
-      planName = plan.name;
-      description = plan.description;
-    } else if (customAmountPaise && customCredits) {
-      if (customAmountPaise < 100) {
-        throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Minimum amount is INR 1');
-      }
-
-      amountPaise = customAmountPaise;
-      credits = customCredits;
-      planName = paymentContext === 'autopay' ? 'Autopay Recharge' : 'Custom';
-      description = `${credits} credits`;
-    } else {
-      throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Please select a plan or provide custom amount');
-    }
+    const { amountPaise, credits, planName, description } = this.resolveCheckoutPricing(
+      planId,
+      customAmountPaise,
+      customCredits,
+      paymentContext
+    );
 
     const receipt = `rcpt_${paymentContext}_${userId}_${Date.now()}`;
 
@@ -429,6 +466,111 @@ export class WalletService {
       credits,
       name: 'Versafic',
       description: `${planName} - ${description}`,
+    };
+  }
+
+  /**
+   * Create a Razorpay payment link for credit top-up.
+   * This keeps billing working when embedded checkout is blocked by the browser.
+   */
+  async createPaymentLink(
+    userId: number,
+    planId?: string,
+    customAmountPaise?: number,
+    customCredits?: number,
+    paymentContext: PaymentContext = 'manual_topup',
+    metadata: Record<string, unknown> = {}
+  ): Promise<CreatePaymentLinkResponse> {
+    if (!razorpayService.isConfigured()) {
+      throw new AppError(503, ErrorCode.SERVICE_UNAVAILABLE, 'Payment service is not configured');
+    }
+
+    if (paymentContext === 'autopay') {
+      const settings = await billingModel.getAutopaySettings(userId);
+      if (!settings?.enabled || settings.mode !== 'real') {
+        throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Enable real autopay before creating an autopay payment link');
+      }
+    }
+
+    const { amountPaise, credits, planName, description } = this.resolveCheckoutPricing(
+      planId,
+      customAmountPaise,
+      customCredits,
+      paymentContext
+    );
+    const referenceId = `vf_${paymentContext === 'autopay' ? 'ap' : 'mt'}_${userId}_${Date.now()}`;
+    const linkDescription = `${planName} - ${description}`;
+
+    const paymentLink = await razorpayService.createPaymentLink({
+      amount: amountPaise,
+      currency: 'INR',
+      accept_partial: false,
+      reference_id: referenceId,
+      description: linkDescription,
+      reminder_enable: true,
+      notify: {
+        sms: false,
+        email: false,
+      },
+      callback_url: this.getPaymentLinkCallbackUrl(),
+      callback_method: 'get',
+      notes: {
+        user_id: String(userId),
+        credits: String(credits),
+        plan: planName,
+        context: paymentContext,
+      },
+    });
+
+    await billingModel.createPayment({
+      userId,
+      razorpayOrderId: paymentLink.id,
+      amountPaise,
+      creditsToAdd: credits,
+      currency: 'INR',
+      paymentContext,
+      metadata: {
+        ...metadata,
+        payment_link: true,
+        payment_link_reference_id: referenceId,
+        payment_link_short_url: paymentLink.short_url,
+      },
+    });
+
+    if (paymentContext === 'autopay') {
+      await billingModel.createAutopayLog({
+        userId,
+        amount: amountPaise,
+        credits,
+        status: 'pending_checkout',
+        triggeredReason: 'manual_retry',
+        mode: 'real',
+        razorpayOrderId: paymentLink.id,
+        metadata: {
+          requires_user_action: true,
+          payment_link: true,
+          payment_link_reference_id: referenceId,
+        },
+      });
+    }
+
+    logger.info('Payment link created', {
+      userId,
+      paymentLinkId: paymentLink.id,
+      amount: amountPaise,
+      credits,
+      paymentContext,
+    });
+
+    return {
+      payment_link_id: paymentLink.id,
+      short_url: paymentLink.short_url,
+      reference_id: referenceId,
+      amount: amountPaise,
+      currency: 'INR',
+      credits,
+      name: 'Versafic',
+      description: linkDescription,
     };
   }
 

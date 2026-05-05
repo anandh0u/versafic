@@ -119,6 +119,17 @@ export interface CreateOrderResponse {
   description: string;
 }
 
+export interface CreatePaymentLinkResponse {
+  payment_link_id: string;
+  short_url: string;
+  reference_id: string;
+  amount: number;
+  currency: string;
+  credits: number;
+  name: string;
+  description: string;
+}
+
 export interface VerifyPaymentRequest {
   razorpay_order_id: string;
   razorpay_payment_id: string;
@@ -170,21 +181,21 @@ export const PRICING_PLANS: PricingPlan[] = [
     name: 'Starter',
     amount_paise: 9900,
     credits: 990,
-    description: '990 credits for small businesses'
+    description: 'Free account included; 990 credits for demo-ready calls and chats'
   },
   {
     id: 'growth',
     name: 'Growth',
     amount_paise: 19900,
     credits: 1990,
-    description: '1990 credits for growing teams'
+    description: 'Free account included; 1990 credits for active customer support'
   },
   {
     id: 'pro',
     name: 'Pro',
     amount_paise: 49900,
     credits: 4990,
-    description: '4990 credits for enterprises'
+    description: 'Free account included; 4990 credits for higher-volume operations'
   }
 ];
 

@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect } from "react";
 import {
   BillingPlan,
+  BookingRecord,
   BusinessRecord,
   CallSession,
   ChatHistoryItem,
@@ -18,6 +19,7 @@ import {
   createOrder,
   enableAutopay,
   getAutopayStatus,
+  getBookings,
   getBusinessList,
   getCallConfig,
   getCallSessions,
@@ -40,6 +42,7 @@ import {
   getVoiceStats,
   getWallet,
   clearSession,
+  ensureAuthenticated,
   LegacyApiError,
   login,
   register,
@@ -102,6 +105,7 @@ type DashboardState = {
   chatStats: ChatStats | null;
   voiceStats: Awaited<ReturnType<typeof getVoiceStats>> | null;
   voiceConversations: VoiceConversation[];
+  bookings: BookingRecord[];
   resolvedInteractions: CustomerServiceInteraction[];
   customerSentiment: CustomerSentimentStats | null;
   customerResolution: CustomerResolutionStats | null;
@@ -174,7 +178,10 @@ const selectedPlanOutline = "2px solid #6366f1";
 const DATA_CHANGED_EVENT = "versafic:data-changed";
 const RAZORPAY_SCRIPT_SELECTOR = 'script[data-razorpay="true"]';
 const RAZORPAY_SCRIPT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
-const RAZORPAY_LOAD_TIMEOUT_MS = 12000;
+const RAZORPAY_LOAD_TIMEOUT_MS = 5000;
+const BILLING_REFRESH_INTERVAL_MS = 8000;
+const CALL_CREDIT_COST = 20;
+const CHAT_CREDIT_COST = 2;
 let razorpayLoader: Promise<void> | null = null;
 let dashboardRefreshTimer: number | null = null;
 let dashboardRefreshInFlight = false;
@@ -186,6 +193,7 @@ let pastBookingsPage = 1;
 let bookingCalendarMonth = new Date();
 let publicCallConfigCache: PublicCallConfig | null = null;
 let publicCallConfigPromise: Promise<PublicCallConfig | null> | null = null;
+let paymentReturnToastHandled = false;
 
 const getWindowRef = (): RazorpayWindow => window as RazorpayWindow;
 
@@ -222,6 +230,46 @@ const showToast = (message: string, type: "success" | "info" | "warn" = "info") 
   window.setTimeout(() => toast.remove(), 3200);
 };
 
+const handlePaymentReturnToast = () => {
+  if (paymentReturnToastHandled || !isDashboardRoute()) {
+    return;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const paymentStatus = params.get("payment");
+  if (!paymentStatus) {
+    return;
+  }
+
+  paymentReturnToastHandled = true;
+  const message = params.get("message") || "";
+  if (paymentStatus === "success") {
+    showToast(message || "Payment confirmed and credits added.", "success");
+  } else {
+    showToast(message || "Payment could not be confirmed.", "warn");
+  }
+
+  params.delete("payment");
+  params.delete("message");
+  const nextQuery = params.toString();
+  const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}`;
+  window.history.replaceState(window.history.state, "", nextUrl);
+};
+
+const handleBillingError = (error: unknown, fallbackMessage: string) => {
+  if (error instanceof LegacyApiError && error.status === 401) {
+    clearSession();
+    showToast("Your session expired. Please sign in again before purchasing credits.", "warn");
+    window.setTimeout(() => {
+      window.location.href = "/login";
+    }, 900);
+    return;
+  }
+
+  const message = error instanceof Error ? error.message : fallbackMessage;
+  showToast(message, "warn");
+};
+
 const replaceInteractiveElement = <T extends Element>(element: T | null): T | null => {
   if (!element?.parentNode) {
     return element;
@@ -252,6 +300,34 @@ const formatCurrency = (amountPaise: number) =>
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(amountPaise / 100);
+
+const buildBillingPlanDetails = (plan: BillingPlan, index: number) => {
+  const callMinutes = Math.max(1, Math.floor(plan.credits / CALL_CREDIT_COST));
+  const chatReplies = Math.max(1, Math.floor(plan.credits / CHAT_CREDIT_COST));
+  const ratePaise = plan.amount_paise / Math.max(plan.credits, 1);
+  const rateText =
+    ratePaise >= 100
+      ? `${formatCurrency(Math.round(ratePaise))} / credit`
+      : `${(ratePaise / 100).toLocaleString("en-IN", {
+          style: "currency",
+          currency: "INR",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} / credit`;
+
+  const fit =
+    index === 0
+      ? "testing and small teams"
+      : index === 1
+        ? "daily customer support"
+        : "higher-volume usage";
+
+  return {
+    label: `${plan.name} plan`,
+    detail: `Free account included · ~${formatNumber(callMinutes)} AI call min or ~${formatNumber(chatReplies)} chat replies · ${fit}`,
+    hint: `${plan.description} · ${rateText}`,
+  };
+};
 
 const formatDate = (value?: string | null) => {
   if (!value) {
@@ -1761,7 +1837,7 @@ const openCheckout = async (planPayload: {
   onSuccess?: () => Promise<void> | void;
 }) => {
   showToast("Preparing Razorpay checkout...", "info");
-  await ensureRazorpay();
+  await ensureAuthenticated("Please sign in again before purchasing credits.");
 
   const order = await createOrder({
     plan_id: planPayload.planId,
@@ -1773,6 +1849,26 @@ const openCheckout = async (planPayload: {
     onSuccess: planPayload.onSuccess,
     successMessage: "Payment confirmed and credits added.",
   });
+};
+
+const openRazorpayCheckoutWithFallback = async (
+  order: RazorpayCheckoutOrder,
+  options: {
+    onSuccess?: () => Promise<void> | void;
+    successMessage?: string;
+    paymentContext?: "manual_topup" | "autopay";
+  } = {}
+) => {
+  try {
+    await openRazorpayCheckout(order, {
+      onSuccess: options.onSuccess,
+      successMessage: options.successMessage,
+    });
+  } catch (error) {
+    throw error instanceof Error
+      ? error
+      : new Error("Unable to open Razorpay checkout.");
+  }
 };
 
 const openRazorpayCheckout = async (
@@ -3228,6 +3324,7 @@ const filterDashboardState = (state: DashboardState, filterKey: string): Dashboa
   callSessions: state.callSessions.filter((item) => matchesDateFilter(item.created_at, filterKey)),
   chatHistory: state.chatHistory.filter((item) => matchesDateFilter(item.created_at || item.createdAt, filterKey)),
   voiceConversations: state.voiceConversations.filter((item) => matchesDateFilter(item.created_at, filterKey)),
+  bookings: state.bookings.filter((item) => matchesDateFilter(item.appointment_at || item.appointment_date || item.created_at, filterKey)),
   resolvedInteractions: state.resolvedInteractions.filter((item) => matchesDateFilter(item.created_at, filterKey)),
 });
 
@@ -3305,6 +3402,21 @@ const buildCustomerAggregates = (state: DashboardState) => {
     });
   });
 
+  state.bookings.forEach((booking) => {
+    const phone = normalizeText(booking.customer_phone);
+    const email = normalizeText(booking.customer_email);
+    const key = email || phone || booking.id;
+    upsert(key, {
+      name: normalizeText(booking.customer_name) || phone || "Booking lead",
+      email: email || "--",
+      phone: phone || "--",
+      totalInteractions: 1,
+      bookings: 1,
+      creditsUsed: 0,
+      lastContact: booking.appointment_at || booking.created_at,
+    });
+  });
+
   return Array.from(map.values())
     .map((entry) => {
       const lastTouched = entry.lastContact ? new Date(entry.lastContact).getTime() : 0;
@@ -3335,7 +3447,56 @@ const buildCustomerAggregates = (state: DashboardState) => {
     });
 };
 
+const formatBackendBookingTime = (booking: BookingRecord) => {
+  if (booking.appointment_time) {
+    return formatManualBookingTime(booking.appointment_time.slice(0, 5));
+  }
+  return formatTime(booking.appointment_at || booking.created_at);
+};
+
+const formatBackendBookingDate = (booking: BookingRecord) =>
+  formatDate(booking.appointment_at || booking.appointment_date || booking.created_at);
+
+const getBackendBookingStatus = (status: BookingRecord["status"]): { badge: string; label: string } => {
+  switch (status) {
+    case "confirmed":
+      return { badge: "badge-green", label: "Confirmed" };
+    case "completed":
+      return { badge: "badge-green", label: "Completed" };
+    case "cancelled":
+      return { badge: "badge-red", label: "Cancelled" };
+    case "no_show":
+      return { badge: "badge-amber", label: "No show" };
+    case "pending":
+    default:
+      return { badge: "badge-blue", label: "Pending" };
+  }
+};
+
 const buildBookingRows = (state: DashboardState): BookingRow[] => {
+  const fromBackendBookings = state.bookings.map((booking) => {
+    const status = getBackendBookingStatus(booking.status);
+    const customer =
+      normalizeText(booking.customer_name) ||
+      normalizeText(booking.customer_phone) ||
+      normalizeText(booking.customer_email) ||
+      "AI booking";
+    const sortSource = booking.appointment_at || booking.appointment_date || booking.created_at;
+
+    return {
+      sortKey: new Date(sortSource).getTime(),
+      time: formatBackendBookingTime(booking),
+      customer,
+      service: normalizeText(booking.service) || "Appointment",
+      assignedTo: booking.source.includes("exotel") || booking.source.includes("ai") ? "AI Agent" : "Team",
+      statusBadge: status.badge,
+      statusLabel: status.label,
+      date: formatBackendBookingDate(booking),
+      notes: normalizeText(booking.notes) || "AI booking captured",
+      duration: "--",
+    };
+  });
+
   const fromConversations = state.voiceConversations.map((conversation) => {
     const service = inferIntentLabel(conversation.request || conversation.ai_response);
     return {
@@ -3370,7 +3531,7 @@ const buildBookingRows = (state: DashboardState): BookingRow[] => {
     };
   });
 
-  return [...fromCalls, ...fromConversations]
+  return [...fromBackendBookings, ...fromCalls, ...fromConversations]
     .sort((left, right) => right.sortKey - left.sortKey)
     .map((row) => {
       const { sortKey, ...rest } = row;
@@ -4025,6 +4186,7 @@ const updateBillingPage = (state: DashboardState) => {
   const packages = Array.from(creditsPage.querySelectorAll<HTMLElement>(".credit-package"));
   state.plans.slice(0, packages.length).forEach((plan, index) => {
     const card = packages[index];
+    const planDetails = buildBillingPlanDetails(plan, index);
     card.dataset.planId = plan.id;
     const amountNode = card.querySelector(".pkg-amount");
     const priceNode = card.querySelector(".pkg-price");
@@ -4036,16 +4198,20 @@ const updateBillingPage = (state: DashboardState) => {
       amountNode.textContent = formatNumber(plan.credits);
     }
     if (descriptionNode) {
-      descriptionNode.textContent = plan.name;
+      descriptionNode.textContent = planDetails.label;
     }
     if (priceNode) {
       priceNode.textContent = formatCurrency(plan.amount_paise);
     }
     if (perNode) {
-      perNode.textContent = plan.description;
+      perNode.textContent = planDetails.detail;
+      perNode.setAttribute("title", planDetails.hint);
     }
 
-    button?.addEventListener("click", async () => {
+    button?.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const originalLabel = button.textContent;
       packages.forEach((item) => {
         item.style.outline = "";
         item.style.borderColor = "";
@@ -4055,6 +4221,8 @@ const updateBillingPage = (state: DashboardState) => {
       setPreferredPlanId(plan.id);
 
       try {
+        button.textContent = "Opening...";
+        button.setAttribute("disabled", "true");
         await openCheckout({
           planId: plan.id,
           onSuccess: async () => {
@@ -4062,8 +4230,10 @@ const updateBillingPage = (state: DashboardState) => {
           },
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unable to start checkout.";
-        showToast(message, "warn");
+        handleBillingError(error, "Unable to start checkout.");
+      } finally {
+        button.textContent = originalLabel || "Select Plan";
+        button.removeAttribute("disabled");
       }
     });
   });
@@ -4072,7 +4242,9 @@ const updateBillingPage = (state: DashboardState) => {
     document.querySelectorAll<HTMLButtonElement>("#page-credits .dash-header .btn.btn-primary, #page-overview .btn.btn-primary.btn-sm")
   ).map((button) => replaceInteractiveElement(button)).filter(Boolean) as HTMLButtonElement[];
   purchaseButtons.forEach((button) => {
-    button.addEventListener("click", async () => {
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       const preferredPlan = state.plans.find((plan) => plan.id === "growth") || state.plans[0];
       if (!preferredPlan) {
         showToast("No billing plans are configured right now.", "warn");
@@ -4088,8 +4260,7 @@ const updateBillingPage = (state: DashboardState) => {
           },
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unable to start checkout.";
-        showToast(message, "warn");
+        handleBillingError(error, "Unable to start checkout.");
       }
     });
   });
@@ -4164,7 +4335,7 @@ const updateBillingPage = (state: DashboardState) => {
     }
     if (topUpHint) {
       topUpHint.textContent = selectedPlan
-        ? `${selectedPlan.name} · ${selectedPlan.description}`
+        ? buildBillingPlanDetails(selectedPlan, sortedTopUpPlans.indexOf(selectedPlan)).hint
         : `${getRechargeLabel(selectedCredits, sortedTopUpPlans)} · ${formatCurrency(amountPaise)}`;
     }
 
@@ -4201,7 +4372,9 @@ const updateBillingPage = (state: DashboardState) => {
 
   updateTopUpPreview();
 
-  topUpButton?.addEventListener("click", async () => {
+  topUpButton?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const { plan, credits, amountPaise } = updateTopUpPreview();
 
     if (!credits || !amountPaise) {
@@ -4233,8 +4406,7 @@ const updateBillingPage = (state: DashboardState) => {
 
       await openCheckout(checkoutRequest);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to start checkout.";
-      showToast(message, "warn");
+      handleBillingError(error, "Unable to start checkout.");
     }
   });
 
@@ -4326,9 +4498,10 @@ const updateBillingPage = (state: DashboardState) => {
       const pendingCheckout = getCheckoutFromAutopay(latestStatus);
 
       if (pendingCheckout) {
-        await openRazorpayCheckout(pendingCheckout, {
+        await openRazorpayCheckoutWithFallback(pendingCheckout, {
           onSuccess: bindDashboardPage,
           successMessage: "Autopay checkout confirmed and credits added.",
+          paymentContext: "autopay",
         });
         return;
       }
@@ -4357,13 +4530,13 @@ const updateBillingPage = (state: DashboardState) => {
         return;
       }
 
-      await openRazorpayCheckout(checkout, {
+      await openRazorpayCheckoutWithFallback(checkout, {
         onSuccess: bindDashboardPage,
         successMessage: "Autopay checkout confirmed and credits added.",
+        paymentContext: "autopay",
       });
     } catch (error) {
-      const message = error instanceof LegacyApiError ? error.message : "Unable to open Razorpay autopay checkout.";
-      showToast(message, "warn");
+      handleBillingError(error, "Unable to open Razorpay autopay checkout.");
     } finally {
       addPaymentButton.textContent = originalLabel || "+ Add Payment Method";
       addPaymentButton.removeAttribute("disabled");
@@ -4373,11 +4546,19 @@ const updateBillingPage = (state: DashboardState) => {
   const faqAnswers = creditsPage.querySelectorAll(".faq-answer");
   if (faqAnswers[0]) {
     faqAnswers[0].textContent =
-      "AI chat requests deduct 2 credits, and live AI calls deduct 20 credits per minute. Credits are enforced by the backend wallet.";
+      "Every account can sign in, use the dashboard, test demo flows, and configure integrations for free. Paid plans add wallet credits for real AI calls and chat usage.";
+  }
+  if (faqAnswers[1]) {
+    faqAnswers[1].textContent =
+      "A live AI call uses 20 credits per minute, and AI chat uses 2 credits per reply. Each plan card shows the approximate call minutes and chat replies included.";
   }
   if (faqAnswers[2]) {
     faqAnswers[2].textContent =
       "When your wallet is low, requests are blocked unless you recharge or complete the triggered Razorpay checkout.";
+  }
+  if (faqAnswers[3]) {
+    faqAnswers[3].textContent =
+      "You can switch plans any time by buying another credit pack. Credits are added to the same wallet immediately after Razorpay confirms payment.";
   }
 };
 
@@ -5974,6 +6155,7 @@ const buildDashboardState = (
   chatStats: overrides.chatStats ?? existingState?.chatStats ?? null,
   voiceStats: overrides.voiceStats ?? existingState?.voiceStats ?? null,
   voiceConversations: overrides.voiceConversations ?? existingState?.voiceConversations ?? [],
+  bookings: overrides.bookings ?? existingState?.bookings ?? [],
   resolvedInteractions: overrides.resolvedInteractions ?? existingState?.resolvedInteractions ?? [],
   customerSentiment: overrides.customerSentiment ?? existingState?.customerSentiment ?? null,
   customerResolution: overrides.customerResolution ?? existingState?.customerResolution ?? null,
@@ -6067,6 +6249,7 @@ const loadDashboardPageData = async (pageId: string) => {
         chatStatsResult,
         voiceStatsResult,
         voiceConversationsResult,
+        bookingsResult,
         resolvedInteractionsResult,
         customerSentimentResult,
         customerResolutionResult,
@@ -6076,6 +6259,7 @@ const loadDashboardPageData = async (pageId: string) => {
         getChatStats(),
         getVoiceStats(),
         getRecentVoiceConversations(12),
+        getBookings(50),
         getResolvedInteractions(25),
         getCustomerSentimentStats(),
         getCustomerResolutionStats(),
@@ -6091,6 +6275,10 @@ const loadDashboardPageData = async (pageId: string) => {
           voiceConversationsResult.status === "fulfilled"
             ? voiceConversationsResult.value
             : win.__versaficDashboardState?.voiceConversations,
+        bookings:
+          bookingsResult.status === "fulfilled"
+            ? bookingsResult.value
+            : win.__versaficDashboardState?.bookings,
         resolvedInteractions:
           resolvedInteractionsResult.status === "fulfilled"
             ? resolvedInteractionsResult.value
@@ -6124,6 +6312,65 @@ const loadDashboardPageData = async (pageId: string) => {
   await loader;
 };
 
+const loadDashboardCoreSnapshot = async (user: DashboardState["user"]) => {
+  if (!user || !isDashboardRoute()) {
+    return;
+  }
+
+  const win = getWindowRef();
+  const existingState = win.__versaficDashboardState;
+  const [
+    callConfigResult,
+    callSessionsResult,
+    chatStatsResult,
+    voiceStatsResult,
+    setupResult,
+  ] = await Promise.allSettled([
+    getCallConfig(),
+    getCallSessions(12),
+    getChatStats(),
+    getVoiceStats(),
+    getSetupBusiness(),
+  ]);
+
+  await applyDashboardState(buildDashboardState(user, win.__versaficDashboardState, {
+    callConfig: callConfigResult.status === "fulfilled" ? callConfigResult.value : existingState?.callConfig,
+    callSessions:
+      callSessionsResult.status === "fulfilled" ? callSessionsResult.value.sessions : existingState?.callSessions,
+    chatStats: chatStatsResult.status === "fulfilled" ? chatStatsResult.value : existingState?.chatStats,
+    voiceStats: voiceStatsResult.status === "fulfilled" ? voiceStatsResult.value : existingState?.voiceStats,
+    setup: setupResult.status === "fulfilled" ? setupResult.value : existingState?.setup,
+  }), { markReady: true });
+  markDashboardPagesLoaded("overview", "calls");
+};
+
+const refreshBillingSnapshot = async () => {
+  if (!isDashboardRoute()) {
+    return;
+  }
+
+  const win = getWindowRef();
+  const currentState = win.__versaficDashboardState;
+  if (!currentState?.user) {
+    return;
+  }
+
+  const [walletResult, plansResult, autopayResult] = await Promise.allSettled([
+    getWallet(),
+    getPlans(),
+    getAutopayStatus(),
+  ]);
+
+  const nextState = buildDashboardState(currentState.user, currentState, {
+    wallet: walletResult.status === "fulfilled" ? walletResult.value : currentState.wallet,
+    plans: plansResult.status === "fulfilled" ? plansResult.value.plans : currentState.plans,
+    autopay: autopayResult.status === "fulfilled" ? autopayResult.value : currentState.autopay,
+  });
+
+  await applyDashboardState(nextState, { markReady: true });
+  markDashboardPagesLoaded("credits");
+};
+
 const bindDashboardPage = async () => {
   if (dashboardRefreshInFlight) {
     return;
@@ -6147,6 +6394,30 @@ const bindDashboardPage = async () => {
   const existingState = getWindowRef().__versaficDashboardState;
   const initialState = buildDashboardState(user, existingState);
   await applyDashboardState(initialState, { markReady: false });
+  const initialPageId = getDashboardPageFromLocation();
+
+  if (initialPageId === "credits") {
+    const [walletResult, plansResult, autopayResult, setupStatusResult] = await Promise.allSettled([
+      getWallet(),
+      getPlans(),
+      getAutopayStatus(),
+      getSetupStatus(),
+    ]);
+
+    const billingState = buildDashboardState(user, existingState, {
+      wallet: walletResult.status === "fulfilled" ? walletResult.value : existingState?.wallet,
+      plans: plansResult.status === "fulfilled" ? plansResult.value.plans : existingState?.plans,
+      autopay: autopayResult.status === "fulfilled" ? autopayResult.value : existingState?.autopay,
+      setupStatus:
+        setupStatusResult.status === "fulfilled" ? setupStatusResult.value : existingState?.setupStatus,
+    });
+
+    await applyDashboardState(billingState, { markReady: true });
+    handlePaymentReturnToast();
+    markDashboardPagesLoaded("credits");
+    void loadDashboardCoreSnapshot(user);
+    return;
+  }
 
   const [
     walletResult,
@@ -6178,6 +6449,7 @@ const bindDashboardPage = async () => {
   });
 
   await applyDashboardState(state, { markReady: true });
+  handlePaymentReturnToast();
   markDashboardPagesLoaded("overview", "calls");
   void loadDashboardPageData(getDashboardPageFromLocation());
   } catch (error) {
@@ -6194,6 +6466,11 @@ const refreshDashboardData = async () => {
   }
 
   try {
+    if (getDashboardPageFromLocation() === "credits") {
+      await refreshBillingSnapshot();
+      return;
+    }
+
     await bindDashboardPage();
   } catch (error) {
     console.error("Failed to refresh dashboard data", error);
@@ -6268,11 +6545,20 @@ export function LegacyBindings({ pageKey }: LegacyBindingsProps) {
     window.addEventListener(DATA_CHANGED_EVENT, handleDataChanged as EventListener);
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    const billingInterval = window.setInterval(() => {
+      if (
+        document.visibilityState === "visible" &&
+        getDashboardPageFromLocation() === "credits"
+      ) {
+        void refreshBillingSnapshot();
+      }
+    }, BILLING_REFRESH_INTERVAL_MS);
 
     return () => {
       window.removeEventListener(DATA_CHANGED_EVENT, handleDataChanged as EventListener);
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.clearInterval(billingInterval);
       if (dashboardRefreshTimer) {
         window.clearTimeout(dashboardRefreshTimer);
         dashboardRefreshTimer = null;

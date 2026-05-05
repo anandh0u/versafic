@@ -8,7 +8,13 @@ import { ErrorCode } from "../../types";
 import { getOptionalEnv, isPlaceholderEnvValue } from "../../utils/env";
 import { logger } from "../../utils/logger";
 import { normalizePhoneNumber } from "../../utils/validators";
+import { voiceService } from "../../ai/voice.service";
 import { emailService } from "../../services/email.service";
+import {
+  bookingService,
+  extractTranscriptFromPayload,
+  type BookingRecord,
+} from "../../services/booking.service";
 import {
   exotelRepository,
   type ExotelBusiness,
@@ -86,6 +92,7 @@ type SimulateIncomingCallResult = {
   ai_response: string;
   voice_xml: string;
   route_source: ResolvedCallRouting["routeSource"];
+  booking?: BookingRecord | null;
 };
 
 const DEFAULT_EXOTEL_API_BASE_URL = "https://api.in.exotel.com";
@@ -239,6 +246,67 @@ class ExotelService {
     return `Hello, this is AI assistant for ${business.name}. Please tell your request after the beep.`;
   }
 
+  private async getRecordingTranscript(
+    recordingUrl: string | null,
+    payload: Record<string, unknown>
+  ): Promise<{ transcript: string; status: string } | null> {
+    const payloadTranscript = extractTranscriptFromPayload(payload);
+    if (payloadTranscript) {
+      return {
+        transcript: payloadTranscript,
+        status: "transcript_received",
+      };
+    }
+
+    if (!recordingUrl || !voiceService.isAvailable()) {
+      return null;
+    }
+
+    try {
+      const recordingRequestConfig: {
+        responseType: "arraybuffer";
+        timeout: number;
+        auth?: {
+          username: string;
+          password: string;
+        };
+      } = {
+        responseType: "arraybuffer",
+        timeout: 15000,
+      };
+
+      if (recordingUrl.includes("exotel.com") && this.apiKey && this.apiToken) {
+        recordingRequestConfig.auth = {
+          username: this.apiKey,
+          password: this.apiToken,
+        };
+      }
+
+      const recordingResponse = await axios.get(recordingUrl, recordingRequestConfig);
+      const audioBase64 = Buffer.from(recordingResponse.data as ArrayBuffer).toString("base64");
+      const sttResult = await voiceService.speechToText(audioBase64, "en-IN");
+
+      if (!sttResult.success || !sttResult.text?.trim()) {
+        logger.warn("Exotel recording transcription did not return text", {
+          recordingUrl,
+          error: sttResult.error,
+        });
+        return null;
+      }
+
+      return {
+        transcript: sttResult.text.trim(),
+        status: "recording_transcribed",
+      };
+    } catch (error) {
+      logger.warn("Exotel recording transcription failed", {
+        recordingUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
   getConfigurationSummary() {
     const configured = Boolean(
       this.sid &&
@@ -289,10 +357,10 @@ class ExotelService {
 </Response>`;
   }
 
-  buildRecordingAcknowledgementXml(): string {
+  buildRecordingAcknowledgementXml(booking?: BookingRecord | null): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Thank you. We are processing your request.</Say>
+  <Say>${escapeXml(bookingService.buildVoiceConfirmation(booking || null))}</Say>
 </Response>`;
   }
 
@@ -315,6 +383,7 @@ class ExotelService {
     let session: ExotelCallSession | null = null;
     let sessionId: string | null = null;
     let routeSource: ResolvedCallRouting["routeSource"] = business ? "session" : "default";
+    let booking: BookingRecord | null = null;
 
     if (business) {
       sessionId = randomUUID();
@@ -355,6 +424,27 @@ class ExotelService {
       if (normalizedCustomerNumber) {
         await exotelRepository.touchCustomerBusinessMapping(normalizedCustomerNumber, business.id);
       }
+
+      const demoBookingText =
+        getOptionalEnv("EXOTEL_DEMO_BOOKING_REQUEST") ||
+        "My name is Demo Caller. Please book a consultation tomorrow at 10 AM.";
+
+      booking = await bookingService.captureBookingFromText({
+        userId: input.ownerUserId ?? null,
+        businessId: business.id,
+        source: "exotel_simulation",
+        sourceSessionId: sessionId,
+        sourceCallSid: callId,
+        customerName: "Demo Caller",
+        customerPhone: normalizedCustomerNumber,
+        customerText: demoBookingText,
+        aiResponse: `Booking details captured for ${business.name}.`,
+        rawDetails: {
+          provider: "exotel",
+          simulated: true,
+          created_from: "settings_simulation",
+        },
+      });
     }
 
     const routing: ResolvedCallRouting = {
@@ -403,6 +493,7 @@ class ExotelService {
       ai_response: aiResponse,
       voice_xml: voiceXml,
       route_source: routeSource,
+      booking,
     };
   }
 
@@ -748,7 +839,11 @@ class ExotelService {
     };
   }
 
-  async handleRecording(input: RecordingWebhookInput): Promise<{ sessionId: string | null; businessId: string | null }> {
+  async handleRecording(input: RecordingWebhookInput): Promise<{
+    sessionId: string | null;
+    businessId: string | null;
+    booking: BookingRecord | null;
+  }> {
     const session =
       (input.sessionId ? await exotelRepository.findSessionBySessionId(input.sessionId) : null) ||
       (input.callId ? await exotelRepository.findSessionByCallId(input.callId) : null);
@@ -765,6 +860,7 @@ class ExotelService {
       return {
         sessionId: input.sessionId || null,
         businessId: null,
+        booking: null,
       };
     }
 
@@ -778,6 +874,7 @@ class ExotelService {
       return {
         sessionId: session.session_id,
         businessId: session.business_id,
+        booking: null,
       };
     }
 
@@ -814,16 +911,60 @@ class ExotelService {
       recordingUrl
     );
 
+    const transcriptResult = await this.getRecordingTranscript(recordingUrl, input.payload);
+    let booking: BookingRecord | null = null;
+
+    if (transcriptResult) {
+      try {
+        booking = await bookingService.captureBookingFromText({
+          userId: updatedSession.user_id ?? null,
+          businessId: updatedSession.business_id,
+          source: "exotel_call",
+          sourceSessionId: updatedSession.session_id,
+          sourceCallSid: updatedSession.call_sid,
+          customerPhone: updatedSession.customer_number || input.customerNumber || updatedSession.phone_number || null,
+          customerText: transcriptResult.transcript,
+          aiResponse: "Booking details captured during AI call.",
+          rawDetails: {
+            provider: "exotel",
+            recording_url: recordingUrl,
+            duration_seconds: durationSeconds,
+            transcript_status: transcriptResult.status,
+          },
+        });
+
+        if (updatedSession.session_id && booking) {
+          await exotelRepository.updateSessionBySessionId(updatedSession.session_id, {
+            metadata: {
+              speech_to_text_status: transcriptResult.status,
+              booking_id: booking.id,
+            },
+          });
+        }
+      } catch (bookingError) {
+        logger.error(
+          "Exotel booking capture failed",
+          bookingError instanceof Error ? bookingError : new Error(String(bookingError)),
+          {
+            sessionId: updatedSession.session_id,
+            callId: updatedSession.call_sid,
+          }
+        );
+      }
+    }
+
     logger.info("Exotel recording stored", {
       sessionId: updatedSession.session_id,
       callId: updatedSession.call_sid,
       businessId: updatedSession.business_id,
       recordingUrl,
+      bookingId: booking?.id,
     });
 
     return {
       sessionId: updatedSession.session_id,
       businessId: updatedSession.business_id,
+      booking,
     };
   }
 

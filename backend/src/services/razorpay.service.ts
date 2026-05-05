@@ -26,6 +26,47 @@ interface RazorpayOrder {
   created_at: number;
 }
 
+interface RazorpayPaymentLinkParams {
+  amount: number;
+  currency: string;
+  accept_partial: boolean;
+  reference_id: string;
+  description: string;
+  customer?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  notify?: {
+    sms?: boolean;
+    email?: boolean;
+  };
+  reminder_enable?: boolean;
+  notes?: Record<string, string>;
+  callback_url?: string;
+  callback_method?: 'get' | 'post';
+}
+
+interface RazorpayPaymentLink {
+  id: string;
+  entity: string;
+  amount: number;
+  currency: string;
+  reference_id: string;
+  description: string;
+  short_url: string;
+  status: string;
+  created_at: number;
+}
+
+interface PaymentLinkSignatureParams {
+  paymentLinkId: string;
+  paymentLinkReferenceId: string;
+  paymentLinkStatus: string;
+  paymentId: string;
+  signature: string;
+}
+
 export class RazorpayService {
   private keyId: string;
   private keySecret: string;
@@ -95,6 +136,46 @@ export class RazorpayService {
   }
 
   /**
+   * Create a Razorpay payment link.
+   * Used as a reliable fallback when browser extensions block embedded checkout.js.
+   */
+  async createPaymentLink(params: RazorpayPaymentLinkParams): Promise<RazorpayPaymentLink> {
+    if (!this.isConfigured()) {
+      throw new Error('Razorpay is not configured');
+    }
+
+    const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
+
+    const response = await fetch(`${this.baseUrl}/payment_links`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${auth}`
+      },
+      body: JSON.stringify(params)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      logger.error('Razorpay payment link creation failed', undefined, {
+        status: response.status,
+        error: errorData
+      });
+      throw new Error(`Failed to create Razorpay payment link: ${response.status}`);
+    }
+
+    const paymentLink = await response.json() as RazorpayPaymentLink;
+
+    logger.info('Razorpay payment link created', {
+      paymentLinkId: paymentLink.id,
+      amount: paymentLink.amount,
+      currency: paymentLink.currency
+    });
+
+    return paymentLink;
+  }
+
+  /**
    * Verify payment signature using HMAC SHA256
    * This ensures the payment callback is authentic and from Razorpay
    */
@@ -123,6 +204,38 @@ export class RazorpayService {
       logger.warn('Payment signature verification failed', {
         orderId: razorpayOrderId,
         paymentId: razorpayPaymentId
+      });
+    }
+
+    return isValid;
+  }
+
+  /**
+   * Verify Razorpay payment link callback signature.
+   */
+  verifyPaymentLinkSignature(params: PaymentLinkSignatureParams): boolean {
+    if (!this.isConfigured()) {
+      throw new Error('Razorpay is not configured');
+    }
+
+    const signatureString = [
+      params.paymentLinkId,
+      params.paymentLinkReferenceId,
+      params.paymentLinkStatus,
+      params.paymentId,
+    ].join('|');
+
+    const expectedSignature = crypto
+      .createHmac('sha256', this.keySecret)
+      .update(signatureString)
+      .digest('hex');
+
+    const isValid = params.signature === expectedSignature;
+
+    if (!isValid) {
+      logger.warn('Payment link signature verification failed', {
+        paymentLinkId: params.paymentLinkId,
+        paymentId: params.paymentId,
       });
     }
 

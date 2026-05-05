@@ -31,6 +31,7 @@ import exotelRoutes from "./modules/exotel/exotel.routes";
 import observabilityRoutes from "./routes/observability.routes";
 import billingRoutes from "./routes/billing.routes";
 import msg91Routes from "./routes/msg91.routes";
+import bookingRoutes from "./routes/booking.routes";
 
 
 // Validate environment variables
@@ -196,6 +197,7 @@ app.use("/", exotelRoutes);
 app.use("/call", generalLimiter, callRoutes);
 app.use("/billing", generalLimiter, billingRoutes);
 app.use("/sms", generalLimiter, msg91Routes);
+app.use("/bookings", generalLimiter, bookingRoutes);
 
 // Root endpoint
 app.get("/", (req: Request, res: Response) => {

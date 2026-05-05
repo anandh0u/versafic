@@ -11,6 +11,7 @@ import { AutopayMode, PRICING_PLANS } from '../types/billing.types';
 import { AppError } from '../middleware/error-handler';
 import { ErrorCode } from '../types';
 import { logger } from '../utils/logger';
+import { normalizeEnvValue } from '../utils/env';
 
 // Extended request type with authenticated user
 interface AuthenticatedRequest extends Request {
@@ -19,6 +20,30 @@ interface AuthenticatedRequest extends Request {
     email: string;
   };
 }
+
+const getQueryValue = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return String(value[0] || '');
+  }
+
+  return typeof value === 'string' ? value : '';
+};
+
+const getFrontendBillingUrl = (paymentStatus: 'success' | 'failed', message?: string): string => {
+  const frontendBaseUrl =
+    normalizeEnvValue(process.env.FRONTEND_BASE_URL) ||
+    normalizeEnvValue(process.env.APP_URL) ||
+    normalizeEnvValue(process.env.NEXT_PUBLIC_APP_URL) ||
+    'https://frontend-anandh0us-projects.vercel.app';
+
+  const url = new URL('/dashboard/billing', frontendBaseUrl.replace(/\/+$/, ''));
+  url.searchParams.set('payment', paymentStatus);
+  if (message) {
+    url.searchParams.set('message', message);
+  }
+
+  return url.toString();
+};
 
 /**
  * GET /billing/plans
@@ -93,6 +118,58 @@ export const createOrder = async (
 };
 
 /**
+ * POST /billing/create-payment-link
+ * Create a Razorpay hosted payment link for browsers that block checkout.js
+ */
+export const createPaymentLink = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError(401, ErrorCode.UNAUTHORIZED, 'Authentication required');
+    }
+
+    const { plan_id, amount_paise, credits, payment_context } = req.body;
+    const paymentContext = payment_context === 'autopay' ? 'autopay' : 'manual_topup';
+
+    if (!plan_id && (!amount_paise || !credits)) {
+      throw new AppError(
+        400,
+        ErrorCode.VALIDATION_ERROR,
+        'Please provide plan_id or both amount_paise and credits'
+      );
+    }
+
+    const paymentLink = await walletService.createPaymentLink(
+      userId,
+      plan_id,
+      amount_paise,
+      credits,
+      paymentContext,
+      {
+        fallback: 'payment_link',
+      }
+    );
+
+    logger.info('Payment link created for user', {
+      userId,
+      paymentLinkId: paymentLink.payment_link_id,
+      paymentContext,
+    });
+
+    res.status(201).json({
+      status: 'success',
+      data: paymentLink
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /billing/verify-payment
  * Verify Razorpay payment and add credits
  */
@@ -140,6 +217,84 @@ export const verifyPayment = async (
     });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * GET /billing/payment-link/callback
+ * Razorpay redirects here after hosted payment-link payment.
+ */
+export const paymentLinkCallback = async (req: Request, res: Response): Promise<void> => {
+  const paymentLinkId = getQueryValue(req.query.razorpay_payment_link_id);
+  const paymentLinkReferenceId = getQueryValue(req.query.razorpay_payment_link_reference_id);
+  const paymentLinkStatus = getQueryValue(req.query.razorpay_payment_link_status);
+  const paymentId = getQueryValue(req.query.razorpay_payment_id);
+  const signature = getQueryValue(req.query.razorpay_signature);
+
+  try {
+    if (!paymentLinkId || !paymentLinkReferenceId || !paymentLinkStatus || !paymentId || !signature) {
+      logger.warn('Payment link callback missing required fields', { paymentLinkId, paymentLinkStatus });
+      res.redirect(getFrontendBillingUrl('failed', 'Payment callback was incomplete. Please retry.'));
+      return;
+    }
+
+    const isValidSignature = razorpayService.verifyPaymentLinkSignature({
+      paymentLinkId,
+      paymentLinkReferenceId,
+      paymentLinkStatus,
+      paymentId,
+      signature,
+    });
+
+    if (!isValidSignature) {
+      const payment = await billingModel.getPaymentByOrderId(paymentLinkId);
+      if (payment) {
+        await billingModel.updatePaymentStatus(paymentLinkId, 'failed', paymentId);
+      }
+
+      res.redirect(getFrontendBillingUrl('failed', 'Payment signature could not be verified.'));
+      return;
+    }
+
+    if (paymentLinkStatus !== 'paid') {
+      const payment = await billingModel.getPaymentByOrderId(paymentLinkId);
+      if (payment) {
+        await billingModel.updatePaymentStatus(paymentLinkId, 'failed', paymentId, signature);
+      }
+
+      res.redirect(getFrontendBillingUrl('failed', 'Payment was not completed.'));
+      return;
+    }
+
+    const payment = await billingModel.getPaymentByOrderId(paymentLinkId);
+    if (!payment) {
+      logger.warn('Payment link callback order not found', { paymentLinkId });
+      res.redirect(getFrontendBillingUrl('failed', 'Payment record was not found. Contact support.'));
+      return;
+    }
+
+    const result = await walletService.verifyPaymentAndAddCredits(
+      payment.user_id,
+      paymentLinkId,
+      paymentId,
+      signature,
+      true
+    );
+
+    logger.info('Payment link verified', {
+      userId: payment.user_id,
+      paymentLinkId,
+      paymentId,
+      newBalance: result.wallet.balance_credits,
+    });
+
+    res.redirect(getFrontendBillingUrl('success', result.message));
+  } catch (error) {
+    logger.error('Payment link callback failed', error instanceof Error ? error : new Error(String(error)), {
+      paymentLinkId,
+      paymentId,
+    });
+    res.redirect(getFrontendBillingUrl('failed', 'Payment could not be confirmed. Please contact support.'));
   }
 };
 

@@ -109,7 +109,7 @@ export const handleExotelRecording = async (req: Request, res: Response, next: N
     const durationSecondsValue = getValue(req.body?.RecordingDuration, req.body?.Duration, req.body?.duration);
     const durationSeconds = durationSecondsValue ? parseInt(durationSecondsValue, 10) : 0;
 
-    await exotelService.handleRecording({
+    const result = await exotelService.handleRecording({
       sessionId: sessionId ?? null,
       callId: callId ?? null,
       customerNumber: customerNumber ?? null,
@@ -118,7 +118,7 @@ export const handleExotelRecording = async (req: Request, res: Response, next: N
       payload: req.body as Record<string, unknown>,
     });
 
-    res.status(200).type("text/xml").send(exotelService.buildRecordingAcknowledgementXml());
+    res.status(200).type("text/xml").send(exotelService.buildRecordingAcknowledgementXml(result.booking));
   } catch (error) {
     next(error);
   }

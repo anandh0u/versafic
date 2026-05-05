@@ -93,6 +93,17 @@ export type RazorpayCheckoutOrder = {
   description: string;
 };
 
+export type RazorpayPaymentLinkCheckout = {
+  payment_link_id: string;
+  short_url: string;
+  reference_id: string;
+  amount: number;
+  currency: string;
+  credits: number;
+  name: string;
+  description: string;
+};
+
 export type AutopayTriggerResponse = {
   settings: NonNullable<AutopayStatus["settings"]>;
   log: Record<string, unknown>;
@@ -204,6 +215,27 @@ export type VoiceConversation = {
   request?: string | null;
   ai_response: string;
   transcript?: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type BookingRecord = {
+  id: string;
+  user_id?: number | null;
+  business_id?: string | null;
+  source: string;
+  source_session_id?: string | null;
+  source_call_sid?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_email?: string | null;
+  service: string;
+  appointment_date?: string | null;
+  appointment_time?: string | null;
+  appointment_at?: string | null;
+  status: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
+  notes?: string | null;
+  raw_details?: Record<string, unknown>;
   created_at: string;
   updated_at?: string;
 };
@@ -432,6 +464,22 @@ const refreshSession = async (): Promise<string | null> => {
   return payload.data.accessToken;
 };
 
+export const ensureAuthenticated = async (
+  message = "Please sign in again before continuing."
+): Promise<string> => {
+  const session = readSession();
+  if (session?.accessToken) {
+    return session.accessToken;
+  }
+
+  const refreshedToken = await refreshSession();
+  if (refreshedToken) {
+    return refreshedToken;
+  }
+
+  throw new LegacyApiError(message, 401);
+};
+
 const request = async <T>(
   path: string,
   init: RequestInit = {},
@@ -442,11 +490,19 @@ const request = async <T>(
 ): Promise<T> => {
   const auth = options?.auth ?? false;
   const retryOnUnauthorized = options?.retryOnUnauthorized ?? true;
-  const session = readSession();
+  let session = readSession();
   const headers = new Headers(init.headers);
 
   if (!headers.has("Content-Type") && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
+  }
+
+  if (auth && !session?.accessToken) {
+    const nextToken = await refreshSession();
+    session = readSession();
+    if (!nextToken && !session?.accessToken) {
+      throw new LegacyApiError("Please sign in again before continuing.", 401);
+    }
   }
 
   if (auth && session?.accessToken) {
@@ -662,6 +718,21 @@ export const createOrder = async (payload: { plan_id?: string; amount_paise?: nu
     { auth: true }
   );
 
+export const createPaymentLink = async (payload: {
+  plan_id?: string;
+  amount_paise?: number;
+  credits?: number;
+  payment_context?: "manual_topup" | "autopay";
+}) =>
+  request<RazorpayPaymentLinkCheckout>(
+    "/billing/create-payment-link",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { auth: true }
+  );
+
 export const enableAutopay = async (payload: {
   threshold_credits: number;
   recharge_amount?: number;
@@ -841,6 +912,11 @@ export const getRecentVoiceConversations = async (limit = 25) =>
   request<{ success: boolean; conversations?: VoiceConversation[] }>(`/voice/conversations/recent?limit=${limit}`, undefined, {
     auth: true,
   }).then((result) => result.conversations ?? []);
+
+export const getBookings = async (limit = 50) =>
+  request<{ bookings?: BookingRecord[]; count?: number }>(`/bookings?limit=${limit}`, undefined, { auth: true }).then(
+    (result) => result.bookings ?? []
+  );
 
 export const getCustomerSentimentStats = async () =>
   request<{ sentiment?: CustomerSentimentStats }>("/customer-service/stats/sentiment").then((result) => result.sentiment ?? {

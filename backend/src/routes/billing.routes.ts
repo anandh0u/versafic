@@ -8,7 +8,9 @@ import { verifyToken } from '../middleware/jwt-auth';
 import {
   getPlans,
   createOrder,
+  createPaymentLink,
   verifyPayment,
+  paymentLinkCallback,
   getWallet,
   deductCredits,
   checkBalance,
@@ -26,9 +28,11 @@ router.get('/plans', getPlans);
 
 // Public webhook - Razorpay payments (signature verified in controller)
 router.post('/webhook/razorpay', razorpayWebhook);
+router.get('/payment-link/callback', paymentLinkCallback);
 
 // Protected routes - require authentication
 router.post('/create-order', verifyToken, createOrder);
+router.post('/create-payment-link', verifyToken, createPaymentLink);
 router.post('/verify-payment', verifyToken, verifyPayment);
 router.get('/wallet', verifyToken, getWallet);
 router.post('/deduct', verifyToken, deductCredits);

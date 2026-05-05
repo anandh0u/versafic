@@ -18,6 +18,7 @@ import {
 } from '../models/customer-interactions';
 import { sendSuccess, sendError } from '../utils/response';
 import { logger } from '../utils/logger';
+import { bookingService } from '../services/booking.service';
 
 const router = Router();
 const manager = getCustomerServiceManager();
@@ -126,6 +127,30 @@ router.post('/chat', async (req: Request, res: Response, next: NextFunction) => 
     } catch (dbError) {
       logger.error('Failed to save interaction to database', dbError instanceof Error ? dbError : new Error(String(dbError)));
       // Continue anyway - don't fail the request
+    }
+
+    try {
+      await bookingService.captureBookingFromText({
+        userId: authenticatedUserId,
+        source: 'customer_service_chat',
+        sourceSessionId: response.sessionId,
+        customerName: response.extractedData?.name || null,
+        customerPhone: response.extractedData?.phone || null,
+        customerEmail: response.extractedData?.email || null,
+        customerText: response.customerMessage,
+        aiResponse: response.aiResponse,
+        rawDetails: {
+          extracted_data: response.extractedData || {},
+          sentiment: response.sentiment,
+          is_resolved: response.isResolved,
+        },
+      });
+    } catch (bookingError) {
+      logger.error(
+        'Failed to capture booking from customer-service chat',
+        bookingError instanceof Error ? bookingError : new Error(String(bookingError))
+      );
+      // Booking capture should never block the live AI response.
     }
 
     sendSuccess(

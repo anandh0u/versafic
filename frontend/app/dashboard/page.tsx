@@ -4004,6 +4004,54 @@ const PAGE_BODY = `<div class="mobile-header">
                 </div>
 
                 <div class="settings-section">
+                    <h3><i data-lucide="phone" style="width:1em;height:1em;vertical-align:middle"></i> Call to Assistant</h3>
+                    <p style="font-size:0.84rem;margin-bottom:16px;color:var(--text-muted)">Start an outbound call to test your AI calling integration with Exotel.</p>
+                    <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;align-items:end">
+                        <div class="form-group">
+                            <label class="input-label">Phone Number</label>
+                            <input class="input-field" type="text" id="callDemoPhone" placeholder="Enter phone number (e.g., 9876543210)" value="">
+                        </div>
+                        <button class="btn btn-primary" id="callStartBtn" type="button">
+                            <i data-lucide="phone" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Call
+                        </button>
+                    </div>
+                    <div id="callDemoStatus" style="margin-top:12px;display:none;padding:12px;border-radius:8px;font-size:0.9rem;color:var(--text-muted);background:rgba(255,255,255,0.04)"></div>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i data-lucide="phone-incoming" style="width:1em;height:1em;vertical-align:middle"></i> Simulate Incoming AI Call</h3>
+                    <p style="font-size:0.84rem;margin-bottom:16px;color:var(--text-muted)">Simulate an incoming call to see how your AI responds in real-time.</p>
+                    <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;align-items:end">
+                        <div class="form-group">
+                            <label class="input-label">Customer Phone (optional)</label>
+                            <input class="input-field" type="text" id="incomingCallPhone" placeholder="Leave blank for default" value="">
+                        </div>
+                        <button class="btn btn-secondary" id="simulateIncomingBtn" type="button">
+                            <i data-lucide="phone-incoming" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Simulate
+                        </button>
+                    </div>
+                    <div id="incomingCallStatus" style="margin-top:12px;display:none;padding:12px;border-radius:8px;font-size:0.9rem;background:rgba(99,102,241,0.1)">
+                        <div style="color:#6366f1;font-weight:600;margin-bottom:8px">Call Simulation Active</div>
+                        <div id="incomingCallLog" style="color:var(--text-muted);font-size:0.85rem;max-height:200px;overflow-y:auto"></div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i data-lucide="mail" style="width:1em;height:1em;vertical-align:middle"></i> Send Test Email</h3>
+                    <p style="font-size:0.84rem;margin-bottom:16px;color:var(--text-muted)">Send a test email to verify your Mailgun integration.</p>
+                    <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;align-items:end">
+                        <div class="form-group">
+                            <label class="input-label">Email Address</label>
+                            <input class="input-field" type="email" id="emailDemoAddr" placeholder="your@email.com" value="">
+                        </div>
+                        <button class="btn btn-primary" id="emailSendDemoBtn" type="button">
+                            <i data-lucide="send" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Send
+                        </button>
+                    </div>
+                    <div id="emailDemoHint" style="margin-top:12px;display:none;padding:12px;border-radius:8px;font-size:0.9rem;color:var(--text-muted);background:rgba(255,255,255,0.04)"></div>
+                </div>
+
+                <div class="settings-section">
                     <h3><i data-lucide="send" style="width:1em;height:1em;vertical-align:middle"></i> Test SMS</h3>
                     <p style="font-size:0.84rem;margin-bottom:16px;color:var(--text-muted)">Send a test SMS to verify your MSG91 integration.</p>
                     <div style="display:grid;grid-template-columns:1fr 150px;gap:12px;align-items:end">
@@ -4909,6 +4957,16 @@ const PAGE_BODY = `<div class="mobile-header">
 
         // ===== WIRE UP ALL REMAINING BUTTONS =====
         document.addEventListener('DOMContentLoaded', () => {
+            // Utility to get auth token from localStorage
+            const getAuthToken = () => {
+                try {
+                    const stored = localStorage.getItem('auth_token') || localStorage.getItem('token');
+                    return stored || '';
+                } catch {
+                    return '';
+                }
+            };
+
             // Render initial data
             renderWeeklyCalendar();
             filterCallsTable();
@@ -4922,6 +4980,130 @@ const PAGE_BODY = `<div class="mobile-header">
             renderAnalyticsBarChart('barPeakHours', peakHoursData);
             renderAnalyticsBarChart('barVolumeTrends', volumeTrendsData);
             renderAnalyticsBarChart('barDuration', durationData);
+
+            // Wire up demo feature buttons
+            const callStartBtn = document.getElementById('callStartBtn');
+            if (callStartBtn) {
+                callStartBtn.addEventListener('click', async () => {
+                    const phone = document.getElementById('callDemoPhone').value.trim();
+                    if (!phone) { showToast('❌ Please enter a phone number', 'error'); return; }
+                    callStartBtn.disabled = true;
+                    callStartBtn.textContent = 'Calling...';
+                    try {
+                        const res = await fetch('/call/start', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+                            body: JSON.stringify({ customerNumber: phone })
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.data?.session_id) {
+                            showToast('✅ Call initiated to ' + phone, 'success');
+                            document.getElementById('callDemoStatus').style.display = 'block';
+                            document.getElementById('callDemoStatus').innerHTML = '<strong>Session ID:</strong> ' + data.data.session_id + '<br><strong>Status:</strong> Calling...';
+                        } else {
+                            showToast('❌ ' + (data.message || 'Failed to start call'), 'error');
+                        }
+                    } catch (e) {
+                        showToast('❌ Error: ' + (e.message || 'Network error'), 'error');
+                    } finally {
+                        callStartBtn.disabled = false;
+                        callStartBtn.innerHTML = '<i data-lucide="phone" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Call';
+                    }
+                });
+            }
+
+            const simulateIncomingBtn = document.getElementById('simulateIncomingBtn');
+            if (simulateIncomingBtn) {
+                simulateIncomingBtn.addEventListener('click', async () => {
+                    simulateIncomingBtn.disabled = true;
+                    simulateIncomingBtn.textContent = 'Simulating...';
+                    const phone = document.getElementById('incomingCallPhone').value.trim() || '9876543210';
+                    try {
+                        const res = await fetch('/exotel/simulate-incoming', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+                            body: JSON.stringify({ customerNumber: phone })
+                        });
+                        const data = await res.json();
+                        const statusDiv = document.getElementById('incomingCallStatus');
+                        const logDiv = document.getElementById('incomingCallLog');
+                        if (res.ok && data.data) {
+                            statusDiv.style.display = 'block';
+                            logDiv.innerHTML = '<div>📞 Call from: ' + data.data.customer_number + '</div>' +
+                                '<div>⏱️ Status: ' + data.data.status + '</div>' +
+                                (data.data.ai_response ? '<div>🤖 AI Response: ' + data.data.ai_response.substring(0, 100) + '...</div>' : '');
+                            showToast('✅ Simulation started', 'success');
+                        } else {
+                            showToast('❌ ' + (data.message || 'Simulation failed'), 'error');
+                        }
+                    } catch (e) {
+                        showToast('❌ Error: ' + (e.message || 'Network error'), 'error');
+                    } finally {
+                        simulateIncomingBtn.disabled = false;
+                        simulateIncomingBtn.innerHTML = '<i data-lucide="phone-incoming" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Simulate';
+                    }
+                });
+            }
+
+            const emailSendBtn = document.getElementById('emailSendDemoBtn');
+            if (emailSendBtn) {
+                emailSendBtn.addEventListener('click', async () => {
+                    const email = document.getElementById('emailDemoAddr').value.trim();
+                    if (!email) { showToast('❌ Please enter an email address', 'error'); return; }
+                    emailSendBtn.disabled = true;
+                    emailSendBtn.textContent = 'Sending...';
+                    try {
+                        const res = await fetch('/email/test?to=' + encodeURIComponent(email), {
+                            method: 'GET',
+                            headers: { 'Authorization': 'Bearer ' + getAuthToken() }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showToast('✅ Test email sent to ' + email, 'success');
+                            document.getElementById('emailDemoHint').style.display = 'block';
+                            document.getElementById('emailDemoHint').innerHTML = '<strong>Provider:</strong> ' + (data.data?.provider || 'Mailgun') + '<br><strong>Status:</strong> Email queued for delivery';
+                        } else {
+                            showToast('❌ ' + (data.message || 'Failed to send email'), 'error');
+                        }
+                    } catch (e) {
+                        showToast('❌ Error: ' + (e.message || 'Network error'), 'error');
+                    } finally {
+                        emailSendBtn.disabled = false;
+                        emailSendBtn.innerHTML = '<i data-lucide="send" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Send';
+                    }
+                });
+            }
+
+            const smsSendBtn = document.getElementById('smsSendDemoBtn');
+            if (smsSendBtn) {
+                smsSendBtn.addEventListener('click', async () => {
+                    const phone = document.getElementById('smsDemoPhone').value.trim();
+                    const msg = document.getElementById('smsDemoMessage').value.trim();
+                    if (!phone) { showToast('❌ Please enter a phone number', 'error'); return; }
+                    smsSendBtn.disabled = true;
+                    smsSendBtn.textContent = 'Sending...';
+                    try {
+                        const res = await fetch('/sms/test', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+                            body: JSON.stringify({ phoneNumber: phone, message: msg || 'Test SMS from Versafic' })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showToast('✅ Test SMS sent to ' + phone, 'success');
+                            document.getElementById('smsDemoHint').style.display = 'block';
+                            document.getElementById('smsDemoHint').innerHTML = '<strong>Provider:</strong> MSG91<br><strong>Status:</strong> SMS queued';
+                        } else {
+                            showToast('❌ ' + (data.message || 'Failed to send SMS'), 'error');
+                        }
+                    } catch (e) {
+                        showToast('❌ Error: ' + (e.message || 'Network error'), 'error');
+                    } finally {
+                        smsSendBtn.disabled = false;
+                        smsSendBtn.innerHTML = '<i data-lucide="send" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Send Test';
+                    }
+                });
+            }
 
             // Wire up ALL buttons that don't already have onclick handlers
             document.querySelectorAll('.btn').forEach(btn => {
@@ -5819,6 +6001,16 @@ const PAGE_SCRIPT = `
 
         // ===== WIRE UP ALL REMAINING BUTTONS =====
         document.addEventListener('DOMContentLoaded', () => {
+            // Utility to get auth token from localStorage
+            const getAuthToken = () => {
+                try {
+                    const stored = localStorage.getItem('auth_token') || localStorage.getItem('token');
+                    return stored || '';
+                } catch {
+                    return '';
+                }
+            };
+
             // Render initial data
             renderWeeklyCalendar();
             filterCallsTable();
@@ -5832,6 +6024,130 @@ const PAGE_SCRIPT = `
             renderAnalyticsBarChart('barPeakHours', peakHoursData);
             renderAnalyticsBarChart('barVolumeTrends', volumeTrendsData);
             renderAnalyticsBarChart('barDuration', durationData);
+
+            // Wire up demo feature buttons
+            const callStartBtn = document.getElementById('callStartBtn');
+            if (callStartBtn) {
+                callStartBtn.addEventListener('click', async () => {
+                    const phone = document.getElementById('callDemoPhone').value.trim();
+                    if (!phone) { showToast('❌ Please enter a phone number', 'error'); return; }
+                    callStartBtn.disabled = true;
+                    callStartBtn.textContent = 'Calling...';
+                    try {
+                        const res = await fetch('/call/start', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+                            body: JSON.stringify({ customerNumber: phone })
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.data?.session_id) {
+                            showToast('✅ Call initiated to ' + phone, 'success');
+                            document.getElementById('callDemoStatus').style.display = 'block';
+                            document.getElementById('callDemoStatus').innerHTML = '<strong>Session ID:</strong> ' + data.data.session_id + '<br><strong>Status:</strong> Calling...';
+                        } else {
+                            showToast('❌ ' + (data.message || 'Failed to start call'), 'error');
+                        }
+                    } catch (e) {
+                        showToast('❌ Error: ' + (e.message || 'Network error'), 'error');
+                    } finally {
+                        callStartBtn.disabled = false;
+                        callStartBtn.innerHTML = '<i data-lucide="phone" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Call';
+                    }
+                });
+            }
+
+            const simulateIncomingBtn = document.getElementById('simulateIncomingBtn');
+            if (simulateIncomingBtn) {
+                simulateIncomingBtn.addEventListener('click', async () => {
+                    simulateIncomingBtn.disabled = true;
+                    simulateIncomingBtn.textContent = 'Simulating...';
+                    const phone = document.getElementById('incomingCallPhone').value.trim() || '9876543210';
+                    try {
+                        const res = await fetch('/exotel/simulate-incoming', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+                            body: JSON.stringify({ customerNumber: phone })
+                        });
+                        const data = await res.json();
+                        const statusDiv = document.getElementById('incomingCallStatus');
+                        const logDiv = document.getElementById('incomingCallLog');
+                        if (res.ok && data.data) {
+                            statusDiv.style.display = 'block';
+                            logDiv.innerHTML = '<div>📞 Call from: ' + data.data.customer_number + '</div>' +
+                                '<div>⏱️ Status: ' + data.data.status + '</div>' +
+                                (data.data.ai_response ? '<div>🤖 AI Response: ' + data.data.ai_response.substring(0, 100) + '...</div>' : '');
+                            showToast('✅ Simulation started', 'success');
+                        } else {
+                            showToast('❌ ' + (data.message || 'Simulation failed'), 'error');
+                        }
+                    } catch (e) {
+                        showToast('❌ Error: ' + (e.message || 'Network error'), 'error');
+                    } finally {
+                        simulateIncomingBtn.disabled = false;
+                        simulateIncomingBtn.innerHTML = '<i data-lucide="phone-incoming" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Simulate';
+                    }
+                });
+            }
+
+            const emailSendBtn = document.getElementById('emailSendDemoBtn');
+            if (emailSendBtn) {
+                emailSendBtn.addEventListener('click', async () => {
+                    const email = document.getElementById('emailDemoAddr').value.trim();
+                    if (!email) { showToast('❌ Please enter an email address', 'error'); return; }
+                    emailSendBtn.disabled = true;
+                    emailSendBtn.textContent = 'Sending...';
+                    try {
+                        const res = await fetch('/email/test?to=' + encodeURIComponent(email), {
+                            method: 'GET',
+                            headers: { 'Authorization': 'Bearer ' + getAuthToken() }
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showToast('✅ Test email sent to ' + email, 'success');
+                            document.getElementById('emailDemoHint').style.display = 'block';
+                            document.getElementById('emailDemoHint').innerHTML = '<strong>Provider:</strong> ' + (data.data?.provider || 'Mailgun') + '<br><strong>Status:</strong> Email queued for delivery';
+                        } else {
+                            showToast('❌ ' + (data.message || 'Failed to send email'), 'error');
+                        }
+                    } catch (e) {
+                        showToast('❌ Error: ' + (e.message || 'Network error'), 'error');
+                    } finally {
+                        emailSendBtn.disabled = false;
+                        emailSendBtn.innerHTML = '<i data-lucide="send" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Send';
+                    }
+                });
+            }
+
+            const smsSendBtn = document.getElementById('smsSendDemoBtn');
+            if (smsSendBtn) {
+                smsSendBtn.addEventListener('click', async () => {
+                    const phone = document.getElementById('smsDemoPhone').value.trim();
+                    const msg = document.getElementById('smsDemoMessage').value.trim();
+                    if (!phone) { showToast('❌ Please enter a phone number', 'error'); return; }
+                    smsSendBtn.disabled = true;
+                    smsSendBtn.textContent = 'Sending...';
+                    try {
+                        const res = await fetch('/sms/test', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+                            body: JSON.stringify({ phoneNumber: phone, message: msg || 'Test SMS from Versafic' })
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                            showToast('✅ Test SMS sent to ' + phone, 'success');
+                            document.getElementById('smsDemoHint').style.display = 'block';
+                            document.getElementById('smsDemoHint').innerHTML = '<strong>Provider:</strong> MSG91<br><strong>Status:</strong> SMS queued';
+                        } else {
+                            showToast('❌ ' + (data.message || 'Failed to send SMS'), 'error');
+                        }
+                    } catch (e) {
+                        showToast('❌ Error: ' + (e.message || 'Network error'), 'error');
+                    } finally {
+                        smsSendBtn.disabled = false;
+                        smsSendBtn.innerHTML = '<i data-lucide="send" style="width:1em;height:1em;vertical-align:middle;margin-right:6px"></i> Send Test';
+                    }
+                });
+            }
 
             // Wire up ALL buttons that don't already have onclick handlers
             document.querySelectorAll('.btn').forEach(btn => {

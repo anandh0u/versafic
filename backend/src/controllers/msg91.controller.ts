@@ -292,3 +292,96 @@ export const sendBulkSMS = async (req: Request, res: Response) => {
     }
   }
 };
+
+const smsDemoGuard = new Map<string, { count: number; windowStart: number; lastSentAt: number }>();
+const smsDemoWindowMs = 60 * 60 * 1000;
+const smsDemoMinIntervalMs = 60 * 1000;
+const smsDemoMaxPerWindow = 5;
+
+const enforceSmsDemoGuard = (userId: string) => {
+  const now = Date.now();
+  const current = smsDemoGuard.get(userId);
+
+  if (!current || now - current.windowStart >= smsDemoWindowMs) {
+    smsDemoGuard.set(userId, { count: 0, windowStart: now, lastSentAt: 0 });
+  }
+
+  const next = smsDemoGuard.get(userId)!;
+  if (next.lastSentAt && now - next.lastSentAt < smsDemoMinIntervalMs) {
+    throw new AppError(429, ErrorCode.FORBIDDEN, 'Please wait a minute before sending another test SMS.');
+  }
+
+  if (next.count >= smsDemoMaxPerWindow) {
+    throw new AppError(429, ErrorCode.FORBIDDEN, 'Test SMS limit reached for this hour.');
+  }
+
+  next.count += 1;
+  next.lastSentAt = now;
+  smsDemoGuard.set(userId, next);
+};
+
+/**
+ * Send test SMS (demo endpoint with auth & rate limiting)
+ */
+export const sendTestSMS = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user?.id) {
+      throw new AppError(401, ErrorCode.UNAUTHORIZED, 'Sign in to send a test SMS.');
+    }
+
+    enforceSmsDemoGuard(String(user.id));
+
+    const { phoneNumber, message } = req.body;
+
+    if (!phoneNumber) {
+      throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Phone number is required');
+    }
+
+    if (typeof phoneNumber !== 'string') {
+      throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Phone number must be a string');
+    }
+
+    const msg = typeof message === 'string' && message.trim() ? message : 'Test SMS from Versafic';
+
+    if (msg.length > 160) {
+      throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'Message must be 160 characters or less');
+    }
+
+    if (!msg91Service.isReady()) {
+      throw new AppError(503, ErrorCode.SERVICE_UNAVAILABLE, 'MSG91 SMS service not configured');
+    }
+
+    const result = await msg91Service.sendSMS(phoneNumber, msg);
+
+    if (result.success) {
+      sendSuccess(res, 'Test SMS sent successfully', {
+        provider: 'MSG91',
+        messageId: result.messageId ?? null,
+        phoneNumber,
+        message: msg,
+      });
+      logger.info('Test SMS sent', { userId: user.id, phoneNumber });
+    } else {
+      throw new AppError(500, ErrorCode.INTERNAL_ERROR, result.error || 'Failed to send test SMS');
+    }
+  } catch (error) {
+    logger.error('Test SMS send error', error instanceof Error ? error : new Error(String(error)));
+
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({
+        status: 'error',
+        statusCode: error.statusCode,
+        message: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      res.status(500).json({
+        status: 'error',
+        statusCode: 500,
+        message: 'Failed to send test SMS',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+};

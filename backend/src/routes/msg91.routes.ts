@@ -1,5 +1,6 @@
 import express from 'express';
 import * as msg91Controller from '../controllers/msg91.controller';
+import { verifyToken } from '../middleware/jwt-auth';
 
 const router = express.Router();
 
@@ -48,5 +49,12 @@ router.post('/verify', msg91Controller.sendVerification);
  * Body: { phoneNumbers: string[], message: string (1-160 chars) }
  */
 router.post('/bulk', msg91Controller.sendBulkSMS);
+
+/**
+ * POST /sms/test
+ * Send a test SMS (demo/testing endpoint with auth & rate limiting)
+ * Body: { phoneNumber: string, message?: string }
+ */
+router.post('/test', verifyToken, msg91Controller.sendTestSMS);
 
 export default router;
